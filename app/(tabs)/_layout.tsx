@@ -51,14 +51,14 @@ function CustomTabBar() {
             tab={tab}
             isActive={activeRoute(tab.name)}
             badge={tab.name === 'activity' ? badge : 0}
-            onPress={() => router.push(tab.name === 'index' ? '/' : `/${tab.name}` as any)}
+            onPress={() => router.push(tab.name === 'index' ? '/' : `/${tab.name}`)}
           />
         ))}
 
         {/* Center create button */}
         <TouchableOpacity
           style={styles.createBtn}
-          onPress={() => router.push('/create-plan' as any)}
+          onPress={() => router.push('/create-plan')}
           activeOpacity={0.85}
           accessibilityLabel="Create new plan"
           accessibilityRole="button"
@@ -75,7 +75,7 @@ function CustomTabBar() {
             tab={tab}
             isActive={activeRoute(tab.name)}
             badge={tab.name === 'activity' ? badge : 0}
-            onPress={() => router.push(`/${tab.name}` as any)}
+            onPress={() => router.push(`/${tab.name}`)}
           />
         ))}
       </View>

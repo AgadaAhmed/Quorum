@@ -108,7 +108,7 @@ export default function CreatePlanScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images' as ImagePicker.MediaType],
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.7,

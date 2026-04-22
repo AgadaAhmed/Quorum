@@ -31,6 +31,25 @@ import QuorumProgressBar from '../../components/QuorumProgressBar';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
+interface Plan {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'confirmed' | 'archived';
+  category?: string;
+  date?: { seconds: number } | string;
+  location?: string;
+  votes?: string[];
+  requiredVotes?: number;
+  participants?: string[];
+  coverUrl?: string;
+  createdBy?: string;
+  isPublic?: boolean;
+  poll?: { question: string; options: string[]; votes: Record<string, string> };
+  maxParticipants?: number;
+  inviteCode?: string;
+}
+
 const CATEGORIES = [
   { label: 'All', value: 'all' },
   { label: 'Sports', value: 'Sports' },
@@ -43,7 +62,7 @@ const CATEGORIES = [
 ];
 
 export default function DiscoverScreen() {
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [joiningId, setJoiningId] = useState<string | null>(null);
@@ -62,13 +81,13 @@ export default function DiscoverScreen() {
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((p: any) => p.createdBy !== uid);
+        .filter((p) => p.createdBy !== uid);
       setPlans(data);
     });
     return unsub;
   }, []);
 
-  const handleJoin = async (item: any) => {
+  const handleJoin = async (item: Plan) => {
     if (joiningId) return;
     setJoiningId(item.id);
     try {
@@ -96,11 +115,11 @@ export default function DiscoverScreen() {
     }
   };
 
-  const isParticipant = (item: any) => item.participants?.includes(uid);
-  const isFull = (item: any) =>
+  const isParticipant = (item: Plan) => item.participants?.includes(uid);
+  const isFull = (item: Plan) =>
     !!item.maxParticipants && (item.participants?.length || 0) >= item.maxParticipants;
 
-  const filtered = plans.filter((p: any) => {
+  const filtered = plans.filter((p: Plan) => {
     const matchCat = category === 'all' || p.category === category;
     const matchSearch =
       !search || p.title?.toLowerCase().includes(search.toLowerCase());
