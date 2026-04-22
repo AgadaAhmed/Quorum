@@ -341,7 +341,7 @@ export default function PlanDetailScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           try {
             await deleteDoc(doc(db, 'plans', plan.id));
-            router.push('/home');
+            router.replace('/(tabs)');
           } catch {
             showToast('Failed to delete plan', 'error');
           }
@@ -362,7 +362,7 @@ export default function PlanDetailScreen() {
               participants: arrayRemove(uid),
               votes: arrayRemove(uid),
             });
-            router.push('/home');
+            router.replace('/(tabs)');
           } catch {
             showToast('Failed to leave plan', 'error');
           }
@@ -376,7 +376,7 @@ export default function PlanDetailScreen() {
     try {
       await updateDoc(doc(db, 'plans', plan.id), { archivedBy: arrayUnion(uid) });
       showToast('Plan archived');
-      router.push('/home');
+      router.replace('/(tabs)');
     } catch {
       showToast('Failed to archive plan', 'error');
     }
@@ -793,7 +793,7 @@ export default function PlanDetailScreen() {
       {/* Quorum & Vote */}
       <AnimatedCard index={1} style={{ marginBottom: Spacing.md }}>
         <Text style={styles.sectionTitle}>Quorum Progress</Text>
-        <QuorumProgressBar current={voteCount} required={required} onReached={triggerCelebration} />
+        <QuorumProgressBar votes={voteCount} required={required} />
         <View style={{ height: 12 }} />
         <AnimatedButton
           label={hasVoted ? "You're In — Withdraw" : 'Vote to Confirm'}

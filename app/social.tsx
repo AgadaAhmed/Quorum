@@ -300,7 +300,7 @@ export default function SocialScreen() {
   const visibleFriends = friends.filter((f) => !blockedUsers.includes(f.id));
 
   return (
-    <ScreenWrapper showTabBar>
+    <ScreenWrapper>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />

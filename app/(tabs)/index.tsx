@@ -316,7 +316,7 @@ export default function HomeScreen() {
   const avatarLetter = firstName ? firstName[0].toUpperCase() : '?';
 
   return (
-    <ScreenWrapper showTabBar>
+    <ScreenWrapper>
       <OnboardingSlider visible={showOnboarding} onDone={handleOnboardingDone} />
 
       {/* ------------------------------------------------------------------ */}
