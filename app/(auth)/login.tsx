@@ -193,7 +193,7 @@ export default function LoginScreen() {
           friends: [],
         });
       }
-      router.replace('/(drawer)/home');
+      router.replace('/(tabs)/');
     } catch (e: any) {
       setError(e.message?.replace('Firebase: ', '') || 'Something went wrong');
     } finally {

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -l \"TextInput\\\\|KeyboardAvoidingView\\\\|ScrollView\" C:/Users/Agada/Documents/Quorum/app/**/*.tsx C:/Users/Agada/Documents/Quorum/components/*.tsx 2>/dev/null)",
+      "Bash(npx expo install expo-notifications expo-image-picker expo-sharing expo-device @react-native-community/datetimepicker 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Agada\\\\Documents\\\\Quorum\" && npm install expo-calendar@~15.0.0 2>&1 | tail -5)",
+      "mcp__ide__getDiagnostics",
+      "Bash(ls \"C:/Users/Agada/Documents/Quorum/app/\\(tabs\\)/\")",
+      "Bash(cat \"C:/Users/Agada/Documents/Quorum/app/\\(tabs\\)/index.tsx\")",
+      "Bash(cat \"C:/Users/Agada/Documents/Quorum/app/\\(auth\\)/login.tsx\" 2>/dev/null || ls \"C:/Users/Agada/Documents/Quorum/app/\\(auth\\)/\")",
+      "Bash(ls \"C:/Users/Agada/Documents/Quorum/app/\\(drawer\\)/\")",
+      "Bash(cat \"C:/Users/Agada/Documents/Quorum/app/\\(drawer\\)/home.tsx\")",
+      "Bash(cat \"C:/Users/Agada/Documents/Quorum/app/\\(drawer\\)/create-plan.tsx\")",
+      "Bash(cat \"C:/Users/Agada/Documents/Quorum/app/\\(drawer\\)/profile.tsx\")",
+      "Bash(grep -l \"menuLines\\\\|menuLine\" \"C:/Users/Agada/Documents/Quorum/app/\\(drawer\\)/\"*.tsx 2>/dev/null || grep -rl \"menuLines\" \"C:/Users/Agada/Documents/Quorum/app\")",
+      "Bash(cat \"C:/Users/Agada/Documents/Quorum/app/\\(drawer\\)/social.tsx\")",
+      "Bash(cat \"C:/Users/Agada/Documents/Quorum/app/\\(drawer\\)/plan-detail.tsx\")",
+      "Bash(cd \"C:\\\\Users\\\\Agada\\\\Documents\\\\Quorum\" && npx tsc --noEmit --skipLibCheck 2>&1 | head -60)",
+      "Bash(cd \"C:\\\\Users\\\\Agada\\\\Documents\\\\Quorum\" && npx expo install expo-linear-gradient 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Agada\\\\Documents\\\\Quorum\" && node -e \"\nconst fs = require\\('fs'\\);\nconst files = [\n  'lib/scamDetection.ts',\n  'components/SafetyTimerModal.tsx',\n  'app/\\(drawer\\)/chat.tsx',\n  'app/\\(drawer\\)/events.tsx',\n  'app/\\(drawer\\)/plan-detail.tsx',\n];\nfiles.forEach\\(f => {\n  const content = fs.readFileSync\\(f, 'utf8'\\);\n  console.log\\(f + ': ' + content.length + ' chars'\\);\n}\\);\n\")",
+      "Bash(npx expo:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
