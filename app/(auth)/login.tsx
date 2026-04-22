@@ -422,7 +422,7 @@ export default function LoginScreen() {
                       setCountryPickerVisible(false);
                     }}
                     theme={{
-                      backgroundColor: Colors.card,
+                      backgroundColor: Colors.surfaceRaised,
                       onBackgroundTextColor: Colors.text,
                       fontSize: FontSize.md,
                       filterPlaceholderTextColor: Colors.textMuted,
