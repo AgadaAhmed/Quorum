@@ -126,7 +126,6 @@ export default function ChatScreen() {
     const unsub = onSnapshot(q, (snap) => {
       setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)));
       setLoadingMessages(false);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     });
     return unsub;
   }, []);
@@ -254,13 +253,14 @@ export default function ChatScreen() {
         ) : (
           <FlatList
             ref={flatListRef}
-            data={messages}
+            data={[...messages].reverse()}
             keyExtractor={(m) => m.id}
+            inverted
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.messageList}
             renderItem={({ item, index }) => (
               <ChatBubble message={item} isOwn={item.senderId === uid} index={index} />
             )}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
             ListEmptyComponent={
               <View style={styles.emptyChat}>
                 <Ionicons name="chatbubbles-outline" size={56} color={Colors.textMuted} style={{ marginBottom: 12 }} />

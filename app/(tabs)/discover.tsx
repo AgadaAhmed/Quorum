@@ -137,6 +137,7 @@ export default function DiscoverScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(p) => p.id}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={

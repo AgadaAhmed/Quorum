@@ -60,6 +60,8 @@ function CustomTabBar() {
           style={styles.createBtn}
           onPress={() => router.push('/create-plan' as any)}
           activeOpacity={0.85}
+          accessibilityLabel="Create new plan"
+          accessibilityRole="button"
         >
           <View style={styles.createInner}>
             <Ionicons name="add" size={28} color="#fff" />

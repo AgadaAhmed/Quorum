@@ -458,7 +458,8 @@ export default function SocialScreen() {
         <FlatList
           data={friendRequests}
           keyExtractor={(r) => r.fromId}
-          contentContainerStyle={{ padding: Spacing.md, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
           renderItem={({ item, index }) => (
             <AnimatedCard index={index} accentColor={Colors.primary}>
               <View style={styles.userRow}>
@@ -505,7 +506,8 @@ export default function SocialScreen() {
         <FlatList
           data={visibleFriends}
           keyExtractor={(u) => u.id}
-          contentContainerStyle={{ padding: Spacing.md, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
           renderItem={({ item, index }) => (
             <AnimatedCard index={index} accentColor={Colors.gold}>
               <View style={styles.userRow}>

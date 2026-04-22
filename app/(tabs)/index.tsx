@@ -462,6 +462,7 @@ export default function HomeScreen() {
         <FlatList
           data={filteredPlans}
           keyExtractor={(p) => p.id}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -1025,7 +1026,7 @@ const styles = StyleSheet.create({
   // Plan list
   listContent: {
     paddingHorizontal: Spacing.md,
-    paddingBottom: 32,
+    paddingBottom: 100,
   },
 
   // Plan card body
