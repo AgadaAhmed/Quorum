@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -119,12 +119,14 @@ export default function DiscoverScreen() {
   const isFull = (item: Plan) =>
     !!item.maxParticipants && (item.participants?.length || 0) >= item.maxParticipants;
 
-  const filtered = plans.filter((p: Plan) => {
+  const filtered = useMemo(() => plans.filter((p: Plan) => {
     const matchCat = category === 'all' || p.category === category;
     const matchSearch =
       !search || p.title?.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
-  });
+  }), [plans, category, search]);
+
+  const keyExtractor = useCallback((item: Plan) => item.id, []);
 
   return (
     <ScreenWrapper>
@@ -155,7 +157,8 @@ export default function DiscoverScreen() {
 
       <FlatList
         data={filtered}
-        keyExtractor={(p) => p.id}
+        keyExtractor={keyExtractor}
+        removeClippedSubviews={true}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}

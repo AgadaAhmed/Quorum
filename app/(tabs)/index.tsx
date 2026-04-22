@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -291,7 +291,7 @@ export default function HomeScreen() {
   };
 
   // ---- Filtered list ----
-  const filteredPlans = plans
+  const filteredPlans = useMemo(() => plans
     .filter((p) => {
       const archived = isArchivedForMe(p);
       if (filter === 'archived') return archived;
@@ -307,7 +307,32 @@ export default function HomeScreen() {
       const aPinned = isPinnedForMe(a) ? 1 : 0;
       const bPinned = isPinnedForMe(b) ? 1 : 0;
       return bPinned - aPinned;
-    });
+    }), [plans, filter, search, uid]);
+
+  const keyExtractor = useCallback((item: Plan) => item.id, []);
+
+  const renderPlanItem = useCallback(({ item, index }: { item: Plan; index: number }) => (
+    <SwipeablePlanCard
+      item={item}
+      index={index}
+      uid={uid}
+      isArchived={isArchivedForMe(item)}
+      isPinned={isPinnedForMe(item)}
+      onPress={() =>
+        router.push({ pathname: '/plan-detail', params: { id: item.id } })
+      }
+      onLongPress={() => showContextMenu(item)}
+      onChatPress={() =>
+        router.push({ pathname: '/chat', params: { planId: item.id, planTitle: item.title } })
+      }
+      onArchive={() => handleArchive(item.id)}
+      onUnarchive={() => handleUnarchive(item.id)}
+      onDelete={() => handleDeletePlan(item)}
+      onLeave={() => handleLeavePlan(item)}
+      onPin={() => handlePin(item.id)}
+      onUnpin={() => handleUnpin(item.id)}
+    />
+  ), [uid, router, showContextMenu, handleArchive, handleUnarchive, handleDeletePlan, handleLeavePlan, handlePin, handleUnpin]);
 
   const greeting = getGreeting();
   const firstName = (
@@ -461,7 +486,8 @@ export default function HomeScreen() {
       ) : (
         <FlatList
           data={filteredPlans}
-          keyExtractor={(p) => p.id}
+          keyExtractor={keyExtractor}
+          removeClippedSubviews={true}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           refreshControl={
@@ -522,28 +548,7 @@ export default function HomeScreen() {
               </View>
             )
           }
-          renderItem={({ item, index }) => (
-            <SwipeablePlanCard
-              item={item}
-              index={index}
-              uid={uid}
-              isArchived={isArchivedForMe(item)}
-              isPinned={isPinnedForMe(item)}
-              onPress={() =>
-                router.push({ pathname: '/plan-detail', params: { id: item.id } })
-              }
-              onLongPress={() => showContextMenu(item)}
-              onChatPress={() =>
-                router.push({ pathname: '/chat', params: { planId: item.id, planTitle: item.title } })
-              }
-              onArchive={() => handleArchive(item.id)}
-              onUnarchive={() => handleUnarchive(item.id)}
-              onDelete={() => handleDeletePlan(item)}
-              onLeave={() => handleLeavePlan(item)}
-              onPin={() => handlePin(item.id)}
-              onUnpin={() => handleUnpin(item.id)}
-            />
-          )}
+          renderItem={renderPlanItem}
         />
       )}
 
