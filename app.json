@@ -8,16 +8,18 @@
     "scheme": "quorum",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "backgroundColor": "#080608",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#080608",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "backgroundColor": "#080608",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -42,9 +44,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0f0a0b",
+          "backgroundColor": "#080608",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#080608"
           }
         }
       ],

@@ -64,9 +64,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const bgColor =
-    current?.type === 'error' ? Colors.error :
-    current?.type === 'info' ? Colors.primary :
-    Colors.success;
+    current?.type === 'error' ? Colors.errorDim :
+    current?.type === 'info' ? Colors.primaryDim :
+    Colors.successDim;
 
   return (
     <ToastContext.Provider value={{ showToast }}>
@@ -100,6 +100,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm + 2,
     borderRadius: Radius.full,
     maxWidth: '88%',
+    backgroundColor: Colors.surfaceOverlay,
+    borderWidth: 1,
+    borderColor: Colors.glassBorderStrong,
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 8,

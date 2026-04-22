@@ -30,7 +30,7 @@ export function SkeletonItem({ width = '100%', height = 16, borderRadius = Radiu
   return (
     <View
       style={[
-        { width: width as any, height, borderRadius, backgroundColor: Colors.border, overflow: 'hidden' },
+        { width: width as any, height, borderRadius, backgroundColor: Colors.surface, overflow: 'hidden' },
         style,
       ]}
     >
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   card: {
-    backgroundColor: Colors.cardElevated,
+    backgroundColor: Colors.surfaceRaised,
     borderRadius: 20,
     padding: 16,
     paddingLeft: 22,
