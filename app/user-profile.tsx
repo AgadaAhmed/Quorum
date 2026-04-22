@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: Colors.glassBorder,
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text, flex: 1, textAlign: 'center' },
@@ -386,5 +386,5 @@ const styles = StyleSheet.create({
   statBox: { flex: 1, alignItems: 'center', paddingVertical: 10 },
   statValue: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.primary },
   statLabel: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statDivider: { width: 1, height: 44, backgroundColor: Colors.border },
+  statDivider: { width: 1, height: 44, backgroundColor: Colors.glassBorder },
 });

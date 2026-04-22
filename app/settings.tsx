@@ -221,7 +221,7 @@ function SettingRow({ label, description, value, onValueChange, icon }: {
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: Colors.border, true: Colors.primary }}
+        trackColor={{ false: Colors.glassBorder, true: Colors.primary }}
         thumbColor={Colors.text}
       />
     </View>
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.glassBorder,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 30, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
@@ -247,11 +247,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 1, marginTop: Spacing.md, marginBottom: 4,
   },
   section: {
-    backgroundColor: Colors.card, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+    backgroundColor: Colors.surfaceRaised, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.glassBorder, overflow: 'hidden',
   },
   dangerSection: { borderColor: Colors.error + '44' },
-  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
+  divider: { height: 1, backgroundColor: Colors.glassBorder, marginHorizontal: Spacing.md },
   settingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: Spacing.md, paddingVertical: 14,

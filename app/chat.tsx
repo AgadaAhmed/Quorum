@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     paddingTop: 52,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.glassBorder,
     backgroundColor: Colors.background,
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   },
   participantsBadgeText: { color: Colors.text, fontSize: 9, fontWeight: '800' },
   participantsList: {
-    backgroundColor: Colors.card, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    backgroundColor: Colors.surfaceRaised, borderBottomWidth: 1, borderBottomColor: Colors.glassBorder,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 4,
   },
   participantsLabel: { fontSize: FontSize.xs, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   senderAvatarText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
   bubble: { maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.lg },
   otherBubble: {
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 4,
+    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder, borderBottomLeftRadius: 4,
   },
   ownBubble: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
   senderName: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: '700', marginBottom: 2 },
@@ -363,10 +363,10 @@ const styles = StyleSheet.create({
   timestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 4, alignSelf: 'flex-end' },
   ownTimestamp: { color: Colors.text + '88' },
   mentionList: {
-    backgroundColor: Colors.card, borderTopWidth: 1, borderTopColor: Colors.border,
+    backgroundColor: Colors.surfaceRaised, borderTopWidth: 1, borderTopColor: Colors.glassBorder,
     maxHeight: 160,
   },
-  mentionItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  mentionItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderBottomWidth: 1, borderBottomColor: Colors.glassBorder },
   mentionAvatar: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: Colors.primary + '44', alignItems: 'center', justifyContent: 'center',
@@ -381,11 +381,11 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 28 : Spacing.md,
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.glassBorder,
     backgroundColor: Colors.background,
   },
   input: {
-    flex: 1, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    flex: 1, backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder,
     borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 10,
     color: Colors.text, fontSize: FontSize.md, maxHeight: 100,
   },
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: Colors.border },
+  sendBtnDisabled: { backgroundColor: Colors.glassBorder },
   emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 4 },
   emptyChatText: { color: Colors.textMuted, fontSize: FontSize.md },
 });
