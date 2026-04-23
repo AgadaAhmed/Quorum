@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   FlatList,
@@ -57,6 +58,7 @@ export default function SocialScreen() {
   const tabPillLeft = useRef(new Animated.Value(0)).current;
   const tabPillWidth = useRef(new Animated.Value(0)).current;
   const tabPillInitialized = useRef(false);
+  const sendingRequest = useRef(false);
 
   const TABS = ['friends', 'search', 'requests'] as const;
 
@@ -181,7 +183,9 @@ export default function SocialScreen() {
   };
 
   const sendFriendRequest = async (toId: string, toName: string) => {
+    if (sendingRequest.current) return;
     if (sentRequests.has(toId)) return;
+    sendingRequest.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSentRequests((prev) => new Set(prev).add(toId));
     try {
@@ -194,6 +198,8 @@ export default function SocialScreen() {
     } catch {
       setSentRequests((prev) => { const next = new Set(prev); next.delete(toId); return next; });
       showToast('Failed to send request', 'error');
+    } finally {
+      sendingRequest.current = false;
     }
   };
 
@@ -384,7 +390,11 @@ export default function SocialScreen() {
               placeholder="Search by @username or name"
               placeholderTextColor={Colors.textMuted}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(text) => {
+                setSearchQuery(text);
+                if (text.trim().length > 0) setSearching(true);
+                else setSearching(false);
+              }}
               onSubmitEditing={handleSearch}
               returnKeyType="search"
               autoCapitalize="none"
@@ -394,6 +404,9 @@ export default function SocialScreen() {
               <Ionicons name="arrow-forward" size={18} color={Colors.text} />
             </TouchableOpacity>
           </View>
+          {searching && searchQuery.trim().length > 0 && (
+            <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 16 }} />
+          )}
           <FlatList
             data={results}
             keyExtractor={(u) => u.id}
@@ -441,8 +454,7 @@ export default function SocialScreen() {
               );
             }}
             ListEmptyComponent={
-              searching ? <Text style={styles.emptyText}>Searching...</Text> :
-              searchQuery ? (
+              !searching && searchQuery.trim() ? (
                 <View style={styles.emptyState}>
                   <Ionicons name="search-outline" size={56} color={Colors.textMuted} style={{ marginBottom: 12 }} />
                   <Text style={styles.emptyText}>No users found</Text>

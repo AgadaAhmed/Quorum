@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Switch,
@@ -11,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useToast } from '../components/Toast';
 import { signOut, deleteUser, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { auth, db } from '../lib/firebase';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -22,18 +23,35 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showInSearch, setShowInSearch] = useState(true);
+  const [showLocation, setShowLocation] = useState(true);
+  const [privateProfile, setPrivateProfile] = useState(false);
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
   const uid = auth.currentUser?.uid || '';
 
   useEffect(() => {
     if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
+    const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
       const data = snap.data();
       setNotificationsEnabled(data?.notificationsEnabled !== false);
       setShowInSearch(data?.showInSearch !== false);
+      setShowLocation(data?.showLocation ?? true);
+      setPrivateProfile(data?.privateProfile ?? false);
     });
+    return unsub;
   }, [uid]);
+
+  const toggleShowLocation = async (val: boolean) => {
+    setShowLocation(val);
+    if (!uid) return;
+    await updateDoc(doc(db, 'users', uid), { showLocation: val });
+  };
+
+  const togglePrivateProfile = async (val: boolean) => {
+    setPrivateProfile(val);
+    if (!uid) return;
+    await updateDoc(doc(db, 'users', uid), { privateProfile: val });
+  };
 
   const updatePref = async (key: string, value: boolean) => {
     Haptics.selectionAsync();
@@ -152,6 +170,63 @@ export default function SettingsScreen() {
             }}
             icon="eye-outline"
           />
+        </View>
+
+        {/* Privacy */}
+        <Text style={styles.sectionLabel}>Privacy</Text>
+        <View style={styles.section}>
+          <View style={styles.settingRow}>
+            <Ionicons name="location-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 4 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingLabel}>Show location on profile</Text>
+              <Text style={styles.settingDesc}>Display your city publicly</Text>
+            </View>
+            <Switch
+              value={showLocation}
+              onValueChange={toggleShowLocation}
+              trackColor={{ false: Colors.glassBorder, true: Colors.primary }}
+              thumbColor={Colors.text}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.settingRow}>
+            <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 4 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingLabel}>Private profile</Text>
+              <Text style={styles.settingDesc}>Only friends can see your plans</Text>
+            </View>
+            <Switch
+              value={privateProfile}
+              onValueChange={togglePrivateProfile}
+              trackColor={{ false: Colors.glassBorder, true: Colors.primary }}
+              thumbColor={Colors.text}
+            />
+          </View>
+        </View>
+
+        {/* Help & About */}
+        <Text style={styles.sectionLabel}>Help & About</Text>
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.actionRow} onPress={() => Linking.openURL('mailto:support@quorum.app')}>
+            <Ionicons name="mail-outline" size={22} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.actionLabel, { color: Colors.primary }]}>Contact Support</Text>
+              <Text style={styles.actionDesc}>support@quorum.app</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.actionRow} onPress={() => Linking.openURL('https://quorum.app/privacy')}>
+            <Ionicons name="document-text-outline" size={22} color={Colors.textSecondary} />
+            <Text style={styles.actionLabel}>Privacy Policy</Text>
+            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.actionRow} onPress={() => Linking.openURL('https://quorum.app/terms')}>
+            <Ionicons name="shield-checkmark-outline" size={22} color={Colors.textSecondary} />
+            <Text style={styles.actionLabel}>Terms of Service</Text>
+            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
         </View>
 
         {/* Account */}

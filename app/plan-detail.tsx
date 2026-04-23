@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -60,6 +60,7 @@ const CATEGORY_EMOJI: Record<string, string> = {
 
 const DETAIL_TABS = ['Overview', 'Poll', 'Chat', 'Moments'] as const;
 type DetailTab = typeof DETAIL_TABS[number];
+type VisibleTab = { key: string; label: string };
 
 type Friend = { id: string; displayName: string; username?: string };
 
@@ -92,6 +93,21 @@ export default function PlanDetailScreen() {
   const [submittingRating, setSubmittingRating] = useState(false);
   const [creatorName, setCreatorName] = useState('');
   const [activeTab, setActiveTab] = useState<DetailTab>('Overview');
+
+  const visibleTabs = useMemo(() => {
+    const tabs: VisibleTab[] = [{ key: 'Overview', label: 'Overview' }];
+    if (plan?.poll?.question) tabs.push({ key: 'Poll', label: 'Poll' });
+    tabs.push({ key: 'Chat', label: 'Chat' });
+    if (plan?.status === 'confirmed') tabs.push({ key: 'Moments', label: 'Moments' });
+    return tabs;
+  }, [plan?.poll?.question, plan?.status]);
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.find(t => t.key === activeTab)) {
+      setActiveTab('Overview' as any);
+    }
+  }, [visibleTabs]);
+
   // Safety features
   const [timerActive, setTimerActive] = useState(false);
   const [timerEndsAt, setTimerEndsAt] = useState<number>(0);
@@ -1217,15 +1233,34 @@ export default function PlanDetailScreen() {
           </View>
         </View>
 
+        {/* Vote deadline banner */}
+        {plan?.voteDeadline && plan.status === 'pending' && (() => {
+          const deadlineMs = plan.voteDeadline?.seconds
+            ? plan.voteDeadline.seconds * 1000
+            : new Date(plan.voteDeadline).getTime();
+          const diff = deadlineMs - Date.now();
+          if (diff <= 0 || diff > 7 * 24 * 60 * 60 * 1000) return null;
+          const totalHours = Math.floor(diff / 3600000);
+          const days = Math.floor(totalHours / 24);
+          const hours = totalHours % 24;
+          const label = days > 0 ? `${days}d ${hours}h` : `${totalHours}h`;
+          return (
+            <View style={styles.deadlineBanner}>
+              <Ionicons name="timer-outline" size={14} color={Colors.gold} />
+              <Text style={styles.deadlineText}>Vote closes in {label}</Text>
+            </View>
+          );
+        })()}
+
         {/* Tab bar */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsBar}>
-          {DETAIL_TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <TouchableOpacity
-              key={t}
-              onPress={() => setActiveTab(t)}
-              style={[styles.detailTab, activeTab === t && styles.detailTabActive]}
+              key={t.key}
+              onPress={() => setActiveTab(t.key as DetailTab)}
+              style={[styles.detailTab, activeTab === t.key && styles.detailTabActive]}
             >
-              <Text style={[styles.detailTabLabel, activeTab === t && styles.detailTabLabelActive]}>{t}</Text>
+              <Text style={[styles.detailTabLabel, activeTab === t.key && styles.detailTabLabelActive]}>{t.label}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -1773,6 +1808,12 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
+  deadlineBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.goldDim,
+    borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 8,
+    marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: Colors.gold + '33',
+  },
+  deadlineText: { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.semibold },
 });
 
 const sosStyles = StyleSheet.create({
