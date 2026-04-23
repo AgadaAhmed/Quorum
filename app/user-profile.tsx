@@ -19,6 +19,9 @@ import {
   query,
   where,
   getDocs,
+  orderBy,
+  limit,
+  onSnapshot,
 } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { auth, db } from '../lib/firebase';
@@ -27,7 +30,7 @@ import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
 import { SkeletonProfile } from '../components/SkeletonLoader';
 import { useToast } from '../components/Toast';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 type Profile = {
@@ -54,6 +57,8 @@ export default function UserProfileScreen() {
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [mutualCount, setMutualCount] = useState(0);
+  const [theirPlans, setTheirPlans] = useState<any[]>([]);
 
   const avatarScale = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -74,6 +79,11 @@ export default function UserProfileScreen() {
       const myFriends: string[] = myData?.friends || [];
       const myIncoming: any[] = myData?.friendRequests || [];
       setMyRequests(myIncoming);
+
+      // Compute mutual friends
+      const profileData = profileSnap.data() as Profile;
+      const theirFriends: string[] = profileData?.friends ?? [];
+      setMutualCount(myFriends.filter(id => theirFriends.includes(id)).length);
 
       if (userId === uid) {
         setRelation('self');
@@ -97,6 +107,21 @@ export default function UserProfileScreen() {
         Animated.timing(contentOpacity, { toValue: 1, duration: 400, delay: 150, useNativeDriver: true }),
       ]).start();
     });
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const q = query(
+      collection(db, 'plans'),
+      where('createdBy', '==', userId),
+      where('isPublic', '==', true),
+      orderBy('createdAt', 'desc'),
+      limit(5)
+    );
+    const unsub = onSnapshot(q, snap => {
+      setTheirPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return unsub;
   }, [userId]);
 
   const handleAddFriend = async () => {
@@ -261,6 +286,13 @@ export default function UserProfileScreen() {
             </View>
           )}
 
+          {mutualCount > 0 && (
+            <View style={styles.mutualRow}>
+              <Ionicons name="people-outline" size={13} color={Colors.textMuted} />
+              <Text style={styles.mutualText}>{mutualCount} mutual friend{mutualCount !== 1 ? 's' : ''}</Text>
+            </View>
+          )}
+
           {/* Relationship actions */}
           {relation !== 'self' && (
             <View style={styles.friendActions}>
@@ -336,6 +368,40 @@ export default function UserProfileScreen() {
             <StatBox label="Plans" value={String(planCount)} />
           </View>
         </AnimatedCard>
+
+        {/* Their public plans */}
+        {theirPlans.length > 0 && (
+          <View style={styles.plansSection}>
+            <Text style={styles.sectionLabel}>Plans</Text>
+            {theirPlans.map((plan) => {
+              const statusColor =
+                plan.status === 'confirmed' ? Colors.success :
+                plan.status === 'archived' ? Colors.textMuted :
+                Colors.primary;
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={styles.planRow}
+                  onPress={() => router.push({ pathname: '/plan-detail', params: { id: plan.id } } as any)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.planRowAccent, { backgroundColor: statusColor }]} />
+                  <View style={styles.planRowContent}>
+                    <Text style={styles.planRowTitle} numberOfLines={1}>{plan.title}</Text>
+                    {plan.date && (
+                      <Text style={styles.planRowDate}>
+                        {new Date(plan.date.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={[styles.planStatusPill, { backgroundColor: statusColor + '22' }]}>
+                    <Text style={[styles.planStatusText, { color: statusColor }]}>{plan.status}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </ScreenWrapper>
   );
@@ -387,4 +453,15 @@ const styles = StyleSheet.create({
   statValue: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.primary },
   statLabel: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
   statDivider: { width: 1, height: 44, backgroundColor: Colors.glassBorder },
+  mutualRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, marginBottom: 4 },
+  mutualText: { fontSize: FontSize.sm, color: Colors.textMuted },
+  plansSection: { paddingHorizontal: Spacing.md, marginTop: Spacing.md },
+  sectionLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
+  planRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.glassBorder },
+  planRowAccent: { width: 3, alignSelf: 'stretch' },
+  planRowContent: { flex: 1, paddingVertical: 12, paddingLeft: 12 },
+  planRowTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.text },
+  planRowDate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  planStatusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full, marginRight: 12 },
+  planStatusText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, textTransform: 'capitalize' },
 });

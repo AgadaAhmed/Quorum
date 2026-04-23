@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -68,6 +68,7 @@ export default function ProfileScreen() {
   const [voteCount, setVoteCount] = useState(0);
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [myPlans, setMyPlans] = useState<any[]>([]);
 
   const { showToast } = useToast();
   const avatarScale = useRef(new Animated.Value(0)).current;
@@ -103,6 +104,20 @@ export default function ProfileScreen() {
       delay: 200,
       useNativeDriver: true,
     }).start();
+  }, []);
+
+  useEffect(() => {
+    if (!uid) return;
+    const q = query(
+      collection(db, 'plans'),
+      where('participants', 'array-contains', uid),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setMyPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return unsub;
   }, []);
 
   const handleSave = async () => {
@@ -279,6 +294,37 @@ export default function ProfileScreen() {
             style={styles.actionBtn}
           />
         </View>
+
+        {/* ── My Plans ── */}
+        {myPlans.length > 0 && (
+          <View style={styles.plansSection}>
+            <Text style={styles.sectionLabel}>My Plans</Text>
+            {myPlans.map((plan) => {
+              const statusColor = plan.status === 'confirmed' ? Colors.success : plan.status === 'archived' ? Colors.textMuted : Colors.primary;
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={styles.planRow}
+                  onPress={() => router.push({ pathname: '/plan-detail', params: { id: plan.id } } as any)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.planRowAccent, { backgroundColor: statusColor }]} />
+                  <View style={styles.planRowContent}>
+                    <Text style={styles.planRowTitle} numberOfLines={1}>{plan.title}</Text>
+                    {plan.date && (
+                      <Text style={styles.planRowDate}>
+                        {new Date(plan.date.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={[styles.planStatusPill, { backgroundColor: statusColor + '22' }]}>
+                    <Text style={[styles.planStatusText, { color: statusColor }]}>{plan.status}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* ── Emergency Contact Card ── */}
         <View style={styles.card}>
@@ -693,4 +739,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.glassBorder,
     marginVertical: Spacing.md,
   },
+
+  // My Plans section
+  plansSection: { paddingHorizontal: Spacing.md, marginBottom: Spacing.lg },
+  sectionLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.glassBorder },
+  planRowAccent: { width: 3, alignSelf: 'stretch' },
+  planRowContent: { flex: 1, paddingVertical: 12, paddingLeft: 12 },
+  planRowTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.text },
+  planRowDate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  planStatusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full, marginRight: 12 },
+  planStatusText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, textTransform: 'capitalize' },
 });
