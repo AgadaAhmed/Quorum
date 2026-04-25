@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Image,
-  Share,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -13,10 +12,12 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import {
   arrayUnion,
   collection,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -24,12 +25,31 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import CategoryPillRow from '../../components/CategoryPill';
 import GlassCard from '../../components/GlassCard';
 import QuorumProgressBar from '../../components/QuorumProgressBar';
 import ScreenWrapper from '../../components/ScreenWrapper';
+import SkeletonCard from '../../components/SkeletonLoader';
+import { useToast } from '../../components/Toast';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(km: number) {
+  if (km < 1) return `${Math.round(km * 1000)}m`;
+  if (km < 10) return `${km.toFixed(1)}km`;
+  return `${Math.round(km)}km`;
+}
 
 interface Plan {
   id: string;
@@ -39,6 +59,8 @@ interface Plan {
   category?: string;
   date?: { seconds: number } | string;
   location?: string;
+  lat?: number;
+  lng?: number;
   votes?: string[];
   requiredVotes?: number;
   participants?: string[];
@@ -51,41 +73,74 @@ interface Plan {
 }
 
 const CATEGORIES = [
-  { label: 'All', value: 'all' },
+  { label: 'All',    value: 'all' },
+  { label: 'Music',  value: 'Music' },
+  { label: 'Food',   value: 'Food' },
   { label: 'Sports', value: 'Sports' },
-  { label: 'Food', value: 'Food & Drink' },
-  { label: 'Music', value: 'Music' },
-  { label: 'Arts', value: 'Arts & Culture' },
-  { label: 'Outdoors', value: 'Outdoors' },
-  { label: 'Social', value: 'Social' },
-  { label: 'Other', value: 'Other' },
+  { label: 'Art',    value: 'Art' },
+  { label: 'Gaming', value: 'Gaming' },
+  { label: 'Travel', value: 'Travel' },
+  { label: 'Party',  value: 'Party' },
+  { label: 'Study',  value: 'Study' },
 ];
 
 export default function DiscoverScreen() {
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const router = useRouter();
+  const { showToast } = useToast();
 
-  const uid = auth.currentUser?.uid || '';
+  const insets = useSafeAreaInsets();
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
+
+  // Keep uid in sync with auth state — queries must not fire unauthenticated
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
+  }, []);
+
+  // Request location permission and get coords for distance calculation
+  useEffect(() => {
+    Location.requestForegroundPermissionsAsync().then(({ status }) => {
+      if (status !== 'granted') return;
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then((pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      }).catch(() => {});
+    });
+  }, []);
+
+  const plansQuery = useMemo(() => query(
+    collection(db, 'plans'),
+    where('isPublic', '==', true),
+    where('status', 'in', ['pending', 'confirmed']),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  ), []);
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'plans'),
-      where('isPublic', '==', true),
-      where('status', 'in', ['pending', 'confirmed']),
-      orderBy('createdAt', 'desc'),
-      limit(40)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((p) => p.createdBy !== uid);
-      setPlans(data);
+    if (!uid) return; // don't query until authenticated
+    const unsub = onSnapshot(plansQuery, (snap) => {
+      setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Plan[]);
+      setLoading(false);
+    }, () => {
+      setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [uid]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const snap = await getDocs(plansQuery);
+      setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Plan[]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [uid]);
 
   const handleJoin = async (item: Plan) => {
     if (joiningId) return;
@@ -95,21 +150,10 @@ export default function DiscoverScreen() {
         participants: arrayUnion(uid),
         votes: arrayUnion(uid),
       });
-      Alert.alert(
-        "Tell someone you're going",
-        `Let a trusted contact know you're attending "${item.title}"${item.location ? ` at ${item.location}` : ''}.`,
-        [
-          {
-            text: 'Share',
-            onPress: () =>
-              Share.share({
-                message: `I'm going to "${item.title}"${item.location ? ` at ${item.location}` : ''}. If you don't hear from me after, check on me! (Sent from Quorum)`,
-              }),
-          },
-          { text: 'Skip', style: 'cancel' },
-        ]
-      );
+      showToast(`Joined "${item.title}"`, 'success');
       router.push({ pathname: '/plan-detail', params: { id: item.id } });
+    } catch {
+      showToast('Failed to join plan', 'error');
     } finally {
       setJoiningId(null);
     }
@@ -119,17 +163,195 @@ export default function DiscoverScreen() {
   const isFull = (item: Plan) =>
     !!item.maxParticipants && (item.participants?.length || 0) >= item.maxParticipants;
 
-  const filtered = useMemo(() => plans.filter((p: Plan) => {
-    const matchCat = category === 'all' || p.category === category;
-    const matchSearch =
-      !search || p.title?.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  }), [plans, category, search]);
+  const filtered = useMemo(() => {
+    const result = plans.filter((p: Plan) => {
+      const matchCat = category === 'all' || p.category === category;
+      const matchSearch = !search || p.title?.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchSearch;
+    });
+    // Sort by distance when user location is available, otherwise keep createdAt order
+    if (userCoords) {
+      result.sort((a, b) => {
+        const distA = a.lat != null && a.lng != null
+          ? haversineKm(userCoords.lat, userCoords.lng, a.lat, a.lng) : Infinity;
+        const distB = b.lat != null && b.lng != null
+          ? haversineKm(userCoords.lat, userCoords.lng, b.lat, b.lng) : Infinity;
+        return distA - distB;
+      });
+    }
+    return result;
+  }, [plans, category, search, userCoords]);
 
   const keyExtractor = useCallback((item: Plan) => item.id, []);
 
-  return (
-    <ScreenWrapper>
+  const renderItem = useCallback(({ item, index }: { item: Plan; index: number }) => {
+    const joined = isParticipant(item);
+    const full = isFull(item);
+    const isOwn = item.createdBy === uid;
+    const distKm = userCoords && item.lat != null && item.lng != null
+      ? haversineKm(userCoords.lat, userCoords.lng, item.lat, item.lng)
+      : null;
+    return (
+      <GlassCard
+        index={index}
+        onPress={() =>
+          router.push({
+            pathname: '/plan-detail',
+            params: { id: item.id },
+          })
+        }
+        glowColor={
+          item.status === 'confirmed' ? Colors.success : Colors.primary
+        }
+        style={styles.card}
+      >
+        {item.coverUrl ? (
+          <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
+        ) : (
+          <LinearGradient
+            colors={['#f43f5e22', '#100d14']}
+            style={styles.cardCoverGradient}
+          />
+        )}
+        <View style={styles.cardBody}>
+          <View style={styles.metaRow}>
+            {item.category ? (
+              <View style={styles.catPill}>
+                <Text style={styles.catText}>{item.category}</Text>
+              </View>
+            ) : null}
+            {isOwn && (
+              <View style={styles.ownPill}>
+                <Text style={styles.ownPillText}>Yours</Text>
+              </View>
+            )}
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor:
+                    item.status === 'confirmed'
+                      ? Colors.success
+                      : Colors.primary,
+                },
+              ]}
+            />
+            <Text
+              style={[
+                styles.statusLabel,
+                {
+                  color:
+                    item.status === 'confirmed'
+                      ? Colors.success
+                      : Colors.primary,
+                },
+              ]}
+            >
+              {item.status}
+            </Text>
+          </View>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <View style={styles.chipsRow}>
+            {item.date ? (
+              <View style={styles.chip}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={11}
+                  color={Colors.textMuted}
+                />
+                <Text style={styles.chipText}>
+                  {item.date?.seconds
+                    ? new Date(item.date.seconds * 1000).toLocaleDateString(
+                        'en-US',
+                        { month: 'short', day: 'numeric' }
+                      )
+                    : item.date}
+                </Text>
+              </View>
+            ) : null}
+            {item.location ? (
+              <View style={styles.chip}>
+                <Ionicons name="location-outline" size={11} color={Colors.textMuted} />
+                <Text style={styles.chipText} numberOfLines={1}>{item.location}</Text>
+              </View>
+            ) : null}
+            {distKm != null ? (
+              <View style={[styles.chip, styles.distChip]}>
+                <Ionicons name="navigate-outline" size={11} color={Colors.primary} />
+                <Text style={[styles.chipText, { color: Colors.primary }]}>
+                  {formatDistance(distKm)}
+                </Text>
+              </View>
+            ) : null}
+            <View style={styles.chip}>
+              <Ionicons
+                name="people-outline"
+                size={11}
+                color={Colors.textMuted}
+              />
+              <Text style={styles.chipText}>
+                {item.participants?.length ?? 0}
+                {item.maxParticipants ? `/${item.maxParticipants}` : ''}
+              </Text>
+            </View>
+          </View>
+          <QuorumProgressBar
+            votes={item.votes?.length ?? 0}
+            required={item.requiredVotes ?? 1}
+          />
+          <TouchableOpacity
+            style={[
+              styles.joinBtn,
+              joined && styles.joinBtnJoined,
+              full && !joined && styles.joinBtnFull,
+            ]}
+            onPress={() =>
+              joined
+                ? router.push({ pathname: '/plan-detail', params: { id: item.id } })
+                : full
+                ? undefined
+                : handleJoin(item)
+            }
+            disabled={joiningId === item.id || (full && !joined)}
+          >
+            <Ionicons
+              name={
+                joined
+                  ? 'checkmark-circle-outline'
+                  : full
+                  ? 'close-circle-outline'
+                  : 'enter-outline'
+              }
+              size={15}
+              color={
+                joined ? Colors.success : full ? Colors.textMuted : Colors.primary
+              }
+            />
+            <Text
+              style={[
+                styles.joinBtnText,
+                joined && styles.joinBtnTextJoined,
+                full && !joined && styles.joinBtnTextFull,
+              ]}
+            >
+              {joiningId === item.id
+                ? 'Joining...'
+                : joined
+                ? 'View Plan'
+                : full
+                ? 'Full'
+                : 'Join Plan'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </GlassCard>
+    );
+  }, [uid, router, joiningId, userCoords, handleJoin]);
+
+  const listHeader = (
+    <>
       <View style={styles.header}>
         <Text style={styles.title}>Discover</Text>
         <View style={styles.searchBar}>
@@ -148,21 +370,39 @@ export default function DiscoverScreen() {
           )}
         </View>
       </View>
-
       <CategoryPillRow
         pills={CATEGORIES}
         selected={category}
         onSelect={setCategory}
       />
+      {loading ? (
+        <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, gap: 12 }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : null}
+    </>
+  );
 
+  return (
+    <ScreenWrapper>
       <FlatList
-        data={filtered}
+        data={loading ? [] : filtered}
         keyExtractor={keyExtractor}
         removeClippedSubviews={true}
+        ListHeaderComponent={listHeader}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 90 }]}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+          />
+        }
+        ListEmptyComponent={loading ? null : (
           <View style={styles.empty}>
             <Ionicons name="compass-outline" size={48} color={Colors.textMuted} />
             <Text style={styles.emptyTitle}>No plans found</Text>
@@ -172,161 +412,8 @@ export default function DiscoverScreen() {
                 : 'Public plans will appear here'}
             </Text>
           </View>
-        }
-        renderItem={({ item, index }) => {
-          const joined = isParticipant(item);
-          const full = isFull(item);
-          return (
-            <GlassCard
-              index={index}
-              onPress={() =>
-                router.push({
-                  pathname: '/plan-detail',
-                  params: { id: item.id },
-                })
-              }
-              glowColor={
-                item.status === 'confirmed' ? Colors.success : Colors.primary
-              }
-              style={styles.card}
-            >
-              {item.coverUrl ? (
-                <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
-              ) : (
-                <LinearGradient
-                  colors={['#f43f5e22', '#100d14']}
-                  style={styles.cardCoverGradient}
-                />
-              )}
-              <View style={styles.cardBody}>
-                <View style={styles.metaRow}>
-                  {item.category ? (
-                    <View style={styles.catPill}>
-                      <Text style={styles.catText}>{item.category}</Text>
-                    </View>
-                  ) : null}
-                  <View
-                    style={[
-                      styles.statusDot,
-                      {
-                        backgroundColor:
-                          item.status === 'confirmed'
-                            ? Colors.success
-                            : Colors.primary,
-                      },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.statusLabel,
-                      {
-                        color:
-                          item.status === 'confirmed'
-                            ? Colors.success
-                            : Colors.primary,
-                      },
-                    ]}
-                  >
-                    {item.status}
-                  </Text>
-                </View>
-                <Text style={styles.cardTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <View style={styles.chipsRow}>
-                  {item.date ? (
-                    <View style={styles.chip}>
-                      <Ionicons
-                        name="calendar-outline"
-                        size={11}
-                        color={Colors.textMuted}
-                      />
-                      <Text style={styles.chipText}>
-                        {item.date?.seconds
-                          ? new Date(item.date.seconds * 1000).toLocaleDateString(
-                              'en-US',
-                              { month: 'short', day: 'numeric' }
-                            )
-                          : item.date}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {item.location ? (
-                    <View style={styles.chip}>
-                      <Ionicons
-                        name="location-outline"
-                        size={11}
-                        color={Colors.textMuted}
-                      />
-                      <Text style={styles.chipText} numberOfLines={1}>
-                        {item.location}
-                      </Text>
-                    </View>
-                  ) : null}
-                  <View style={styles.chip}>
-                    <Ionicons
-                      name="people-outline"
-                      size={11}
-                      color={Colors.textMuted}
-                    />
-                    <Text style={styles.chipText}>
-                      {item.participants?.length ?? 0}
-                      {item.maxParticipants ? `/${item.maxParticipants}` : ''}
-                    </Text>
-                  </View>
-                </View>
-                <QuorumProgressBar
-                  votes={item.votes?.length ?? 0}
-                  required={item.requiredVotes ?? 1}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.joinBtn,
-                    joined && styles.joinBtnJoined,
-                    full && !joined && styles.joinBtnFull,
-                  ]}
-                  onPress={() =>
-                    joined
-                      ? router.push({ pathname: '/plan-detail', params: { id: item.id } })
-                      : full
-                      ? undefined
-                      : handleJoin(item)
-                  }
-                  disabled={joiningId === item.id || (full && !joined)}
-                >
-                  <Ionicons
-                    name={
-                      joined
-                        ? 'checkmark-circle-outline'
-                        : full
-                        ? 'close-circle-outline'
-                        : 'enter-outline'
-                    }
-                    size={15}
-                    color={
-                      joined ? Colors.success : full ? Colors.textMuted : Colors.primary
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.joinBtnText,
-                      joined && styles.joinBtnTextJoined,
-                      full && !joined && styles.joinBtnTextFull,
-                    ]}
-                  >
-                    {joiningId === item.id
-                      ? 'Joining...'
-                      : joined
-                      ? 'View Plan'
-                      : full
-                      ? 'Full'
-                      : 'Join Plan'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </GlassCard>
-          );
-        }}
+        )}
+        renderItem={renderItem}
       />
     </ScreenWrapper>
   );
@@ -359,7 +446,6 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
-    paddingBottom: 100,
   },
   card: { padding: 0 },
   cardCover: {
@@ -386,6 +472,24 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.primary,
     fontWeight: FontWeight.semibold,
+  },
+  ownPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.goldDim,
+    borderWidth: 1,
+    borderColor: Colors.goldGlow,
+  },
+  ownPillText: {
+    fontSize: FontSize.xs,
+    color: Colors.gold,
+    fontWeight: FontWeight.semibold,
+  },
+  distChip: {
+    backgroundColor: Colors.primaryDim,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
   },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusLabel: {
