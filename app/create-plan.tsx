@@ -18,9 +18,12 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
+import { isAtPlanLimit, isAtTemplatesLimit } from '../lib/subscription';
+import { useSubscription } from '../hooks/useSubscription';
+import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
 import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
@@ -61,8 +64,10 @@ export default function CreatePlanScreen() {
   const [pollSubmitted, setPollSubmitted] = useState(false);
   const [accountAgeDays, setAccountAgeDays] = useState<number | null>(null);
   const COOLDOWN_DAYS = 7;
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
+  const { isPro } = useSubscription();
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
@@ -131,6 +136,18 @@ export default function CreatePlanScreen() {
   };
 
   const handleCreate = async () => {
+    if (!isPro) {
+      const q = query(
+        collection(db, 'plans'),
+        where('createdBy', '==', uid),
+        where('status', 'in', ['pending', 'confirmed'])
+      );
+      const snap = await getDocs(q);
+      if (isAtPlanLimit(snap.size, 'free')) {
+        setShowPaywall(true);
+        return;
+      }
+    }
     if (!title.trim()) { setError('Title is required'); return; }
     if (showPoll && !pollQuestion.trim()) { setError('Poll question is required'); return; }
     if (showPoll) {
@@ -635,6 +652,12 @@ export default function CreatePlanScreen() {
           </View>
         </View>
       </Modal>
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        reason="You've reached your 3-plan limit on the free tier."
+      />
     </ScreenWrapper>
   );
 }

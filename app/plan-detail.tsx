@@ -48,6 +48,9 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../lib/firebase';
+import { isAtTemplatesLimit, isAtMomentsLimit } from '../lib/subscription';
+import { useSubscription } from '../hooks/useSubscription';
+import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import SkeletonCard from '../components/SkeletonLoader';
@@ -134,6 +137,8 @@ export default function PlanDetailScreen() {
   const confettiRef = useRef<ConfettiRef>(null);
 
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
+  const { isPro } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
@@ -461,6 +466,10 @@ export default function PlanDetailScreen() {
   };
 
   const handleAddPhoto = async () => {
+    if (isAtMomentsLimit((plan?.photos?.length || 0), isPro ? 'pro' : 'free')) {
+      setShowPaywall(true);
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -508,7 +517,10 @@ export default function PlanDetailScreen() {
     const userRef = doc(db, 'users', uid);
     const snap = await getDoc(userRef);
     const existing: any[] = snap.data()?.templates || [];
-    if (existing.length >= 10) { showToast('Max 10 templates', 'error'); return; }
+    if (isAtTemplatesLimit(existing.length, isPro ? 'pro' : 'free')) {
+      setShowPaywall(true);
+      return;
+    }
     await updateDoc(userRef, { templates: [...existing, template] });
     showToast('Saved as template!');
   };
@@ -1517,6 +1529,12 @@ export default function PlanDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        reason="Upgrade to Pro to save more than 2 templates."
+      />
     </ScreenWrapper>
   );
 }

@@ -7,9 +7,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import Constants from 'expo-constants';
 import { doc, updateDoc } from 'firebase/firestore';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { auth, db } from '../lib/firebase';
 import { Colors } from '../lib/theme';
 import { ToastProvider } from '../components/Toast';
+import { RC_API_KEY_IOS, RC_API_KEY_ANDROID } from '../lib/subscription';
 
 // Push notifications were removed from Expo Go in SDK 53.
 // Only load expo-notifications in standalone/production builds.
@@ -96,6 +98,12 @@ export default function RootLayout() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const router = useRouter();
   const segments = useSegments();
+
+  useEffect(() => {
+    const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
+    Purchases.setLogLevel(LOG_LEVEL.VERBOSE); // remove before production
+    Purchases.configure({ apiKey });
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
