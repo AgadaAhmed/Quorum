@@ -22,10 +22,14 @@ import {
   query,
   orderBy,
   limit,
+  where,
+  Timestamp,
   doc,
   getDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { getChatHistoryCutoff } from '../lib/subscription';
+import { useSubscription } from '../hooks/useSubscription';
 import { useToast } from '../components/Toast';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { SkeletonChatBubble } from '../components/SkeletonLoader';
@@ -109,6 +113,7 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const { showToast } = useToast();
   const uid = auth.currentUser?.uid || '';
+  const { isPro } = useSubscription();
 
   const ROOM_ID = planId || 'global';
   const headerTitle = planTitle ? `${planTitle}` : 'Global Chat';
@@ -118,11 +123,19 @@ export default function ChatScreen() {
       setSenderName(snap.data()?.displayName || 'Anonymous');
     });
 
-    const q = query(
-      collection(db, 'chats', ROOM_ID, 'messages'),
-      orderBy('timestamp', 'asc'),
-      limit(100)
-    );
+    const cutoff = getChatHistoryCutoff(isPro ? 'pro' : 'free');
+    const q = cutoff
+      ? query(
+          collection(db, 'chats', ROOM_ID, 'messages'),
+          where('timestamp', '>=', Timestamp.fromDate(cutoff)),
+          orderBy('timestamp', 'asc'),
+          limit(100)
+        )
+      : query(
+          collection(db, 'chats', ROOM_ID, 'messages'),
+          orderBy('timestamp', 'asc'),
+          limit(200)
+        );
     const unsub = onSnapshot(q, (snap) => {
       setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)));
       setLoadingMessages(false);
