@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -15,8 +16,10 @@ import { signOut, deleteUser, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { auth, db } from '../lib/firebase';
+import { useSubscription } from '../hooks/useSubscription';
+import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
-import { Colors, FontSize, Spacing, Radius } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Spacing, Radius } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
@@ -26,7 +29,9 @@ export default function SettingsScreen() {
   const [showLocation, setShowLocation] = useState(true);
   const [privateProfile, setPrivateProfile] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const { showToast } = useToast();
+  const { isPro } = useSubscription();
   const uid = auth.currentUser?.uid || '';
 
   useEffect(() => {
@@ -146,6 +151,42 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Subscription */}
+        <Text style={styles.sectionLabel}>Subscription</Text>
+        <View style={styles.section}>
+          <View style={styles.settingRow}>
+            <Ionicons name="star-outline" size={20} color={isPro ? Colors.primary : Colors.textSecondary} style={{ marginRight: 4 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingLabel}>Current plan</Text>
+              <Text style={[styles.planValue, isPro && { color: Colors.primary }]}>
+                {isPro ? 'Quorum Pro' : 'Free'}
+              </Text>
+            </View>
+            {!isPro && (
+              <TouchableOpacity style={styles.upgradeBadge} onPress={() => setShowPaywall(true)}>
+                <Text style={styles.upgradeBadgeText}>Upgrade</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {isPro && (
+            <>
+              <View style={styles.divider} />
+              <TouchableOpacity
+                style={styles.actionRow}
+                onPress={() => Linking.openURL(
+                  Platform.OS === 'ios'
+                    ? 'https://apps.apple.com/account/subscriptions'
+                    : 'https://play.google.com/store/account/subscriptions'
+                )}
+              >
+                <Ionicons name="open-outline" size={22} color={Colors.textSecondary} />
+                <Text style={styles.actionLabel}>Manage subscription</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
         {/* Notifications */}
         <Text style={styles.sectionLabel}>Notifications</Text>
         <View style={styles.section}>
@@ -279,6 +320,11 @@ export default function SettingsScreen() {
 
         <Text style={styles.version}>Quorum v1.0.0</Text>
       </ScrollView>
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+      />
     </ScreenWrapper>
   );
 }
@@ -347,5 +393,15 @@ const styles = StyleSheet.create({
   actionDesc: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
   version: {
     textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.sm, marginTop: Spacing.xl,
+  },
+  planValue: {
+    fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2,
+  },
+  upgradeBadge: {
+    backgroundColor: Colors.primary, borderRadius: Radius.full,
+    paddingHorizontal: 14, paddingVertical: 6,
+  },
+  upgradeBadgeText: {
+    color: '#fff', fontSize: FontSize.sm, fontWeight: FontWeight.bold,
   },
 });
