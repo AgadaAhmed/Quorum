@@ -8,9 +8,11 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { doc, updateDoc } from 'firebase/firestore';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { auth, db } from '../lib/firebase';
 import { Colors } from '../lib/theme';
 import { ToastProvider } from '../components/Toast';
+import { RC_API_KEY_IOS, RC_API_KEY_ANDROID } from '../lib/subscription';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -86,6 +88,12 @@ export default function RootLayout() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const router = useRouter();
   const segments = useSegments();
+
+  useEffect(() => {
+    const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
+    Purchases.setLogLevel(LOG_LEVEL.VERBOSE); // remove before production
+    Purchases.configure({ apiKey });
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
