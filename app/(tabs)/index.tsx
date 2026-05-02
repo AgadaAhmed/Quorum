@@ -32,6 +32,7 @@ import {
   arrayRemove,
   arrayUnion,
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import SkeletonCard from '../../components/SkeletonLoader';
@@ -122,7 +123,11 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
-  const uid = auth.currentUser?.uid || '';
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
+  }, []);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [friendPlans, setFriendPlans] = useState<{
@@ -335,9 +340,16 @@ export default function HomeScreen() {
   ), [uid, router, showContextMenu, handleArchive, handleUnarchive, handleDeletePlan, handleLeavePlan, handlePin, handleUnpin]);
 
   const greeting = getGreeting();
-  const firstName = (
+  // Reactive display name — re-reads when uid changes (i.e. after auth resolves)
+  const [displayName, setDisplayName] = useState(
     auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || ''
-  ).split(' ')[0];
+  );
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => {
+      setDisplayName(u?.displayName || u?.email?.split('@')[0] || '');
+    });
+  }, []);
+  const firstName = displayName.split(' ')[0];
   const avatarLetter = firstName ? firstName[0].toUpperCase() : '?';
 
   return (
@@ -824,10 +836,20 @@ function SwipeablePlanCard({
                 <Text style={styles.metaText}>{participants.length}</Text>
               </View>
             )}
-            {item.status === 'confirmed' && countdown ? (
-              <View style={[styles.metaChip, styles.countdownChip]}>
-                <Ionicons name="time-outline" size={12} color={Colors.success} />
-                <Text style={styles.countdownText}>{countdown}</Text>
+            {countdown && item.status !== 'cancelled' ? (
+              <View style={[
+                styles.metaChip,
+                item.status === 'confirmed' ? styles.countdownChip : styles.countdownChipPending,
+              ]}>
+                <Ionicons
+                  name="time-outline"
+                  size={12}
+                  color={item.status === 'confirmed' ? Colors.success : Colors.primary}
+                />
+                <Text style={[
+                  styles.countdownText,
+                  item.status !== 'confirmed' && { color: Colors.primary },
+                ]}>{countdown}</Text>
               </View>
             ) : null}
           </View>
@@ -859,6 +881,11 @@ function SwipeablePlanCard({
                 {item.votes?.length || 0}/{item.requiredVotes || 3}
               </Text>
             </View>
+            {item.votes?.includes(uid) && (
+              <View style={styles.votedPill}>
+                <Text style={styles.votedPillText}>✓ Voted</Text>
+              </View>
+            )}
           </View>
         </View>
       </GlassCard>
@@ -1110,6 +1137,9 @@ const styles = StyleSheet.create({
   countdownChip: {
     backgroundColor: Colors.successDim,
   },
+  countdownChipPending: {
+    backgroundColor: Colors.primaryDim,
+  },
   countdownText: {
     fontSize: FontSize.xs,
     color: Colors.success,
@@ -1154,6 +1184,19 @@ const styles = StyleSheet.create({
   votesChipText: {
     color: Colors.primary,
     fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+  },
+  votedPill: {
+    backgroundColor: Colors.primaryDim,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  votedPillText: {
+    color: Colors.primary,
+    fontSize: 11,
     fontWeight: FontWeight.bold,
   },
 

@@ -130,7 +130,7 @@ export default function DiscoverScreen() {
       setLoading(false);
     });
     return unsub;
-  }, [uid]);
+  }, [uid, plansQuery]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -140,7 +140,7 @@ export default function DiscoverScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [uid]);
+  }, [plansQuery]);
 
   const handleJoin = async (item: Plan) => {
     if (joiningId) return;

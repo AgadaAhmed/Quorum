@@ -9,6 +9,7 @@ import {
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { Colors, FontSize, Radius, Shadow } from '../../lib/theme';
@@ -58,7 +59,10 @@ function CustomTabBar() {
         {/* Center create button */}
         <TouchableOpacity
           style={styles.createBtn}
-          onPress={() => router.push('/create-plan')}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push('/create-plan');
+          }}
           activeOpacity={0.85}
           accessibilityLabel="Create new plan"
           accessibilityRole="button"

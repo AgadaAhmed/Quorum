@@ -72,7 +72,7 @@ export default function MomentsGallery({ planId, isParticipant }: Props) {
       const blob = await resp.blob();
       const storageRef = ref(
         storage,
-        `moments/${planId}/${uid}_${Date.now()}.jpg`
+        `moments/${planId}/${Math.random().toString(36).slice(2) + Date.now().toString(36)}.jpg`
       );
       await uploadBytes(storageRef, blob);
       const url = await getDownloadURL(storageRef);

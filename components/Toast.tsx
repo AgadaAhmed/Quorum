@@ -40,6 +40,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       Animated.spring(translateY, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
     ]).start();
 
+    // Show longer for longer messages (min 2s, +40ms per char over 30, max 4.5s)
+    const duration = Math.min(2000 + Math.max(0, next.message.length - 30) * 40, 4500);
     timer.current = setTimeout(() => {
       Animated.parallel([
         Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }),
@@ -49,7 +51,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         showing.current = false;
         setTimeout(showNext, 80);
       });
-    }, 2500);
+    }, duration);
   }, []);
 
   const showToast = useCallback((msg: string, t: ToastType = 'success') => {

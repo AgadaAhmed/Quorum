@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +19,7 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, lim
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../../lib/firebase';
 import { useToast } from '../../components/Toast';
 import ScreenWrapper from '../../components/ScreenWrapper';
@@ -69,33 +71,51 @@ export default function ProfileScreen() {
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
   const [myPlans, setMyPlans] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { showToast } = useToast();
   const avatarScale = useRef(new Animated.Value(0)).current;
-  const uid = auth.currentUser?.uid || '';
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    if (!uid) return;
+    const snap = await getDoc(doc(db, 'users', uid));
+    const data = snap.data() as UserProfile;
+    setProfile(data);
+    setBio(data?.bio || '');
+    setDisplayName(data?.displayName || '');
+    setUsername(data?.username || '');
+    setCity(data?.city || '');
+    setCountry(data?.country || '');
+    setEmergencyName(data?.emergencyContact?.name || '');
+    setEmergencyPhone(data?.emergencyContact?.phone || '');
+  }, [uid]);
+
+  const loadStats = useCallback(async () => {
+    if (!uid) return;
+    const snap = await getDocs(query(collection(db, 'plans'), where('participants', 'array-contains', uid)));
+    setPlanCount(snap.size);
+    let votes = 0;
+    snap.docs.forEach((d) => {
+      if ((d.data().votes || []).includes(uid)) votes++;
+    });
+    setVoteCount(votes);
+  }, [uid]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([loadProfile(), loadStats()]);
+    setRefreshing(false);
+  }, [loadProfile, loadStats]);
 
   useEffect(() => {
     if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      const data = snap.data() as UserProfile;
-      setProfile(data);
-      setBio(data?.bio || '');
-      setDisplayName(data?.displayName || '');
-      setUsername(data?.username || '');
-      setCity(data?.city || '');
-      setCountry(data?.country || '');
-      setEmergencyName(data?.emergencyContact?.name || '');
-      setEmergencyPhone(data?.emergencyContact?.phone || '');
-    });
-
-    getDocs(query(collection(db, 'plans'), where('participants', 'array-contains', uid))).then((snap) => {
-      setPlanCount(snap.size);
-      let votes = 0;
-      snap.docs.forEach((d) => {
-        if ((d.data().votes || []).includes(uid)) votes++;
-      });
-      setVoteCount(votes);
-    });
+    loadProfile();
+    loadStats();
 
     Animated.spring(avatarScale, {
       toValue: 1,
@@ -104,7 +124,7 @@ export default function ProfileScreen() {
       delay: 200,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [uid]);
 
   useEffect(() => {
     if (!uid) return;
@@ -118,7 +138,7 @@ export default function ProfileScreen() {
       setMyPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     return unsub;
-  }, []);
+  }, [uid]);
 
   const handleSave = async () => {
     setUsernameError('');
@@ -150,13 +170,18 @@ export default function ProfileScreen() {
       updates.username = trimmedUsername;
       updates.usernameLower = trimmedUsername.toLowerCase();
     }
-    await updateDoc(doc(db, 'users', uid), updates);
-    setProfile((p) =>
-      p ? { ...p, displayName, bio, username: trimmedUsername, city: city.trim(), country: country.trim() } : p
-    );
-    setEditing(false);
-    setSaving(false);
-    showToast('Profile saved!');
+    try {
+      await updateDoc(doc(db, 'users', uid), updates);
+      setProfile((p) =>
+        p ? { ...p, displayName, bio, username: trimmedUsername, city: city.trim(), country: country.trim() } : p
+      );
+      setEditing(false);
+      showToast('Profile saved!');
+    } catch {
+      showToast('Failed to save profile', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAvatarPick = async () => {
@@ -172,14 +197,8 @@ export default function ProfileScreen() {
     setUploadingAvatar(true);
     try {
       const uri = result.assets[0].uri;
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = () => resolve(xhr.response);
-        xhr.onerror = () => reject(new Error('Network request failed'));
-        xhr.responseType = 'blob';
-        xhr.open('GET', uri, true);
-        xhr.send(null);
-      });
+      const response = await fetch(uri);
+      const blob = await response.blob();
       const storageRef = ref(storage, `avatars/${uid}`);
       await uploadBytes(storageRef, blob);
       const url = await getDownloadURL(storageRef);
@@ -207,6 +226,13 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+          />
+        }
       >
         {/* ── Hero Banner ── */}
         <View style={styles.heroContainer}>

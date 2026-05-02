@@ -14,7 +14,7 @@ export const Colors = {
   glassStrong: 'rgba(255,255,255,0.10)',
   glassBorder: 'rgba(255,255,255,0.07)',
   glassBorderStrong: 'rgba(255,255,255,0.14)',
-  glassHighlight: 'rgba(255,255,255,0.04)',
+  glassHighlight: 'rgba(255,255,255,0.09)',
 
   // Primary — Rose
   primary: '#f43f5e',

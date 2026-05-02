@@ -33,18 +33,20 @@ export default function GlassCard({
 
   useEffect(() => {
     if (noAnimate) return;
+    // Cap delay so lists of 10+ cards don't feel sluggish (max 240ms stagger)
+    const delay = Math.min(index * 60, 240);
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 350,
-        delay: index * 60,
+        duration: 300,
+        delay,
         useNativeDriver: true,
       }),
       Animated.spring(translateY, {
         toValue: 0,
         tension: 90,
         friction: 13,
-        delay: index * 60,
+        delay,
         useNativeDriver: true,
       }),
     ]).start();

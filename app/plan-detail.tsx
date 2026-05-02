@@ -19,7 +19,18 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
-import * as Notifications from 'expo-notifications';
+// Lazy import — expo-notifications' index.js runs DevicePushTokenAutoRegistration.fx.js
+// as a side-effect at load time, crashing Expo Go. Deferring to a getter means the
+// module only loads when a notification is actually scheduled (works fine in Expo Go).
+const Notifications = {
+  scheduleNotificationAsync: (...args: Parameters<typeof import('expo-notifications').scheduleNotificationAsync>) =>
+    (require('expo-notifications') as typeof import('expo-notifications')).scheduleNotificationAsync(...args),
+  cancelScheduledNotificationAsync: (...args: Parameters<typeof import('expo-notifications').cancelScheduledNotificationAsync>) =>
+    (require('expo-notifications') as typeof import('expo-notifications')).cancelScheduledNotificationAsync(...args),
+  SchedulableTriggerInputTypes: new Proxy({} as typeof import('expo-notifications').SchedulableTriggerInputTypes, {
+    get: (_t, prop) => (require('expo-notifications') as typeof import('expo-notifications')).SchedulableTriggerInputTypes[prop as keyof typeof import('expo-notifications').SchedulableTriggerInputTypes],
+  }),
+};
 import * as Calendar from 'expo-calendar';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -35,6 +46,7 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../lib/firebase';
 import ScreenWrapper from '../components/ScreenWrapper';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
@@ -121,7 +133,11 @@ export default function PlanDetailScreen() {
   const celebrationOpacity = useRef(new Animated.Value(0)).current;
   const confettiRef = useRef<ConfettiRef>(null);
 
-  const uid = auth.currentUser?.uid || '';
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -165,6 +181,10 @@ export default function PlanDetailScreen() {
       setEmergencyContact(data?.emergencyContact || null);
     });
   }, [uid]);
+
+  useEffect(() => {
+    if (!auth.currentUser) router.replace('/(auth)/login');
+  }, []);
 
   // Countdown interval for safety timer
   useEffect(() => {
@@ -247,8 +267,12 @@ export default function PlanDetailScreen() {
     Haptics.impactAsync(hasVoted ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
     try {
       await updateDoc(planRef, { votes: hasVoted ? arrayRemove(uid) : arrayUnion(uid) });
-      const newCount = (plan.votes?.length || 0) + (hasVoted ? -1 : 1);
-      if (!hasVoted && newCount >= plan.requiredVotes) {
+      // Re-read from server to get authoritative vote count before confirming
+      const freshSnap = await getDoc(planRef);
+      const freshVotes: string[] = freshSnap.data()?.votes || [];
+      const freshRequired: number = freshSnap.data()?.requiredVotes || plan.requiredVotes;
+      const freshStatus: string = freshSnap.data()?.status || plan.status;
+      if (!hasVoted && freshVotes.length >= freshRequired && freshStatus !== 'confirmed') {
         await updateDoc(planRef, { status: 'confirmed' });
         triggerCelebration();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -324,6 +348,9 @@ export default function PlanDetailScreen() {
 
   const handleInvite = async (friendId: string) => {
     if (!plan) return;
+    // Only the creator can invite; friendId must be in the user's actual friends list
+    if (plan.createdBy !== uid) { showToast('Only the creator can invite', 'error'); return; }
+    if (!friends.find((f) => f.id === friendId)) { showToast('You can only invite your friends', 'error'); return; }
     Haptics.selectionAsync();
     await updateDoc(doc(db, 'plans', plan.id), { participants: arrayUnion(friendId) });
     showToast('Friend invited!');
@@ -331,14 +358,15 @@ export default function PlanDetailScreen() {
 
   const handleSaveEdit = async () => {
     if (!editTitle.trim()) return;
+    if (plan.createdBy !== uid) { showToast('Only the creator can edit this plan', 'error'); return; }
     setSaving(true);
     const dateStr = editDate
       ? editDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
       : plan.date || '';
     await updateDoc(doc(db, 'plans', plan.id), {
-      title: editTitle.trim(),
-      description: editDesc.trim(),
-      location: editLocation.trim(),
+      title: editTitle.trim().slice(0, 80),
+      description: editDesc.trim().slice(0, 500),
+      location: editLocation.trim().slice(0, 150),
       date: dateStr,
       category: editCategory || null,
       isPublic: editIsPublic,
@@ -522,7 +550,7 @@ export default function PlanDetailScreen() {
     Haptics.selectionAsync();
     const itemId = `${uid}_${Date.now()}`;
     await updateDoc(doc(db, 'plans', plan.id), {
-      [`checklist.${itemId}`]: { text: newChecklistItem.trim(), completedBy: null, addedBy: uid },
+      [`checklist.${itemId}`]: { text: newChecklistItem.trim().slice(0, 200), completedBy: null, addedBy: uid },
     });
     setNewChecklistItem('');
   };
@@ -550,9 +578,9 @@ export default function PlanDetailScreen() {
     const myName = participantNames[uid] || auth.currentUser?.email?.split('@')[0] || 'You';
     await updateDoc(doc(db, 'plans', plan.id), {
       [`comments.${commentId}`]: {
-        text: newComment.trim(),
+        text: newComment.trim().slice(0, 500),
         authorId: uid,
-        authorName: myName,
+        authorName: myName.slice(0, 50),
         timestamp: Date.now(),
       },
     });
@@ -966,6 +994,7 @@ export default function PlanDetailScreen() {
                 placeholderTextColor={Colors.textMuted}
                 onSubmitEditing={handleAddChecklistItem}
                 returnKeyType="done"
+                maxLength={200}
               />
               <TouchableOpacity
                 onPress={handleAddChecklistItem}
@@ -1093,6 +1122,7 @@ export default function PlanDetailScreen() {
                 placeholderTextColor={Colors.textMuted}
                 onSubmitEditing={handleAddComment}
                 returnKeyType="send"
+                maxLength={500}
               />
               <TouchableOpacity
                 onPress={handleAddComment}
@@ -1286,6 +1316,7 @@ export default function PlanDetailScreen() {
                 onChangeText={setEditTitle}
                 placeholder="Title"
                 placeholderTextColor={Colors.textMuted}
+                maxLength={80}
               />
               <TextInput
                 style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
@@ -1294,6 +1325,7 @@ export default function PlanDetailScreen() {
                 placeholder="Description"
                 placeholderTextColor={Colors.textMuted}
                 multiline
+                maxLength={500}
               />
               <TextInput
                 style={styles.modalInput}
@@ -1301,6 +1333,7 @@ export default function PlanDetailScreen() {
                 onChangeText={setEditLocation}
                 placeholder="Location"
                 placeholderTextColor={Colors.textMuted}
+                maxLength={150}
               />
               <TouchableOpacity style={styles.modalInput} onPress={() => setShowEditDatePicker(true)}>
                 <Text style={{ color: editDate ? Colors.text : Colors.textMuted }}>

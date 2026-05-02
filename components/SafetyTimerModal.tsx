@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import * as Notifications from 'expo-notifications';
+// Lazy require — avoids DevicePushTokenAutoRegistration.fx.js side-effect crash in Expo Go
+const getNotifications = () => require('expo-notifications') as typeof import('expo-notifications');
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import AnimatedButton from './AnimatedButton';
@@ -39,14 +40,15 @@ export default function SafetyTimerModal({ visible, onClose, onStarted, planTitl
     setStarting(true);
     try {
       const endsAt = Date.now() + selectedDuration.ms;
-      const notificationId = await Notifications.scheduleNotificationAsync({
+      const N = getNotifications();
+      const notificationId = await N.scheduleNotificationAsync({
         content: {
           title: 'Safety Check-In',
           body: `You were attending "${planTitle}". Are you okay? Open Quorum to confirm.`,
           data: { planId },
         },
         trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          type: N.SchedulableTriggerInputTypes.DATE,
           date: new Date(endsAt),
         },
       });

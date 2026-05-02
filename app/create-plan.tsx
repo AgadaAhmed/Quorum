@@ -15,7 +15,9 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
@@ -38,6 +40,8 @@ export default function CreatePlanScreen() {
   const [location, setLocation] = useState('');
   const [date, setDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [time, setTime] = useState<Date>(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [requiredVotes, setRequiredVotes] = useState('3');
   const [isPublic, setIsPublic] = useState(false);
   const [category, setCategory] = useState('');
@@ -58,7 +62,11 @@ export default function CreatePlanScreen() {
   const [accountAgeDays, setAccountAgeDays] = useState<number | null>(null);
   const COOLDOWN_DAYS = 7;
 
-  const uid = auth.currentUser?.uid || '';
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
+  }, []);
 
   useEffect(() => {
     if (!uid) return;
@@ -77,6 +85,10 @@ export default function CreatePlanScreen() {
       }
     });
   }, [uid]);
+
+  useEffect(() => {
+    if (!auth.currentUser) router.replace('/(auth)/login');
+  }, []);
 
   const applyTemplate = (t: any) => {
     setTitle(t.name || '');
@@ -134,18 +146,30 @@ export default function CreatePlanScreen() {
       let coverUrl: string | null = null;
       if (coverUri) {
         setUploadingCover(true);
-        const blob = await new Promise<Blob>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.onload = () => resolve(xhr.response);
-          xhr.onerror = () => reject(new Error('Network request failed'));
-          xhr.responseType = 'blob';
-          xhr.open('GET', coverUri, true);
-          xhr.send(null);
-        });
-        const storageRef = ref(storage, `plan-covers/${planRef.id}`);
-        await uploadBytes(storageRef, blob);
-        coverUrl = await getDownloadURL(storageRef);
-        setUploadingCover(false);
+        try {
+          const response = await fetch(coverUri);
+          const blob = await response.blob();
+          const storageRef = ref(storage, `plan-covers/${planRef.id}`);
+          await uploadBytes(storageRef, blob);
+          coverUrl = await getDownloadURL(storageRef);
+        } catch {
+          // Cover upload failed — create plan without it
+        } finally {
+          setUploadingCover(false);
+        }
+      }
+
+      // Geocode location to lat/lng so Discover can show distance
+      let lat: number | null = null;
+      let lng: number | null = null;
+      if (location.trim()) {
+        try {
+          const results = await Location.geocodeAsync(location.trim());
+          if (results.length > 0) {
+            lat = results[0].latitude;
+            lng = results[0].longitude;
+          }
+        } catch {}
       }
 
       const poll = showPoll && pollQuestion.trim()
@@ -156,14 +180,16 @@ export default function CreatePlanScreen() {
           }
         : null;
 
-      const inviteCode = Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+      const inviteCode = Array.from({ length: 8 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
 
       await setDoc(planRef, {
-        title: title.trim(),
-        description: description.trim(),
-        location: location.trim(),
+        title: title.trim().slice(0, 80),
+        description: description.trim().slice(0, 500),
+        location: location.trim().slice(0, 150),
         date: date ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '',
-        dateTimestamp: date ? date.toISOString() : null,
+        dateTimestamp: date
+          ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), time.getHours(), time.getMinutes()).toISOString()
+          : null,
         category: category || null,
         requiredVotes: parseInt(requiredVotes) || 3,
         votes: [uid],
@@ -177,6 +203,8 @@ export default function CreatePlanScreen() {
         voteDeadline: voteDeadline ? voteDeadline.toISOString() : null,
         maxParticipants: maxParticipants || null,
         inviteCode,
+        lat,
+        lng,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push({ pathname: '/plan-detail', params: { id: planRef.id } });
@@ -191,6 +219,8 @@ export default function CreatePlanScreen() {
   const formattedDate = date
     ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     : null;
+
+  const formattedTime = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
   const formattedVoteDeadline = voteDeadline
     ? voteDeadline.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
@@ -258,6 +288,7 @@ export default function CreatePlanScreen() {
             onChangeText={setDescription}
             multiline
             numberOfLines={3}
+            maxLength={500}
           />
 
           <Label text="Location" />
@@ -267,6 +298,7 @@ export default function CreatePlanScreen() {
             placeholderTextColor={Colors.textMuted}
             value={location}
             onChangeText={setLocation}
+            maxLength={150}
           />
 
           <Label text="Date" />
@@ -307,6 +339,44 @@ export default function CreatePlanScreen() {
                     minimumDate={new Date()}
                     display="spinner"
                     onChange={(_, selected) => { if (selected) setDate(selected); }}
+                    style={{ backgroundColor: Colors.card }}
+                  />
+                </View>
+              </View>
+            </Modal>
+          )}
+
+          <Label text="Time" />
+          <TouchableOpacity style={[styles.input, styles.timeRow]} onPress={() => setShowTimePicker(true)}>
+            <Ionicons name="time-outline" size={16} color={Colors.textMuted} style={{ marginRight: 8 }} />
+            <Text style={{ color: Colors.text }}>{formattedTime}</Text>
+          </TouchableOpacity>
+
+          {Platform.OS === 'android' && showTimePicker && (
+            <DateTimePicker
+              value={time}
+              mode="time"
+              is24Hour={false}
+              onChange={(_, selected) => { setShowTimePicker(false); if (selected) setTime(selected); }}
+            />
+          )}
+          {Platform.OS === 'ios' && (
+            <Modal visible={showTimePicker} transparent animationType="slide">
+              <View style={styles.dateModalOverlay}>
+                <View style={styles.dateModalContent}>
+                  <View style={styles.dateModalHeader}>
+                    <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                      <Text style={styles.dateModalCancel}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                      <Text style={styles.dateModalDone}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={time}
+                    mode="time"
+                    display="spinner"
+                    onChange={(_, selected) => { if (selected) setTime(selected); }}
                     style={{ backgroundColor: Colors.card }}
                   />
                 </View>
@@ -385,7 +455,7 @@ export default function CreatePlanScreen() {
               value={category}
               onChangeText={setCategory}
               autoFocus
-              maxLength={40}
+              maxLength={30}
             />
           )}
 
@@ -471,6 +541,7 @@ export default function CreatePlanScreen() {
                 placeholderTextColor={Colors.textMuted}
                 value={pollQuestion}
                 onChangeText={setPollQuestion}
+                maxLength={200}
               />
               <Text style={styles.pollSectionLabel}>Options</Text>
               {pollOptions.map((opt, i) => (
@@ -485,6 +556,7 @@ export default function CreatePlanScreen() {
                       next[i] = t;
                       setPollOptions(next);
                     }}
+                    maxLength={100}
                   />
                   {pollOptions.length > 2 && (
                     <TouchableOpacity
@@ -592,6 +664,7 @@ const styles = StyleSheet.create({
     color: Colors.text, fontSize: FontSize.md, justifyContent: 'center',
   },
   multiline: { height: 90, textAlignVertical: 'top' },
+  timeRow: { flexDirection: 'row', alignItems: 'center' },
   clearDate: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: -4 },
   charCount: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'right', marginTop: -4 },
   coverPicker: {

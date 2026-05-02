@@ -30,6 +30,10 @@ export default function SettingsScreen() {
   const uid = auth.currentUser?.uid || '';
 
   useEffect(() => {
+    if (!auth.currentUser) router.replace('/(auth)/login');
+  }, []);
+
+  useEffect(() => {
     if (!uid) return;
     const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
       const data = snap.data();

@@ -26,13 +26,16 @@ export default function QuorumProgressBar({ votes, required, label }: Props) {
   }, [ratio]);
 
   useEffect(() => {
-    if (ratio >= 0.6) {
-      Animated.loop(
+    const nearComplete = ratio >= 0.6;
+    if (nearComplete) {
+      const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(glow, { toValue: 1, duration: 900, useNativeDriver: false }),
           Animated.timing(glow, { toValue: 0.4, duration: 900, useNativeDriver: false }),
         ])
-      ).start();
+      );
+      loop.start();
+      return () => loop.stop();
     } else {
       glow.setValue(0);
     }
@@ -52,12 +55,13 @@ export default function QuorumProgressBar({ votes, required, label }: Props) {
           style={{
             height: 12,
             borderRadius: Radius.full,
-            width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+            // Minimum 3% so the bar is always visible even at 0 votes
+            width: progress.interpolate({ inputRange: [0, 1], outputRange: ['3%', '100%'] }),
             overflow: 'hidden',
           }}
         >
           <LinearGradient
-            colors={reached ? ['#FFE55C', '#FFD700'] : ['#fb7185', '#f43f5e']}
+            colors={reached ? [Colors.goldLight, Colors.gold] : [Colors.primaryLight, Colors.primary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}

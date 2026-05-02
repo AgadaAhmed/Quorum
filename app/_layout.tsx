@@ -5,24 +5,34 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { Colors } from '../lib/theme';
 import { ToastProvider } from '../components/Toast';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Push notifications were removed from Expo Go in SDK 53.
+// Only load expo-notifications in standalone/production builds.
+const isExpoGo = Constants.appOwnership === 'expo';
+
+if (!isExpoGo) {
+  // Dynamic require avoids the module-level side-effect that crashes Expo Go
+  const Notifications = require('expo-notifications');
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 async function registerPushToken(uid: string) {
+  if (isExpoGo) return;
+  const Device = require('expo-device');
+  const Notifications = require('expo-notifications');
   if (!Device.isDevice) return;
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
@@ -99,18 +109,22 @@ export default function RootLayout() {
     if (user === undefined) return;
     const inAuth = segments[0] === '(auth)';
     const inTabs = segments[0] === '(tabs)';
+    // These are valid authenticated routes — don't redirect away from them
+    const inModal = ['plan-detail', 'create-plan', 'chat', 'social', 'settings', 'user-profile'].includes(segments[0] as string);
 
     if (!user && !inAuth) {
       router.replace('/(auth)/login');
     } else if (user && inAuth) {
       router.replace('/(tabs)');
-    } else if (user && !inTabs && !inAuth) {
+    } else if (user && !inTabs && !inAuth && !inModal) {
       router.replace('/(tabs)');
     }
   }, [user, segments]);
 
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    if (isExpoGo) return;
+    const Notifications = require('expo-notifications');
+    const sub = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const planId = response.notification.request.content.data?.planId as string | undefined;
       if (planId) router.push({ pathname: '/plan-detail', params: { id: planId } });
     });

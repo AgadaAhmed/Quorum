@@ -25,6 +25,7 @@ import {
   getDoc,
   serverTimestamp,
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedCard from '../components/AnimatedCard';
@@ -51,8 +52,12 @@ export default function SocialScreen() {
   const [joiningByCode, setJoiningByCode] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
-  const uid = auth.currentUser?.uid || '';
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
   const { showToast } = useToast();
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
+  }, []);
 
   const tabLayouts = useRef<Array<{ x: number; width: number }>>([]);
   const tabPillLeft = useRef(new Animated.Value(0)).current;
@@ -70,6 +75,10 @@ export default function SocialScreen() {
       Animated.spring(tabPillWidth, { toValue: layout.width, useNativeDriver: false, tension: 130, friction: 14 }),
     ]).start();
   };
+
+  useEffect(() => {
+    if (!auth.currentUser) router.replace('/(auth)/login');
+  }, []);
 
   // Mark current user as online when viewing Social
   useEffect(() => {
@@ -115,7 +124,7 @@ export default function SocialScreen() {
 
   const handleJoinByCode = async () => {
     const code = joinCode.trim().toUpperCase();
-    if (!code || code.length !== 6) { showToast('Enter a valid 6-character code', 'error'); return; }
+    if (!code || code.length !== 8) { showToast('Enter a valid 8-character code', 'error'); return; }
     setJoiningByCode(true);
     try {
       const snap = await getDocs(query(collection(db, 'plans'), where('inviteCode', '==', code)));
@@ -206,8 +215,11 @@ export default function SocialScreen() {
   const cancelRequest = async (toId: string) => {
     try {
       const toSnap = await getDoc(doc(db, 'users', toId));
-      const theirRequests = (toSnap.data()?.friendRequests || []).filter((r: any) => r.fromId !== uid);
-      await updateDoc(doc(db, 'users', toId), { friendRequests: theirRequests });
+      const theirRequests: any[] = toSnap.data()?.friendRequests || [];
+      const exactRequest = theirRequests.find((r: any) => r.fromId === uid);
+      if (exactRequest) {
+        await updateDoc(doc(db, 'users', toId), { friendRequests: arrayRemove(exactRequest) });
+      }
       setSentRequests((prev) => { const next = new Set(prev); next.delete(toId); return next; });
       showToast('Request cancelled', 'info');
     } catch {
@@ -363,11 +375,11 @@ export default function SocialScreen() {
             <View style={styles.joinCodeRow}>
               <TextInput
                 style={styles.joinCodeInput}
-                placeholder="Enter 6-character code"
+                placeholder="Enter 8-character code"
                 placeholderTextColor={Colors.textMuted}
                 value={joinCode}
                 onChangeText={(t) => setJoinCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                maxLength={6}
+                maxLength={8}
                 autoCapitalize="characters"
                 autoCorrect={false}
               />

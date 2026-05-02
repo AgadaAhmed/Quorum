@@ -35,6 +35,7 @@ function GlassInput({
   autoCapitalize,
   editable,
   rightElement,
+  maxLength,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   placeholder: string;
@@ -45,6 +46,7 @@ function GlassInput({
   autoCapitalize?: any;
   editable?: boolean;
   rightElement?: React.ReactNode;
+  maxLength?: number;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -71,6 +73,7 @@ function GlassInput({
         editable={editable !== false}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
+        maxLength={maxLength}
         style={inputStyles.input}
       />
       {rightElement}
@@ -97,6 +100,40 @@ const inputStyles = StyleSheet.create({
   wrapDisabled: { opacity: 0.5 },
   input: { flex: 1, color: Colors.text, fontSize: FontSize.md },
 });
+
+// ── Password Strength Bar ─────────────────────────────────────────────────────
+function getPasswordStrength(pw: string): { label: string; color: string; segments: number } {
+  if (pw.length < 6) return { label: 'Too short', color: '#ef4444', segments: 1 };
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasLower = /[a-z]/.test(pw);
+  const hasNumber = /[0-9]/.test(pw);
+  const hasSymbol = /[^A-Za-z0-9]/.test(pw);
+  const score = [pw.length >= 8, hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
+  if (score <= 2) return { label: 'Weak', color: '#f97316', segments: 2 };
+  if (score === 3) return { label: 'Fair', color: '#eab308', segments: 3 };
+  if (score === 4) return { label: 'Strong', color: '#22c55e', segments: 4 };
+  return { label: 'Very strong', color: '#10b981', segments: 5 };
+}
+
+function PasswordStrengthBar({ password }: { password: string }) {
+  const { label, color, segments } = getPasswordStrength(password);
+  return (
+    <View style={{ gap: 4, marginTop: -4 }}>
+      <View style={{ flexDirection: 'row', gap: 3 }}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <View
+            key={i}
+            style={{
+              flex: 1, height: 3, borderRadius: 2,
+              backgroundColor: i <= segments ? color : Colors.glassBorder,
+            }}
+          />
+        ))}
+      </View>
+      <Text style={{ fontSize: 11, color, fontWeight: '600' }}>{label}</Text>
+    </View>
+  );
+}
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 export default function LoginScreen() {
@@ -195,7 +232,23 @@ export default function LoginScreen() {
       }
       router.replace('/(tabs)/');
     } catch (e: any) {
-      setError(e.message?.replace('Firebase: ', '') || 'Something went wrong');
+      const code = e?.code || '';
+      if (
+        code === 'auth/user-not-found' ||
+        code === 'auth/wrong-password' ||
+        code === 'auth/invalid-credential' ||
+        code === 'auth/invalid-email'
+      ) {
+        setError('Incorrect email or password');
+      } else if (code === 'auth/email-already-in-use') {
+        setError('An account with this email already exists');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many attempts. Please try again later');
+      } else if (code === 'auth/weak-password') {
+        setError('Password must be at least 6 characters');
+      } else {
+        setError('Something went wrong. Please try again');
+      }
     } finally {
       setLoading(false);
     }
@@ -210,8 +263,10 @@ export default function LoginScreen() {
       await sendPasswordResetEmail(auth, email.trim());
       setResetSent(true);
       setError('');
-    } catch (e: any) {
-      setError(e.message?.replace('Firebase: ', '') || 'Could not send reset email');
+      // Auto-dismiss the confirmation after 4 seconds
+      setTimeout(() => setResetSent(false), 4000);
+    } catch {
+      setError('Something went wrong. Please try again');
     }
   };
 
@@ -269,6 +324,13 @@ export default function LoginScreen() {
                   setMode(m);
                   setError('');
                   setResetSent(false);
+                  // Clear all fields so register data doesn't bleed into login and vice versa
+                  setPassword('');
+                  setDisplayName('');
+                  setUsername('');
+                  setCity('');
+                  setCitySearch('');
+                  setShowPassword(false);
                 }}
                 activeOpacity={0.8}
               >
@@ -299,6 +361,7 @@ export default function LoginScreen() {
                   value={displayName}
                   onChangeText={setDisplayName}
                   autoCapitalize="words"
+                  maxLength={50}
                 />
                 <GlassInput
                   icon="at-outline"
@@ -341,18 +404,8 @@ export default function LoginScreen() {
               }
             />
 
-            {mode === 'register' && (
-              <View style={styles.hintRow}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={13}
-                  color={Colors.textMuted}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.hintText}>
-                  At least 6 characters. Use letters, numbers, or symbols.
-                </Text>
-              </View>
+            {mode === 'register' && password.length > 0 && (
+              <PasswordStrengthBar password={password} />
             )}
 
             {mode === 'login' && (
