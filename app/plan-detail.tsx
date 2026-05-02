@@ -36,7 +36,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
-import { isAtTemplatesLimit } from '../lib/subscription';
+import { isAtTemplatesLimit, isAtMomentsLimit } from '../lib/subscription';
 import { useSubscription } from '../hooks/useSubscription';
 import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -438,6 +438,10 @@ export default function PlanDetailScreen() {
   };
 
   const handleAddPhoto = async () => {
+    if (isAtMomentsLimit((plan?.photos?.length || 0), isPro ? 'pro' : 'free')) {
+      setShowPaywall(true);
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
