@@ -40,18 +40,22 @@ type UserProfile = {
   ratingAvg?: number;
 };
 
-function StatChip({ label, value, gold }: { label: string; value: any; gold?: boolean }) {
+function StatBadge({ label, value, sub }: { label: string; value: any; sub?: string }) {
   return (
-    <View style={{ flex: 1, alignItems: 'center', paddingVertical: 14 }}>
-      <Text style={{ fontSize: 24, fontWeight: '800', color: gold ? Colors.gold : Colors.text, letterSpacing: -0.5 }}>
-        {value}
-      </Text>
-      <Text style={{ fontSize: 10, color: Colors.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 3 }}>
-        {label}
-      </Text>
+    <View style={statStyles.badge}>
+      <Text style={statStyles.value}>{value}</Text>
+      {sub ? <Text style={statStyles.sub}>{sub}</Text> : null}
+      <Text style={statStyles.label}>{label}</Text>
     </View>
   );
 }
+
+const statStyles = StyleSheet.create({
+  badge: { flex: 1, alignItems: 'center', paddingVertical: 14 },
+  value: { fontSize: 22, fontWeight: '800', color: '#0f0f0f', letterSpacing: -0.5 },
+  sub: { fontSize: 10, color: '#5c5959', fontWeight: '600' },
+  label: { fontSize: 9, color: '#5c5959', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 2 },
+});
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -238,16 +242,20 @@ export default function ProfileScreen() {
           />
         }
       >
-        {/* ── Stats Row ── */}
+        {/* ── Stats Grid ── */}
         <View style={styles.statsContainer}>
-          <StatChip label="Active Plans" value={planCount} />
+          <StatBadge label="Plans" value={planCount} />
           <View style={styles.statDivider} />
-          <StatChip label="Votes Cast" value={voteCount} />
+          <StatBadge label="Votes" value={voteCount} />
           <View style={styles.statDivider} />
-          <StatChip
-            label="Network"
-            value={profile?.friends?.length ?? '--'}
-          />
+          <StatBadge label="Network" value={profile?.friends?.length ?? 0} />
+        </View>
+        <View style={[styles.statsContainer, { borderTopWidth: 0 }]}>
+          <StatBadge label="Quorum Rate" value={planCount > 0 ? `${Math.round((voteCount / Math.max(planCount * 3, 1)) * 100)}%` : '—'} />
+          <View style={styles.statDivider} />
+          <StatBadge label="Hosted" value={myPlans.filter((p: any) => p.createdBy === uid).length} />
+          <View style={styles.statDivider} />
+          <StatBadge label="Confirmed" value={myPlans.filter((p: any) => p.status === 'confirmed').length} />
         </View>
 
         {/* ── Hero Banner ── */}
@@ -264,41 +272,42 @@ export default function ProfileScreen() {
               )}
               {uploadingAvatar && (
                 <View style={styles.avatarOverlay}>
-                  <Ionicons name="cloud-upload-outline" size={22} color={Colors.text} />
+                  <Ionicons name="cloud-upload-outline" size={18} color={Colors.text} />
                 </View>
               )}
             </Animated.View>
-            {/* Camera badge */}
             <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={12} color={Colors.text} />
+              <Ionicons name="camera" size={10} color="#fff" />
             </View>
           </TouchableOpacity>
 
-          {/* Name & handle */}
-          <Text style={styles.heroName}>{profile?.displayName || 'Loading...'}</Text>
-          {profile?.username ? (
-            <Text style={styles.heroHandle}>@{profile.username}</Text>
-          ) : null}
-          {profile?.bio ? (
-            <Text style={styles.heroBio}>{profile.bio}</Text>
-          ) : null}
-          {hasLocation ? (
-            <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={13} color={Colors.textMuted} />
-              <Text style={styles.locationText}>
-                {[profile?.city, profile?.country].filter(Boolean).join(', ')}
+          {/* Name, handle, bio, consensus — beside avatar */}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroName}>{profile?.displayName || 'Loading...'}</Text>
+            {profile?.username ? (
+              <Text style={styles.heroHandle}>@{profile.username}</Text>
+            ) : null}
+            {profile?.bio ? (
+              <Text style={styles.heroBio} numberOfLines={2}>{profile.bio}</Text>
+            ) : null}
+            {hasLocation ? (
+              <View style={styles.locationRow}>
+                <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                <Text style={styles.locationText}>
+                  {[profile?.city, profile?.country].filter(Boolean).join(', ')}
+                </Text>
+              </View>
+            ) : null}
+            {/* Consensus bar */}
+            <View style={styles.consensusRow}>
+              <Text style={styles.consensusLabel}>
+                {planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0}% Consensus
               </Text>
-            </View>
-          ) : null}
-          {/* Consensus bar */}
-          <View style={styles.consensusRow}>
-            <Text style={styles.consensusLabel}>
-              {planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0}% Consensus
-            </Text>
-            <View style={styles.consensusTrack}>
-              <View style={[styles.consensusFill, {
-                width: `${Math.min(planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0, 100)}%`
-              }]} />
+              <View style={styles.consensusTrack}>
+                <View style={[styles.consensusFill, {
+                  width: `${Math.min(planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0, 100)}%`
+                }]} />
+              </View>
             </View>
           </View>
         </View>
@@ -326,6 +335,50 @@ export default function ProfileScreen() {
             size="sm"
             style={styles.actionBtn}
           />
+        </View>
+
+        {/* ── Social Interests ── */}
+        {(() => {
+          // Derive interests from plan categories
+          const categoryMap: Record<string, number> = {};
+          myPlans.forEach((p: any) => {
+            if (p.category) categoryMap[p.category] = (categoryMap[p.category] || 0) + 1;
+          });
+          const interests = Object.entries(categoryMap)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat]) => cat);
+          const DEFAULT_INTERESTS = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel'];
+          const displayInterests = interests.length > 0 ? interests : DEFAULT_INTERESTS;
+          return (
+            <View style={styles.interestsSection}>
+              <Text style={styles.sectionLabel}>Social Interests</Text>
+              <View style={styles.interestsTags}>
+                {displayInterests.slice(0, 8).map((tag) => (
+                  <View key={tag} style={styles.interestTag}>
+                    <Text style={styles.interestTagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          );
+        })()}
+
+        {/* ── Achievements ── */}
+        <View style={styles.achievementsSection}>
+          <Text style={styles.sectionLabel}>Achievements</Text>
+          <View style={styles.achievementsRow}>
+            {[
+              { icon: '🏆', label: 'Quorum King', unlocked: voteCount >= 10 },
+              { icon: '🎯', label: 'On Target', unlocked: planCount >= 3 },
+              { icon: '🤝', label: 'Connector', unlocked: (profile?.friends?.length ?? 0) >= 5 },
+              { icon: '⚡', label: 'Fast Mover', unlocked: myPlans.some((p: any) => p.status === 'confirmed') },
+            ].map((a) => (
+              <View key={a.label} style={[styles.achievementBadge, !a.unlocked && styles.achievementLocked]}>
+                <Text style={styles.achievementIcon}>{a.icon}</Text>
+                <Text style={[styles.achievementLabel, !a.unlocked && styles.achievementLabelLocked]}>{a.label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* ── My Plans ── */}
@@ -523,42 +576,43 @@ const styles = StyleSheet.create({
 
   // Hero
   heroContainer: {
-    alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
     paddingHorizontal: Spacing.container,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
+    gap: Spacing.sm,
   },
   avatarWrapper: {
-    marginBottom: Spacing.md,
     position: 'relative',
+    flexShrink: 0,
   },
   avatarCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: Colors.primaryBorder,
-    ...Shadow.indigoStrong,
+    borderWidth: 2,
+    borderColor: Colors.border,
   },
   avatarImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   avatarFallback: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.primaryDim,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitial: {
-    fontSize: FontSize.xxxl,
+    fontSize: FontSize.xl,
     fontWeight: FontWeight.black,
     color: Colors.primary,
   },
@@ -567,27 +621,26 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 48,
+    borderRadius: 32,
   },
   cameraBadge: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: Colors.background,
   },
   heroName: {
-    fontSize: FontSize.xl,
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.heavy,
     color: Colors.text,
     letterSpacing: -0.3,
-    marginTop: Spacing.sm,
   },
   heroHandle: {
     fontSize: FontSize.md,
@@ -874,6 +927,78 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
     marginTop: 3,
+  },
+
+  // Social Interests
+  interestsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
+  },
+  interestsTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  interestTag: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#0f0f0f',
+    backgroundColor: '#ffffff',
+  },
+  interestTagText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f0f0f',
+    letterSpacing: 0.3,
+  },
+
+  // Achievements
+  achievementsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
+  },
+  achievementsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+    flexWrap: 'wrap',
+  },
+  achievementBadge: {
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#0f0f0f',
+    backgroundColor: '#0f0f0f',
+    minWidth: 80,
+  },
+  achievementLocked: {
+    backgroundColor: '#ffffff',
+    borderColor: 'rgba(0,0,0,0.15)',
+  },
+  achievementIcon: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  achievementLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.8,
+    textAlign: 'center',
+  },
+  achievementLabelLocked: {
+    color: 'rgba(0,0,0,0.3)',
   },
 
   // Recent Posts
