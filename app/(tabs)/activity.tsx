@@ -108,6 +108,7 @@ export default function ActivityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingReq, setProcessingReq] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'plans' | 'friends'>('all');
 
   // Keep a mutable ref to friend-derived items so refresh can merge with latest
   const friendItemsRef = useRef<ActivityItem[]>([]);
@@ -316,7 +317,49 @@ export default function ActivityScreen() {
         }
       >
         {/* Header */}
-        <Text style={styles.title}>Activity</Text>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>QUORUM</Text>
+          <Ionicons name="search-outline" size={22} color={Colors.text} />
+        </View>
+
+        {/* Filter tabs */}
+        <View style={styles.filterRow}>
+          {(['all', 'plans', 'friends'] as const).map((f) => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
+              onPress={() => setActiveFilter(f)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterPillText, activeFilter === f && styles.filterPillTextActive]}>
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Weekly Highlights */}
+        <View style={styles.highlightsSection}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionLabel}>Weekly Highlights</Text>
+            <TouchableOpacity onPress={() => router.push('/discover' as any)}>
+              <Text style={styles.viewAllLink}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Placeholder highlight cards — these would use real plan covers in production */}
+          {[
+            { title: 'Top Moments', sub: 'This week\'s best' },
+            { title: 'New Plans', sub: 'Just added near you' },
+          ].map((item, i) => (
+            <View key={i} style={styles.highlightCard}>
+              <View style={styles.highlightImagePlaceholder} />
+              <View style={styles.highlightOverlay}>
+                <Text style={styles.highlightTitle}>{item.title}</Text>
+                <Text style={styles.highlightSub}>{item.sub}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
 
         {/* Friend Requests section */}
         {friendRequests.length > 0 && (
@@ -378,7 +421,7 @@ export default function ActivityScreen() {
         {/* Recent activity section */}
         {(loading || items.length > 0) && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Recent</Text>
+            <Text style={styles.sectionLabel}>Live Updates</Text>
 
             {loading
               ? [0, 1, 2, 3].map((i) => (
@@ -462,23 +505,110 @@ export default function ActivityScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.container,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
 
   // Header
-  title: {
-    fontSize: FontSize.xxl,
-    fontWeight: FontWeight.heavy,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '900',
     color: Colors.text,
-    letterSpacing: -0.5,
-    marginTop: Spacing.md,
+    letterSpacing: 3,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.container,
+    paddingVertical: Spacing.sm,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  filterPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  filterPillActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterPillText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  filterPillTextActive: {
+    color: '#ffffff',
+  },
+  highlightsSection: {
+    paddingTop: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingBottom: Spacing.md,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.container,
     marginBottom: Spacing.sm,
+  },
+  viewAllLink: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  highlightCard: {
+    marginHorizontal: Spacing.container,
+    marginBottom: Spacing.sm,
+    height: 120,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  highlightImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.surfaceRaised,
+  },
+  highlightOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  highlightTitle: {
+    fontSize: FontSize.md,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: -0.3,
+  },
+  highlightSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
 
   // Sections
   section: {
-    marginBottom: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.container,
   },
   sectionLabel: {
     fontSize: 11,
