@@ -222,6 +222,11 @@ export default function ProfileScreen() {
 
   return (
     <ScreenWrapper>
+      {/* App Header */}
+      <View style={styles.appHeader}>
+        <Text style={styles.appHeaderTitle}>QUORUM</Text>
+        <Ionicons name="search-outline" size={22} color={Colors.text} />
+      </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -285,6 +290,17 @@ export default function ProfileScreen() {
               </Text>
             </View>
           ) : null}
+          {/* Consensus bar */}
+          <View style={styles.consensusRow}>
+            <Text style={styles.consensusLabel}>
+              {planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0}% Consensus
+            </Text>
+            <View style={styles.consensusTrack}>
+              <View style={[styles.consensusFill, {
+                width: `${Math.min(planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0, 100)}%`
+              }]} />
+            </View>
+          </View>
         </View>
 
         {/* ── Action Buttons Row ── */}
@@ -316,32 +332,39 @@ export default function ProfileScreen() {
         {myPlans.length > 0 && (
           <View style={styles.plansSection}>
             <Text style={styles.sectionLabel}>Active Plans</Text>
-            {myPlans.map((plan) => {
-              const statusColor = plan.status === 'confirmed' ? Colors.success : plan.status === 'archived' ? Colors.textMuted : Colors.primary;
-              return (
-                <TouchableOpacity
-                  key={plan.id}
-                  style={styles.planRow}
-                  onPress={() => router.push({ pathname: '/plan-detail', params: { id: plan.id } } as any)}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.planRowAccent, { backgroundColor: statusColor }]} />
-                  <View style={styles.planRowContent}>
-                    <Text style={styles.planRowTitle} numberOfLines={1}>{plan.title}</Text>
-                    {plan.date && (
-                      <Text style={styles.planRowDate}>
-                        {new Date(plan.date.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={[styles.planStatusPill, { backgroundColor: statusColor + '22' }]}>
-                    <Text style={[styles.planStatusText, { color: statusColor }]}>{plan.status}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {myPlans.map((plan: any, index: number) => (
+              <TouchableOpacity
+                key={plan.id}
+                style={styles.planRow}
+                onPress={() => router.push({ pathname: '/plan-detail', params: { id: plan.id } } as any)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.planRowThumb}>
+                  {plan.coverUrl ? (
+                    <Image source={{ uri: plan.coverUrl }} style={styles.planRowThumbImage} />
+                  ) : (
+                    <View style={styles.planRowThumbPlaceholder} />
+                  )}
+                </View>
+                <View style={styles.planRowInfo}>
+                  <Text style={styles.planRowTitle} numberOfLines={1}>{plan.title}</Text>
+                  <Text style={styles.planRowMeta} numberOfLines={1}>
+                    {plan.date ? new Date(plan.date.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}{plan.location ? ` · ${plan.location}` : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))}
           </View>
         )}
+
+        {/* Recent Posts */}
+        <View style={styles.recentPostsSection}>
+          <Text style={styles.sectionLabel}>Recent Posts</Text>
+          <Text style={styles.recentPostsEmpty}>
+            Your moments from plans will appear here.
+          </Text>
+        </View>
 
         {/* ── Emergency Contact Card ── */}
         <View style={styles.card}>
@@ -758,8 +781,51 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.md,
   },
 
+  // App Header
+  appHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  appHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: Colors.text,
+    letterSpacing: 3,
+  },
+
+  // Consensus bar
+  consensusRow: {
+    width: '100%',
+    marginTop: Spacing.sm,
+    gap: 6,
+  },
+  consensusLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  consensusTrack: {
+    height: 6,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: 0,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  consensusFill: {
+    height: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 0,
+  },
+
   // My Plans section
-  plansSection: { paddingHorizontal: Spacing.md, marginBottom: Spacing.lg },
+  plansSection: { marginBottom: Spacing.lg },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '800',
@@ -770,11 +836,56 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
   },
-  planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
-  planRowAccent: { width: 3, alignSelf: 'stretch' },
-  planRowContent: { flex: 1, paddingVertical: 12, paddingLeft: 12 },
-  planRowTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.text },
-  planRowDate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-  planStatusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full, marginRight: 12 },
-  planStatusText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, textTransform: 'capitalize' },
+  planRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.container,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: 12,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  planRowThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  planRowThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  planRowThumbPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.surfaceRaised,
+  },
+  planRowInfo: {
+    flex: 1,
+  },
+  planRowTitle: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  planRowMeta: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 3,
+  },
+
+  // Recent Posts
+  recentPostsSection: {
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.container,
+    paddingBottom: Spacing.lg,
+  },
+  recentPostsEmpty: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
+    lineHeight: 20,
+  },
 });
