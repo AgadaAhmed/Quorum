@@ -42,11 +42,11 @@ type UserProfile = {
 
 function StatChip({ label, value, gold }: { label: string; value: any; gold?: boolean }) {
   return (
-    <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
-      <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.black, color: gold ? Colors.gold : Colors.text }}>
+    <View style={{ flex: 1, alignItems: 'center', paddingVertical: 14 }}>
+      <Text style={{ fontSize: 24, fontWeight: '800', color: gold ? Colors.gold : Colors.text, letterSpacing: -0.5 }}>
         {value}
       </Text>
-      <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.medium }}>
+      <Text style={{ fontSize: 10, color: Colors.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 3 }}>
         {label}
       </Text>
     </View>
@@ -233,6 +233,18 @@ export default function ProfileScreen() {
           />
         }
       >
+        {/* ── Stats Row ── */}
+        <View style={styles.statsContainer}>
+          <StatChip label="Active Plans" value={planCount} />
+          <View style={styles.statDivider} />
+          <StatChip label="Votes Cast" value={voteCount} />
+          <View style={styles.statDivider} />
+          <StatChip
+            label="Network"
+            value={profile?.friends?.length ?? '--'}
+          />
+        </View>
+
         {/* ── Hero Banner ── */}
         <View style={styles.heroContainer}>
           {/* Avatar */}
@@ -275,19 +287,6 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
-        {/* ── Stats Row ── */}
-        <View style={styles.statsContainer}>
-          <StatChip label="Plans" value={planCount} />
-          <View style={styles.statDivider} />
-          <StatChip label="Votes Cast" value={voteCount} />
-          <View style={styles.statDivider} />
-          <StatChip
-            label="Rating"
-            value={ratingAvg != null ? ratingAvg.toFixed(1) : '--'}
-            gold={ratingAvg != null}
-          />
-        </View>
-
         {/* ── Action Buttons Row ── */}
         <View style={styles.actionsRow}>
           <AnimatedButton
@@ -316,7 +315,7 @@ export default function ProfileScreen() {
         {/* ── My Plans ── */}
         {myPlans.length > 0 && (
           <View style={styles.plansSection}>
-            <Text style={styles.sectionLabel}>My Plans</Text>
+            <Text style={styles.sectionLabel}>Active Plans</Text>
             {myPlans.map((plan) => {
               const statusColor = plan.status === 'confirmed' ? Colors.success : plan.status === 'archived' ? Colors.textMuted : Colors.primary;
               return (
@@ -502,7 +501,7 @@ const styles = StyleSheet.create({
   // Hero
   heroContainer: {
     alignItems: 'center',
-    paddingTop: Spacing.lg,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
     paddingHorizontal: Spacing.container,
     borderBottomWidth: 1,
@@ -561,11 +560,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.background,
   },
   heroName: {
-    fontSize: FontSize.xxl,
-    fontWeight: FontWeight.black,
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.heavy,
     color: Colors.text,
-    textAlign: 'center',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
+    marginTop: Spacing.sm,
   },
   heroHandle: {
     fontSize: FontSize.md,
