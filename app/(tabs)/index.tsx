@@ -902,9 +902,10 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.container,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
   },
   headerRow: {
     flexDirection: 'row',
@@ -913,10 +914,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   appTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.black,
+    fontSize: 22,
+    fontWeight: '900',
     color: Colors.text,
-    letterSpacing: -0.6,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   headerActions: {
     flexDirection: 'row',
@@ -949,10 +951,10 @@ const styles = StyleSheet.create({
   },
   greetingName: {
     fontSize: FontSize.xxl,
-    fontWeight: FontWeight.black,
+    fontWeight: FontWeight.heavy,
     color: Colors.text,
-    letterSpacing: -0.6,
-    marginTop: 1,
+    letterSpacing: -0.8,
+    marginTop: 2,
   },
   avatarCircle: {
     width: 50,
@@ -981,7 +983,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     backgroundColor: Colors.backgroundAlt,
     borderRadius: Radius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
     paddingVertical: 2,
@@ -1015,10 +1017,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   friendCard: {
-    width: 172,
-    minHeight: 120,
+    width: 160,
+    minHeight: 110,
     marginBottom: 0,
-    padding: Spacing.md,
+    padding: Spacing.sm,
   },
   friendEmoji: { fontSize: 22, marginBottom: 4 },
   friendTitle: {
@@ -1049,9 +1051,16 @@ const styles = StyleSheet.create({
   },
 
   // ── Plan card body ────────────────────────────────────────────────────
-  coverImage: { width: '100%', height: 180, borderRadius: 0 },
+  coverImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 0,
+  },
   coverGradient: { width: '100%', height: 72 },
-  cardBody: { padding: Spacing.md },
+  cardBody: {
+    padding: Spacing.md,
+    gap: 8,
+  },
   cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1152,17 +1161,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.primaryDim,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: Colors.primaryBorder,
+    borderColor: Colors.border,
   },
   votesChipText: {
-    color: Colors.primaryLight,
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
   },
   votedPill: {
     backgroundColor: Colors.secondaryDim,
@@ -1193,7 +1202,7 @@ const styles = StyleSheet.create({
   },
   swipeArchive: {
     backgroundColor: Colors.surfaceBright,
-    borderWidth: 1, borderColor: Colors.glassBorderStrong,
+    borderWidth: 1, borderColor: Colors.border,
     justifyContent: 'center', alignItems: 'center',
     width: 72, borderRadius: Radius.md, marginRight: 4, gap: 4,
   },
@@ -1209,7 +1218,7 @@ const styles = StyleSheet.create({
   },
   swipeLeave: {
     backgroundColor: Colors.surfaceBright,
-    borderWidth: 1, borderColor: Colors.glassBorderStrong,
+    borderWidth: 1, borderColor: Colors.border,
     justifyContent: 'center', alignItems: 'center',
     width: 72, borderRadius: Radius.md, gap: 4,
   },
@@ -1314,13 +1323,13 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.glassBorderStrong,
+    borderColor: Colors.border,
   },
   contextHandle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.glassBorderStrong,
+    backgroundColor: Colors.border,
     alignSelf: 'center',
     marginBottom: 16,
   },
