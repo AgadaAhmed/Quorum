@@ -39,21 +39,21 @@ export default function CategoryPillRow({ pills, selected, onSelect }: Props) {
 
 const styles = StyleSheet.create({
   row: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.container,
     gap: Spacing.sm,
     paddingVertical: 4,
   },
   pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
   },
   pillActive: {
-    backgroundColor: Colors.primaryDim,
-    borderColor: Colors.primaryBorder,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   label: {
     fontSize: FontSize.sm,
@@ -61,6 +61,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   labelActive: {
-    color: Colors.primary,
+    color: '#ffffff',
   },
 });
