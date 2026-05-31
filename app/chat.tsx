@@ -516,8 +516,9 @@ export default function ChatScreen() {
             )}
             ListEmptyComponent={
               <View style={styles.emptyChat}>
-                <Ionicons name="chatbubbles-outline" size={56} color={Colors.textMuted} style={{ marginBottom: 12 }} />
-                <Text style={styles.emptyChatText}>No messages yet. Say hello!</Text>
+                <Ionicons name="chatbubbles-outline" size={48} color={Colors.border} />
+                <Text style={styles.emptyChatText}>No messages yet</Text>
+                <Text style={styles.emptyChatSub}>Be the first to say something</Text>
               </View>
             }
           />
@@ -651,16 +652,16 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: Spacing.sm },
-  title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.text, flex: 1 },
+  title: { fontSize: FontSize.lg, fontWeight: '800', color: Colors.text, flex: 1, letterSpacing: -0.3 },
   msgCount: { fontSize: FontSize.xs, color: Colors.textMuted },
   participantsBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   participantsBadge: {
     position: 'absolute', top: 4, right: 4,
-    backgroundColor: Colors.primary, borderRadius: 99,
+    backgroundColor: Colors.primary, borderRadius: Radius.md,
     minWidth: 16, height: 16,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
   },
-  participantsBadgeText: { color: Colors.text, fontSize: 9, fontWeight: '800' },
+  participantsBadgeText: { color: '#ffffff', fontSize: 9, fontWeight: '800' },
   participantsList: {
     backgroundColor: Colors.surfaceRaised, borderBottomWidth: 1, borderBottomColor: Colors.border,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 4,
@@ -676,11 +677,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '44', alignItems: 'center', justifyContent: 'center',
   },
   senderAvatarText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
-  bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.lg },
+  bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.md },
   otherBubble: {
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 4,
+    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 0,
   },
-  ownBubble: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
+  ownBubble: { backgroundColor: Colors.primary, borderBottomRightRadius: 0 },
   senderName: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: '700', marginBottom: 2 },
   bubbleText: { fontSize: FontSize.md, color: Colors.textSecondary, lineHeight: 22 },
   ownBubbleText: { color: '#ffffff' },
@@ -688,12 +689,12 @@ const styles = StyleSheet.create({
   mentionTextOwn: { color: Colors.text, fontWeight: '700', textDecorationLine: 'underline' },
   timestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 4, alignSelf: 'flex-end' },
   ownTimestamp: { color: Colors.text + '88' },
-  chatImage: { width: 200, height: 200, borderRadius: 12, marginVertical: 2 },
+  chatImage: { width: 200, height: 200, borderRadius: Radius.md, marginVertical: 2 },
   reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4, marginHorizontal: 8 },
   reactionsRowOwn: { justifyContent: 'flex-end' },
   reactionPill: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.md,
     backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
   },
   reactionPillActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryBorder },
@@ -732,26 +733,27 @@ const styles = StyleSheet.create({
   },
   attachBtn: { padding: 6 },
   input: {
-    flex: 1, backgroundColor: Colors.surfaceRaised, borderWidth: 1.5, borderColor: Colors.border,
-    borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 10,
+    flex: 1, backgroundColor: Colors.backgroundAlt, borderWidth: 1.5, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 10,
     color: Colors.text, fontSize: FontSize.md, maxHeight: 100,
   },
   sendBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary,
+    width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: Colors.border },
-  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 4 },
-  emptyChatText: { color: Colors.textMuted, fontSize: FontSize.md },
+  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 8 },
+  emptyChatText: { color: Colors.textSecondary, fontSize: FontSize.md, fontWeight: '600' },
+  emptyChatSub: { color: Colors.textMuted, fontSize: FontSize.sm },
   // Reaction picker modal
   pickerOverlay: {
     flex: 1, backgroundColor: Colors.overlay,
     alignItems: 'center', justifyContent: 'center',
   },
   pickerCard: {
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1, borderColor: Colors.borderStrong,
-    borderRadius: Radius.lg,
+    backgroundColor: Colors.backgroundAlt,
+    borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md,
     padding: Spacing.md,
     alignItems: 'center',
     gap: 12,
@@ -760,7 +762,7 @@ const styles = StyleSheet.create({
   pickerHint: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   pickerRow: { flexDirection: 'row', gap: 8 },
   pickerEmoji: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 44, height: 44, borderRadius: Radius.md,
     backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
