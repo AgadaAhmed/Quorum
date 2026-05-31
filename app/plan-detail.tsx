@@ -1589,7 +1589,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: FontWeight.bold,
   },
-  tabContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
+  tabContent: { paddingHorizontal: Spacing.container, paddingTop: Spacing.sm },
   // Tab empty states
   tabEmptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: Spacing.xl },
   tabEmptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: 6 },
@@ -1677,7 +1677,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryBorder,
   },
   inviteBtnText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
-  noFriendsText: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: 8, textAlign: 'center' },
+  noFriendsText: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 8, textAlign: 'center' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   modalContent: {
     backgroundColor: Colors.backgroundAlt,
