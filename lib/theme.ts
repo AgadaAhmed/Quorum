@@ -6,12 +6,12 @@
 
 export const Colors = {
   // ── Base backgrounds (M3 light surface hierarchy) ─────────────────────────
-  background:     '#fbf8ff',   // Surface / background (off-white)
+  background:     '#ffffff',   // Surface / background (off-white)
   backgroundAlt:  '#ffffff',   // Surface container lowest
-  surface:        '#fbf8ff',
-  surfaceRaised:  '#eeedf7',   // Surface container (cards)
-  surfaceOverlay: '#e8e7f1',   // Surface container high (elevated cards)
-  surfaceBright:  '#e3e1ec',   // Surface bright (hover / press states)
+  surface:        '#ffffff',
+  surfaceRaised:  '#f2f2f2',   // Surface container (cards)
+  surfaceOverlay: '#e8e8e8',   // Surface container high (elevated cards)
+  surfaceBright:  '#e0e0e0',   // Surface bright (hover / press states)
 
   // ── Glass (semi-transparent overlays — light frosted) ────────────────────
   glass:              'rgba(255,255,255,0.8)',
@@ -68,8 +68,8 @@ export const Colors = {
   overlayLight: 'rgba(0,0,0,0.28)',
 
   // ── Legacy aliases ────────────────────────────────────────────────────────
-  card:         '#eeedf7',
-  cardElevated: '#e8e7f1',
+  card:         '#f2f2f2',
+  cardElevated: '#e8e8e8',
 
   /** @deprecated use primary */
   primaryLegacyRose: '#ba1a1a',

@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   Image,
 } from 'react-native';
@@ -322,10 +323,8 @@ export default function ActivityScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Friend Requests</Text>
             {friendRequests.map((req, index) => (
-              <GlassCard
+              <View
                 key={req.fromId}
-                index={index}
-                glowColor={Colors.primary}
                 style={styles.requestCard}
               >
                 <View style={styles.requestRow}>
@@ -371,7 +370,7 @@ export default function ActivityScreen() {
                     />
                   </View>
                 </View>
-              </GlassCard>
+              </View>
             ))}
           </View>
         )}
@@ -383,7 +382,7 @@ export default function ActivityScreen() {
 
             {loading
               ? [0, 1, 2, 3].map((i) => (
-                  <GlassCard key={i} noAnimate style={styles.skeletonCard}>
+                  <View key={i} style={styles.skeletonCard}>
                     <View style={styles.skeletonRow}>
                       <View style={styles.skeletonCircle} />
                       <View style={styles.skeletonLines}>
@@ -391,7 +390,7 @@ export default function ActivityScreen() {
                         <View style={[styles.skeletonLine, { width: '40%', marginTop: 6 }]} />
                       </View>
                     </View>
-                  </GlassCard>
+                  </View>
                 ))
               : (() => {
                   // Group items by time bucket
@@ -413,19 +412,19 @@ export default function ActivityScreen() {
                         const iconName = getIconName(item.type);
                         const ci = cardIdx++;
                         return (
-                          <GlassCard
+                          <TouchableOpacity
                             key={item.id}
-                            index={ci}
                             onPress={
                               item.planId && item.type !== 'plan_cancelled'
                                 ? () => handleItemPress(item)
                                 : undefined
                             }
-                            style={styles.activityCard}
+                            activeOpacity={0.7}
+                            style={styles.activityItem}
                           >
                             <View style={styles.activityRow}>
-                              <View style={[styles.iconCircle, { backgroundColor: color + '18', borderColor: color + '55' }]}>
-                                <Ionicons name={iconName} size={20} color={color} />
+                              <View style={[styles.iconCircle, { backgroundColor: color + '15' }]}>
+                                <Ionicons name={iconName} size={18} color={color} />
                               </View>
                               <Text style={styles.activityMessage} numberOfLines={2}>
                                 {item.message}
@@ -434,7 +433,7 @@ export default function ActivityScreen() {
                                 {formatRelTime(item.timestamp)}
                               </Text>
                             </View>
-                          </GlassCard>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
@@ -469,12 +468,12 @@ const styles = StyleSheet.create({
 
   // Header
   title: {
-    fontSize: 34,
+    fontSize: FontSize.xxl,
     fontWeight: FontWeight.heavy,
     color: Colors.text,
     letterSpacing: -0.5,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
 
   // Sections
@@ -488,12 +487,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginBottom: Spacing.sm,
-    paddingHorizontal: Spacing.container,
   },
 
   // Friend request card
   requestCard: {
-    padding: Spacing.md,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   requestRow: {
     flexDirection: 'row',
@@ -543,10 +543,11 @@ const styles = StyleSheet.create({
     minWidth: 72,
   },
 
-  // Activity item card
-  activityCard: {
-    paddingHorizontal: Spacing.md,
+  // Activity item
+  activityItem: {
     paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   activityRow: {
     flexDirection: 'row',
@@ -554,31 +555,32 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconCircle: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
     borderRadius: Radius.full,
-    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   activityMessage: {
     flex: 1,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.medium,
+    fontSize: FontSize.sm,
     color: Colors.text,
+    fontWeight: FontWeight.medium,
     lineHeight: 20,
   },
   activityTime: {
-    fontSize: FontSize.xs,
+    fontSize: 11,
     color: Colors.textMuted,
+    fontWeight: FontWeight.medium,
     flexShrink: 0,
   },
 
   // Skeleton
   skeletonCard: {
-    paddingHorizontal: Spacing.md,
     paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   skeletonRow: {
     flexDirection: 'row',
@@ -602,14 +604,13 @@ const styles = StyleSheet.create({
 
   // Time group label (Today / Yesterday / This Week / Earlier)
   timeGroupLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+    fontSize: 11,
+    fontWeight: '800',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    paddingHorizontal: Spacing.xs,
+    letterSpacing: 1.5,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xs,
+    paddingBottom: Spacing.sm,
   },
 
   // Empty state
