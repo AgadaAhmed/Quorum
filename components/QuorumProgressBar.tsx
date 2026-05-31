@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius } from '../lib/theme';
 
 interface Props {
   votes: number;
@@ -11,37 +11,42 @@ interface Props {
 
 export default function QuorumProgressBar({ votes, required, label }: Props) {
   const progress = useRef(new Animated.Value(0)).current;
-  const glow = useRef(new Animated.Value(0)).current;
+  const shimmer = useRef(new Animated.Value(0)).current;
   const ratio = Math.min(votes / Math.max(required, 1), 1);
   const pct = Math.round(ratio * 100);
   const reached = votes >= required;
+  const nearComplete = ratio >= 0.6;
 
   useEffect(() => {
     Animated.spring(progress, {
       toValue: ratio,
-      tension: 60,
+      tension: 55,
       friction: 10,
       useNativeDriver: false,
     }).start();
   }, [ratio]);
 
+  // Shimmer animation when near quorum
   useEffect(() => {
-    const nearComplete = ratio >= 0.6;
     if (nearComplete) {
       const loop = Animated.loop(
         Animated.sequence([
-          Animated.timing(glow, { toValue: 1, duration: 900, useNativeDriver: false }),
-          Animated.timing(glow, { toValue: 0.4, duration: 900, useNativeDriver: false }),
+          Animated.timing(shimmer, { toValue: 1, duration: 1100, useNativeDriver: false }),
+          Animated.timing(shimmer, { toValue: 0, duration: 1100, useNativeDriver: false }),
         ])
       );
       loop.start();
       return () => loop.stop();
     } else {
-      glow.setValue(0);
+      shimmer.setValue(0);
     }
-  }, [ratio >= 0.6]);
+  }, [nearComplete]);
 
-  const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.45] });
+  const shimmerOpacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] });
+
+  const fillColors: [string, string] = reached
+    ? [Colors.secondaryLight, Colors.secondary]   // Teal — confirmed
+    : [Colors.primaryLight, Colors.primary];       // Dark — pending
 
   return (
     <View style={styles.container}>
@@ -50,18 +55,28 @@ export default function QuorumProgressBar({ votes, required, label }: Props) {
         <Text style={[styles.pct, reached && styles.pctReached]}>{pct}%</Text>
       </View>
       <View style={styles.track}>
-        <Animated.View style={[styles.glowLayer, { opacity: glowOpacity }]} />
+        {/* Shimmer glow layer */}
+        {nearComplete && (
+          <Animated.View
+            style={[
+              styles.glowLayer,
+              {
+                opacity: shimmerOpacity,
+                backgroundColor: reached ? Colors.secondary : Colors.primary,
+              },
+            ]}
+          />
+        )}
         <Animated.View
           style={{
-            height: 12,
-            borderRadius: Radius.full,
-            // Minimum 3% so the bar is always visible even at 0 votes
-            width: progress.interpolate({ inputRange: [0, 1], outputRange: ['3%', '100%'] }),
+            height: 6,
+            borderRadius: 0,
+            width: progress.interpolate({ inputRange: [0, 1], outputRange: ['2%', '100%'] }),
             overflow: 'hidden',
           }}
         >
           <LinearGradient
-            colors={reached ? [Colors.goldLight, Colors.gold] : [Colors.primaryLight, Colors.primary]}
+            colors={fillColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}
@@ -73,21 +88,20 @@ export default function QuorumProgressBar({ votes, required, label }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 8 },
+  container: { gap: 6 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  pct: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary },
-  pctReached: { color: Colors.gold },
+  label: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.medium },
+  pct: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.text },
+  pctReached: { color: Colors.secondaryLight },
   track: {
-    height: 12,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surface,
+    height: 6,
+    borderRadius: 0,
+    backgroundColor: Colors.surfaceBright,
     overflow: 'hidden',
     position: 'relative',
   },
   glowLayer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.full,
+    borderRadius: 0,
   },
 });
