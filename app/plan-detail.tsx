@@ -1543,7 +1543,7 @@ const styles = StyleSheet.create({
   loadingHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.glassBorder,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   menuBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.text, flex: 1, textAlign: 'center' },
@@ -1564,14 +1564,31 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
   // Tabs
-  tabsBar: { paddingHorizontal: 16, gap: 8, paddingVertical: 8 },
-  detailTab: {
-    paddingHorizontal: 18, paddingVertical: 8, borderRadius: 99,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder,
+  tabsBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.container,
   },
-  detailTabActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryBorder },
-  detailTabLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textMuted },
-  detailTabLabelActive: { color: Colors.primary },
+  detailTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -1,
+  },
+  detailTabActive: {
+    borderBottomColor: Colors.primary,
+  },
+  detailTabLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textMuted,
+  },
+  detailTabLabelActive: {
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+  },
   tabContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
   // Tab empty states
   tabEmptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: Spacing.xl },
@@ -1589,7 +1606,7 @@ const styles = StyleSheet.create({
   reactionsRow: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
   reactionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 99, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.glassBorder,
+    borderRadius: Radius.md, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
   reactionBtnActive: { backgroundColor: Colors.primary + '22', borderColor: Colors.primary },
   reactionEmoji: { fontSize: 16 },
@@ -1597,28 +1614,28 @@ const styles = StyleSheet.create({
   reactionCountActive: { color: Colors.primary },
   creatorActions: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   editBtn: {
-    flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder,
+    flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
   },
   editBtnText: { color: Colors.text, fontWeight: '600', fontSize: FontSize.sm },
   archiveBtn: {
-    flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.gold + '22', borderWidth: 1, borderColor: Colors.gold + '44',
+    flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
+    backgroundColor: Colors.goldDim, borderWidth: 1, borderColor: Colors.goldBorder,
   },
   archiveBtnText: { color: Colors.gold, fontWeight: '600', fontSize: FontSize.sm },
   deleteBtn: {
-    flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.error + '22', borderWidth: 1, borderColor: Colors.error + '44',
+    flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
+    backgroundColor: Colors.tertiaryDim, borderWidth: 1, borderColor: Colors.tertiaryBorder,
   },
   deleteBtnText: { color: Colors.error, fontWeight: '600', fontSize: FontSize.sm },
   leaveBtn: {
-    flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.glassBorder,
+    flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.border,
   },
   leaveBtnText: { color: Colors.textMuted, fontWeight: '600', fontSize: FontSize.sm },
   calendarBtn: {
-    marginTop: 8, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.success + '22', borderWidth: 1, borderColor: Colors.success + '44',
+    marginTop: 8, paddingVertical: 12, alignItems: 'center', borderRadius: Radius.md,
+    backgroundColor: Colors.successDim, borderWidth: 1, borderColor: Colors.secondaryBorder,
     flexDirection: 'row', justifyContent: 'center',
   },
   calendarBtnText: { color: Colors.success, fontWeight: '700', fontSize: FontSize.sm },
@@ -1627,7 +1644,7 @@ const styles = StyleSheet.create({
   inviteToggle: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
   pollOption: {
     flexDirection: 'row', alignItems: 'center', borderRadius: Radius.md, overflow: 'hidden',
-    borderWidth: 1, borderColor: Colors.glassBorder, marginBottom: 8, height: 44, position: 'relative',
+    borderWidth: 1, borderColor: Colors.border, marginBottom: 8, height: 44, position: 'relative',
   },
   pollOptionFill: {
     position: 'absolute', left: 0, top: 0, bottom: 0,
@@ -1645,26 +1662,32 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '44', alignItems: 'center', justifyContent: 'center',
   },
   participantName: { flex: 1, color: Colors.text, fontSize: FontSize.md },
-  votedBadge: { backgroundColor: Colors.success + '33', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
+  votedBadge: {
+    backgroundColor: Colors.successDim,
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: Radius.md,
+  },
   votedText: { color: Colors.success, fontSize: FontSize.xs, fontWeight: '700' },
-  inviteSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.glassBorder, paddingTop: 12 },
+  inviteSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 },
   inviteSectionTitle: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '700', marginBottom: 8 },
   inviteRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 10 },
   inviteHandle: { color: Colors.primary, fontSize: FontSize.xs },
   inviteBtn: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99,
-    backgroundColor: Colors.primary + '22', borderWidth: 1, borderColor: Colors.primary + '44',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.md,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryBorder,
   },
   inviteBtnText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
   noFriendsText: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: 8, textAlign: 'center' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   modalContent: {
-    backgroundColor: Colors.surfaceRaised, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    backgroundColor: Colors.backgroundAlt,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
     padding: Spacing.lg, gap: Spacing.sm, paddingBottom: 40,
   },
   modalTitle: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.text, marginBottom: 4 },
   modalInput: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 12,
     color: Colors.text, fontSize: FontSize.md, justifyContent: 'center',
   },
@@ -1672,7 +1695,7 @@ const styles = StyleSheet.create({
   visibilityRow: { flexDirection: 'row', gap: 10 },
   visibilityBtn: {
     flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
   visibilityBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   visibilityBtnText: { color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm },
@@ -1680,7 +1703,7 @@ const styles = StyleSheet.create({
   catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   catChip: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.full,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
   catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   catChipText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
@@ -1688,7 +1711,7 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   modalCancel: {
     flex: 1, paddingVertical: 12, alignItems: 'center',
-    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.glassBorder,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
   },
   modalCancelText: { color: Colors.textSecondary, fontWeight: '600' },
   modalSave: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.primary },
@@ -1701,7 +1724,7 @@ const styles = StyleSheet.create({
   },
   celebrationText: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.background },
   celebrationSub: { fontSize: FontSize.sm, color: Colors.background, marginTop: 4, opacity: 0.8 },
-  inviteCodeSection: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.glassBorder },
+  inviteCodeSection: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
   inviteCodeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   inviteCodeLabel: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600', flex: 1 },
   inviteCodeBadge: {
@@ -1715,7 +1738,7 @@ const styles = StyleSheet.create({
   photoEmptyText: { color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center' },
   checklistInputRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   checklistInput: {
-    flex: 1, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.glassBorder,
+    flex: 1, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 10,
     color: Colors.text, fontSize: FontSize.md,
   },
@@ -1725,10 +1748,10 @@ const styles = StyleSheet.create({
   },
   checklistItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.glassBorder + '55',
+    borderBottomWidth: 1, borderBottomColor: Colors.border + '55',
   },
   checklistCircle: {
-    width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: Colors.glassBorder,
+    width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   checklistCircleDone: { backgroundColor: Colors.success, borderColor: Colors.success },
@@ -1739,7 +1762,7 @@ const styles = StyleSheet.create({
   checklistEmptyText: { color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center' },
   commentItem: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.glassBorder + '55',
+    borderBottomWidth: 1, borderBottomColor: Colors.border + '55',
   },
   commentAvatar: {
     width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.primary + '44',
@@ -1790,7 +1813,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
     backgroundColor: Colors.background,
     alignSelf: 'flex-start',
     marginBottom: 12,
@@ -1840,7 +1863,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
     backgroundColor: Colors.background,
   },
   safetyTimerBtnText: {
@@ -1880,13 +1903,13 @@ const sosStyles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: 40,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
   },
   handle: {
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.glassBorder,
+    backgroundColor: Colors.border,
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -1907,7 +1930,7 @@ const sosStyles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
   },
   infoLabel: {
     fontSize: FontSize.xs,
@@ -1960,7 +1983,7 @@ const sosStyles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
   },
   copyBtnText: {
     fontSize: FontSize.md,
