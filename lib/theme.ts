@@ -17,8 +17,8 @@ export const Colors = {
   glass:              'rgba(255,255,255,0.8)',
   glassMid:           'rgba(0,0,0,0.04)',
   glassStrong:        'rgba(0,0,0,0.08)',
-  glassBorder:        'rgba(0,0,0,0.08)',
-  glassBorderStrong:  'rgba(0,0,0,0.14)',
+  glassBorder:        'rgba(0,0,0,0.15)',
+  glassBorderStrong:  'rgba(0,0,0,0.25)',
   glassHighlight:     'rgba(255,255,255,0.6)',
 
   // ── Primary — Black ───────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ export const Colors = {
   primaryContainer: '#1b1b1b',
   primaryDim:       'rgba(0,0,0,0.08)',
   primaryGlow:      'rgba(0,0,0,0.15)',
-  primaryBorder:    'rgba(0,0,0,0.30)',
+  primaryBorder:    'rgba(0,0,0,0.55)',
 
   // ── Secondary — Teal (confirmations / success / quorum reached) ───────────
   secondary:      '#0d9488',
@@ -51,7 +51,7 @@ export const Colors = {
   // ── Text ──────────────────────────────────────────────────────────────────
   text:         '#1a1b22',   // on-surface
   textSecondary:'#4c4546',   // on-surface-variant
-  textMuted:    '#7e7576',   // outline
+  textMuted:    '#5c5959',   // outline — 6.6:1 contrast on #fbf8ff
   textDisabled: '#cfc4c5',   // outline-variant
 
   // ── Status ────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ export const Colors = {
 
   // ── Misc ──────────────────────────────────────────────────────────────────
   border:       'rgba(0,0,0,0.08)',
-  borderStrong: 'rgba(0,0,0,0.16)',
+  borderStrong: 'rgba(0,0,0,0.30)',
   overlay:      'rgba(0,0,0,0.50)',
   overlayLight: 'rgba(0,0,0,0.28)',
 
