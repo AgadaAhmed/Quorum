@@ -672,6 +672,7 @@ export default function PlanDetailScreen() {
         {plan.coverUrl ? (
           <Image source={{ uri: plan.coverUrl }} style={styles.coverImage} resizeMode="cover" />
         ) : null}
+        <Text style={styles.upcomingLabel}>UPCOMING PLAN</Text>
         <View style={styles.planTitleRow}>
           <Text style={styles.planTitle}>{plan.title}</Text>
           {plan.category && (
@@ -716,6 +717,20 @@ export default function PlanDetailScreen() {
           )}
         </View>
 
+        <View style={styles.statusBadgeRow}>
+          {plan.status === 'confirmed' ? (
+            <View style={styles.autoBadge}>
+              <Text style={styles.autoBadgeText}>AUTO READY</Text>
+            </View>
+          ) : (
+            <View style={styles.pendingBadge}>
+              <Text style={styles.pendingBadgeText}>
+                {Math.max(0, (plan.requiredVotes || 3) - (plan.votes?.length || 0))} more needed
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Tell a Friend */}
         <TouchableOpacity
           style={styles.tellFriendBtn}
@@ -745,6 +760,34 @@ export default function PlanDetailScreen() {
               </TouchableOpacity>
             );
           })}
+        </View>
+
+        {/* Quorum Details Box */}
+        <View style={styles.detailsBox}>
+          <Text style={styles.detailsBoxLabel}>QUORUM DETAILS</Text>
+          <View style={styles.detailsBoxRow}>
+            <Text style={styles.detailsBoxKey}>HOST</Text>
+            <Text style={styles.detailsBoxValue}>@{plan.createdByUsername || (plan.createdBy ? plan.createdBy.slice(0, 8) : 'host')}</Text>
+          </View>
+          <View style={styles.detailsBoxDivider} />
+          <View style={styles.detailsBoxRow}>
+            <Text style={styles.detailsBoxKey}>SPOTS</Text>
+            <Text style={styles.detailsBoxValue}>{plan.maxParticipants || 'Unlimited'}</Text>
+          </View>
+          <View style={styles.detailsBoxDivider} />
+          <View style={styles.detailsBoxRow}>
+            <Text style={styles.detailsBoxKey}>ENTRY</Text>
+            <Text style={styles.detailsBoxValue}>Free</Text>
+          </View>
+          {plan.category ? (
+            <>
+              <View style={styles.detailsBoxDivider} />
+              <View style={styles.detailsBoxRow}>
+                <Text style={styles.detailsBoxKey}>TYPE</Text>
+                <Text style={styles.detailsBoxValue}>{plan.category}</Text>
+              </View>
+            </>
+          ) : null}
         </View>
 
         {/* Creator actions */}
@@ -852,11 +895,12 @@ export default function PlanDetailScreen() {
         <QuorumProgressBar votes={voteCount} required={required} />
         <View style={{ height: 12 }} />
         <AnimatedButton
-          label={hasVoted ? "You're In — Withdraw" : 'Vote to Confirm'}
+          label={hasVoted ? "You're In — Withdraw" : "I'm In"}
           onPress={handleVote}
           variant={hasVoted ? 'secondary' : 'primary'}
           loading={voting}
           disabled={voting}
+          style={{ marginTop: Spacing.lg }}
         />
         {/* Host rating prompt */}
         {plan.status === 'confirmed' &&
@@ -1888,6 +1932,92 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: Colors.gold + '33',
   },
   deadlineText: { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.semibold },
+  // Stitch: Plan Detail - Social Focus
+  upcomingLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  statusBadgeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  autoBadge: {
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: Radius.md,
+  },
+  autoBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 1,
+  },
+  pendingBadge: {
+    backgroundColor: Colors.surfaceRaised,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pendingBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  detailsBox: {
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    overflow: 'hidden',
+  },
+  detailsBoxLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  detailsBoxRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 11,
+  },
+  detailsBoxKey: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  detailsBoxValue: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text,
+  },
+  detailsBoxDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.md,
+  },
 });
 
 const sosStyles = StyleSheet.create({
