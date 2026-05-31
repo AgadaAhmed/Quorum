@@ -243,10 +243,11 @@ export default function CreatePlanScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <Text style={styles.title}>New Plan</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Ionicons name="close" size={24} color={Colors.text} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
+        <Text style={styles.title}>NEW PLAN</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -272,7 +273,7 @@ export default function CreatePlanScreen() {
             ) : (
               <View style={styles.coverPlaceholder}>
                 <Ionicons name="image-outline" size={28} color={Colors.textMuted} style={{ marginBottom: 6 }} />
-                <Text style={styles.coverPlaceholderText}>Tap to add a cover photo</Text>
+                <Text style={styles.coverPlaceholderText}>ADD COVER PHOTO</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -602,7 +603,8 @@ export default function CreatePlanScreen() {
             variant="primary"
             disabled={loading}
             loading={loading}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 8, paddingVertical: 16 }}
+            textStyle={{ fontWeight: '800', letterSpacing: 1 }}
           />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -667,20 +669,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 30, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  headerSpacer: { width: 36 },
+  title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '900', color: Colors.text, letterSpacing: 3 },
   form: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 },
-  label: { fontSize: 11, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1.5 },
+  label: { fontSize: 11, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8, marginTop: 24 },
   input: {
     backgroundColor: Colors.backgroundAlt, borderWidth: 1.5, borderColor: Colors.border,
-    borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 12,
     color: Colors.text, fontSize: FontSize.md, justifyContent: 'center',
   },
   multiline: { height: 90, textAlignVertical: 'top' },
@@ -688,14 +690,14 @@ const styles = StyleSheet.create({
   clearDate: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: -4 },
   charCount: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'right', marginTop: -4 },
   coverPicker: {
-    borderRadius: Radius.md, overflow: 'hidden', borderWidth: 1,
-    borderColor: Colors.border, borderStyle: 'dashed',
+    borderRadius: 0, overflow: 'hidden', borderWidth: 1.5,
+    borderColor: Colors.border,
   },
-  coverPreview: { width: '100%', height: 140 },
+  coverPreview: { width: '100%', height: 160 },
   coverPlaceholder: {
-    height: 100, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center',
+    height: 160, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center',
   },
-  coverPlaceholderText: { color: Colors.textMuted, fontSize: FontSize.sm },
+  coverPlaceholderText: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1.5 },
   dateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   dateModalContent: { backgroundColor: Colors.surfaceRaised, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, paddingBottom: 30 },
   dateModalHeader: {
@@ -706,12 +708,12 @@ const styles = StyleSheet.create({
   dateModalDone: { color: Colors.primary, fontSize: FontSize.md, fontWeight: '700' },
   categoryRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   categoryChip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.md,
+    backgroundColor: Colors.backgroundAlt, borderWidth: 1.5, borderColor: Colors.border,
   },
   categoryChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   categoryChipText: { color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm },
-  categoryChipTextActive: { color: Colors.text },
+  categoryChipTextActive: { color: '#ffffff' },
   voteRow: { flexDirection: 'row', gap: 8 },
   voteChip: {
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.full,
