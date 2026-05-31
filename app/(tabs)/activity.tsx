@@ -338,28 +338,31 @@ export default function ActivityScreen() {
           ))}
         </View>
 
-        {/* Weekly Highlights */}
-        <View style={styles.highlightsSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionLabel}>Weekly Highlights</Text>
-            <TouchableOpacity onPress={() => router.push('/discover' as any)}>
-              <Text style={styles.viewAllLink}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          {/* Placeholder highlight cards — these would use real plan covers in production */}
-          {[
-            { title: 'Top Moments', sub: 'This week\'s best' },
-            { title: 'New Plans', sub: 'Just added near you' },
-          ].map((item, i) => (
-            <View key={i} style={styles.highlightCard}>
-              <View style={styles.highlightImagePlaceholder} />
-              <View style={styles.highlightOverlay}>
-                <Text style={styles.highlightTitle}>{item.title}</Text>
-                <Text style={styles.highlightSub}>{item.sub}</Text>
-              </View>
+        {/* Weekly Highlights — shown when we have confirmed plans to display */}
+        {items.filter(i => i.type === 'plan_confirmed').length > 0 && (
+          <View style={styles.highlightsSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>Weekly Highlights</Text>
+              <TouchableOpacity onPress={() => router.push('/discover' as any)}>
+                <Text style={styles.viewAllLink}>View All</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-        </View>
+            {items.filter(i => i.type === 'plan_confirmed').slice(0, 2).map((item, i) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.highlightCard}
+                onPress={() => item.planId && router.push({ pathname: '/plan-detail', params: { id: item.planId } })}
+                activeOpacity={0.85}
+              >
+                <View style={styles.highlightImagePlaceholder} />
+                <View style={styles.highlightOverlay}>
+                  <Text style={styles.highlightTitle}>{item.message}</Text>
+                  <Text style={styles.highlightSub}>Quorum reached</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Friend Requests section */}
         {friendRequests.length > 0 && (

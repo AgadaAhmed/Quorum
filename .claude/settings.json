@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "PowerShell(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebFetch(*)",
+      "Agent(*)",
+      "mcp__stitch__*",
+      "mcp__plugin_context7_context7__*",
+      "TaskCreate(*)",
+      "TaskUpdate(*)",
+      "TaskList(*)",
+      "TaskGet(*)"
+    ]
+  }
+}

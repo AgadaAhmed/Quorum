@@ -57,41 +57,59 @@ async function registerPushToken(uid: string) {
 }
 
 function SplashScreen() {
-  const scale = useRef(new Animated.Value(0.7)).current;
+  const scale = useRef(new Animated.Value(0.72)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const ringScale = useRef(new Animated.Value(0.85)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(scale, { toValue: 1, tension: 60, friction: 7, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, tension: 55, friction: 8, useNativeDriver: true }),
+      Animated.spring(ringScale, { toValue: 1, tension: 40, friction: 10, delay: 80, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 350, useNativeDriver: true }),
     ]).start();
   }, []);
 
   return (
     <View style={splashStyles.container}>
       <Animated.View style={[splashStyles.logoWrap, { transform: [{ scale }], opacity }]}>
+        {/* Outer ring */}
+        <Animated.View style={[splashStyles.outerRing, { transform: [{ scale: ringScale }] }]} />
+        {/* Glow */}
         <View style={splashStyles.glow} />
-        <View style={splashStyles.ring}>
-          <View style={splashStyles.circle}>
-            <Text style={splashStyles.letter}>Q</Text>
-          </View>
+        {/* Icon circle */}
+        <View style={splashStyles.circle}>
+          <Text style={splashStyles.letter}>Q</Text>
         </View>
       </Animated.View>
-      <Animated.Text style={[splashStyles.appName, { opacity }]}>Quorum</Animated.Text>
-      <Animated.Text style={[splashStyles.tagline, { opacity }]}>Plan together. Decide together.</Animated.Text>
+      <Animated.View style={[{ alignItems: 'center', gap: 6 }, { opacity }]}>
+        <Text style={splashStyles.appName}>Quorum</Text>
+        <Text style={splashStyles.tagline}>Plan together. Decide together.</Text>
+      </Animated.View>
     </View>
   );
 }
 
 const splashStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', gap: 16 },
-  logoWrap: { alignItems: 'center', justifyContent: 'center' },
-  glow: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: Colors.primaryGlow },
-  ring: { width: 100, height: 100, borderRadius: 50, borderWidth: 1.5, borderColor: Colors.primaryBorder, alignItems: 'center', justifyContent: 'center' },
-  circle: { width: 84, height: 84, borderRadius: 42, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.6, shadowRadius: 20, elevation: 12 },
-  letter: { fontSize: 42, fontWeight: '900', color: '#fff', letterSpacing: -1 },
-  appName: { fontSize: 32, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  tagline: { fontSize: 14, color: Colors.textMuted, fontWeight: '500' },
+  container: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', gap: 28 },
+  logoWrap: { alignItems: 'center', justifyContent: 'center', width: 120, height: 120 },
+  outerRing: {
+    position: 'absolute', width: 116, height: 116, borderRadius: 58,
+    borderWidth: 1, borderColor: Colors.primaryBorder,
+  },
+  glow: {
+    position: 'absolute', width: 100, height: 100, borderRadius: 50,
+    backgroundColor: Colors.primaryGlow,
+  },
+  circle: {
+    width: 88, height: 88, borderRadius: 44,
+    backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.55, shadowRadius: 24, elevation: 14,
+  },
+  letter: { fontSize: 44, fontWeight: '900', color: '#fff', letterSpacing: -1 },
+  appName: { fontSize: 30, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  tagline: { fontSize: 14, color: Colors.textMuted, fontWeight: '500', letterSpacing: 0.1 },
 });
 
 export default function RootLayout() {
@@ -100,6 +118,7 @@ export default function RootLayout() {
   const segments = useSegments();
 
   useEffect(() => {
+    if (isExpoGo) return;
     const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
     Purchases.setLogLevel(LOG_LEVEL.VERBOSE); // remove before production
     Purchases.configure({ apiKey });
@@ -145,7 +164,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ToastProvider>
-          <StatusBar style="light" backgroundColor={Colors.background} />
+          <StatusBar style="dark" backgroundColor={Colors.background} />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background }, animation: 'slide_from_right' }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />

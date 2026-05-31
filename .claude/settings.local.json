@@ -20,7 +20,9 @@
       "Bash(cd \"C:\\\\Users\\\\Agada\\\\Documents\\\\Quorum\" && node -e \"\nconst fs = require\\('fs'\\);\nconst files = [\n  'lib/scamDetection.ts',\n  'components/SafetyTimerModal.tsx',\n  'app/\\(drawer\\)/chat.tsx',\n  'app/\\(drawer\\)/events.tsx',\n  'app/\\(drawer\\)/plan-detail.tsx',\n];\nfiles.forEach\\(f => {\n  const content = fs.readFileSync\\(f, 'utf8'\\);\n  console.log\\(f + ': ' + content.length + ' chars'\\);\n}\\);\n\")",
       "Bash(npx expo:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(node:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
