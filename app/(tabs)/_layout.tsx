@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
-import { Colors, FontSize, Radius, Shadow } from '../../lib/theme';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../lib/theme';
 
 const TABS = [
   { name: 'index',    label: 'Home',     icon: 'home-outline' as const,          iconActive: 'home' as const },
@@ -44,6 +44,8 @@ function CustomTabBar() {
 
   return (
     <View style={[styles.barWrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+      {/* Thin top border with glow */}
+      <View style={styles.topBorder} />
       <View style={styles.bar}>
         {/* Left two tabs */}
         {TABS.slice(0, 2).map((tab) => (
@@ -51,14 +53,14 @@ function CustomTabBar() {
             key={tab.name}
             tab={tab}
             isActive={activeRoute(tab.name)}
-            badge={tab.name === 'activity' ? badge : 0}
+            badge={0}
             onPress={() => router.push(tab.name === 'index' ? '/' : `/${tab.name}`)}
           />
         ))}
 
         {/* Center create button */}
         <TouchableOpacity
-          style={styles.createBtn}
+          style={styles.createBtnWrap}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             router.push('/create-plan');
@@ -67,8 +69,8 @@ function CustomTabBar() {
           accessibilityLabel="Create new plan"
           accessibilityRole="button"
         >
-          <View style={styles.createInner}>
-            <Ionicons name="add" size={28} color="#fff" />
+          <View style={styles.createBtn}>
+            <Ionicons name="add" size={26} color="#fff" />
           </View>
         </TouchableOpacity>
 
@@ -99,18 +101,30 @@ function TabBtn({
   onPress: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const indicatorOpacity = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(indicatorOpacity, {
+      toValue: isActive ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isActive]);
 
   const press = () => {
     Animated.sequence([
-      Animated.spring(scale, { toValue: 0.85, useNativeDriver: true, speed: 80, bounciness: 2 }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 14 }),
+      Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 80, bounciness: 2 }),
+      Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 50, bounciness: 14 }),
     ]).start();
+    Haptics.selectionAsync();
     onPress();
   };
 
   return (
     <TouchableOpacity style={styles.tab} onPress={press} activeOpacity={1}>
-      <Animated.View style={[styles.iconWrap, isActive && styles.iconWrapActive, { transform: [{ scale }] }]}>
+      <Animated.View style={[styles.iconWrap, { transform: [{ scale }] }]}>
+        {/* Active pill background */}
+        <Animated.View style={[styles.activePill, { opacity: indicatorOpacity }]} />
         <Ionicons
           name={isActive ? tab.iconActive : tab.icon}
           size={22}
@@ -122,7 +136,9 @@ function TabBtn({
           </View>
         )}
       </Animated.View>
-      <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
+      <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+        {tab.label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -143,37 +159,43 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   barWrap: {
-    backgroundColor: Colors.surface,
+    backgroundColor: '#ffffff',
     borderTopWidth: 1,
-    borderTopColor: Colors.glassBorder,
-    ...Shadow.dark,
+    borderTopColor: Colors.border,
   },
+  topBorder: { height: 0 },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingTop: 8,
+    paddingHorizontal: Spacing.sm,
+    paddingTop: 6,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     gap: 3,
+    paddingVertical: 2,
   },
   iconWrap: {
-    width: 44,
-    height: 34,
-    borderRadius: 17,
+    width: 46,
+    height: 32,
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapActive: {
-    backgroundColor: Colors.primaryDim,
-    ...Shadow.rose,
+  activePill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    borderTopWidth: 2,
+    borderTopColor: Colors.primary,
+    borderWidth: 0,
   },
   tabLabel: {
     fontSize: 10,
     color: Colors.textMuted,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
   tabLabelActive: {
     color: Colors.primary,
@@ -182,8 +204,8 @@ const styles = StyleSheet.create({
   badge: {
     position: 'absolute',
     top: 2,
-    right: 3,
-    backgroundColor: Colors.error,
+    right: 4,
+    backgroundColor: Colors.tertiary,
     borderRadius: 99,
     minWidth: 15,
     height: 15,
@@ -191,23 +213,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: Colors.surface,
+    borderColor: '#ffffff',
   },
   badgeText: { color: '#fff', fontSize: 8, fontWeight: '800' },
-  createBtn: {
-    width: 64,
+  createBtnWrap: {
+    width: 60,
     alignItems: 'center',
-    marginTop: -18,
+    marginTop: -20,
   },
-  createInner: {
+  createBtn: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 4,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadow.roseStrong,
-    borderWidth: 2,
-    borderColor: Colors.primaryLight + '55',
+    borderWidth: 0,
   },
 });
