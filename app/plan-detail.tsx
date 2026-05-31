@@ -66,12 +66,9 @@ import { hasScamKeywords } from '../lib/scamDetection';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-const REACTIONS = ['❤️', '🔥', '😂', '😮', '👎'];
+const REACTIONS = ['Love', 'Fire', 'Haha', 'Wow', 'No'];
 const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'];
-const CATEGORY_EMOJI: Record<string, string> = {
-  Music: '🎵', Food: '🍔', Sports: '⚽', Art: '🎨',
-  Gaming: '🎮', Travel: '✈️', Party: '🎉', Study: '📚',
-};
+const CATEGORY_EMOJI: Record<string, string> = {};
 
 const DETAIL_TABS = ['Overview', 'Poll', 'Chat', 'Moments'] as const;
 type DetailTab = typeof DETAIL_TABS[number];
@@ -283,7 +280,7 @@ export default function PlanDetailScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: '🎉 Quorum Reached!',
+            title: 'Quorum Reached!',
             body: `"${plan.title}" has enough votes — it's confirmed!`,
             data: { planId: plan.id },
           },
@@ -297,7 +294,7 @@ export default function PlanDetailScreen() {
           if (oneDayBefore > now) {
             await Notifications.scheduleNotificationAsync({
               content: {
-                title: '📅 Plan Tomorrow!',
+                title: 'Plan Tomorrow!',
                 body: `"${plan.title}" is happening tomorrow. Get ready!`,
                 data: { planId: plan.id },
               },
@@ -307,7 +304,7 @@ export default function PlanDetailScreen() {
           if (oneHourBefore > now) {
             await Notifications.scheduleNotificationAsync({
               content: {
-                title: '⏰ Plan in 1 hour!',
+                title: 'Plan in 1 hour!',
                 body: `"${plan.title}" starts in 1 hour!`,
                 data: { planId: plan.id },
               },
@@ -457,7 +454,7 @@ export default function PlanDetailScreen() {
 
   const handleShare = async () => {
     if (!plan) return;
-    const text = `Check out this plan on Quorum!\n\n📌 ${plan.title}${plan.description ? `\n${plan.description}` : ''}${plan.date ? `\n📅 ${plan.date}` : ''}${plan.location ? `\n📍 ${plan.location}` : ''}\n\nVotes: ${plan.votes?.length || 0}/${plan.requiredVotes}`;
+    const text = `Check out this plan on Quorum!\n\nPlan: ${plan.title}${plan.description ? `\n${plan.description}` : ''}${plan.date ? `\nDate: ${plan.date}` : ''}${plan.location ? `\nLocation: ${plan.location}` : ''}\n\nVotes: ${plan.votes?.length || 0}/${plan.requiredVotes}`;
     try {
       await Sharing.shareAsync('data:text/plain;base64,' + btoa(text), { mimeType: 'text/plain', dialogTitle: 'Share Plan' });
     } catch {
@@ -677,7 +674,7 @@ export default function PlanDetailScreen() {
           <Text style={styles.planTitle}>{plan.title}</Text>
           {plan.category && (
             <Text style={styles.categoryTag}>
-              {CATEGORY_EMOJI[plan.category] || '📌'} {plan.category}
+              {plan.category}
             </Text>
           )}
         </View>
@@ -1273,7 +1270,7 @@ export default function PlanDetailScreen() {
             <TouchableOpacity key={opt} style={styles.pollOption} onPress={() => handlePollVote(opt)}>
               <View style={[styles.pollOptionFill, { width: `${percentage}%` as any }]} />
               <Text style={[styles.pollOptionText, hasVotedForThis && styles.pollOptionTextActive]}>{opt}</Text>
-              <Text style={styles.pollOptionPct}>{votes.length} {hasVotedForThis ? '✓' : ''}</Text>
+              <Text style={styles.pollOptionPct}>{votes.length}{hasVotedForThis ? ' (voted)' : ''}</Text>
             </TouchableOpacity>
           );
         })}

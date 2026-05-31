@@ -298,7 +298,7 @@ export default function UserProfileScreen() {
             <View style={styles.friendActions}>
               {relation === 'friend' && (
                 <AnimatedButton
-                  label="✓ Friends"
+                  label="Connected"
                   onPress={handleUnfriend}
                   variant="secondary"
                   loading={actionLoading}

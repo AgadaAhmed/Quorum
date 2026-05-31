@@ -13,6 +13,7 @@ import Purchases from 'react-native-purchases';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { RC_MONTHLY_PRODUCT_ID, RC_ANNUAL_PRODUCT_ID } from '../lib/subscription';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
 interface Props {
@@ -73,10 +74,10 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <LinearGradient colors={['#0D0D0F', '#1A0A1E']} style={styles.container}>
         <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-          <Text style={styles.closeBtnText}>✕</Text>
+          <Ionicons name="close" size={18} color={Colors.text} />
         </TouchableOpacity>
 
-        <Text style={styles.crown}>✦</Text>
+        <Ionicons name="star" size={24} color={Colors.gold} />
         <Text style={styles.title}>Quorum Pro</Text>
         {reason ? <Text style={styles.reason}>{reason}</Text> : null}
 
@@ -90,7 +91,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             'Plan analytics',
           ].map((f) => (
             <View key={f} style={styles.featureRow}>
-              <Text style={styles.featureCheck}>✓</Text>
+              <Ionicons name="checkmark" size={16} color={Colors.secondary} />
               <Text style={styles.featureText}>{f}</Text>
             </View>
           ))}

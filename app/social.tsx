@@ -440,7 +440,7 @@ export default function SocialScreen() {
                       </View>
                     </TouchableOpacity>
                     {alreadyFriend ? (
-                      <Text style={styles.friendTag}>✓ Friends</Text>
+                      <Text style={styles.friendTag}>Connected</Text>
                     ) : pending ? (
                       <TouchableOpacity onPress={() => cancelRequest(item.id)} style={styles.pendingBtn}>
                         <Text style={styles.pendingTag}>Pending</Text>

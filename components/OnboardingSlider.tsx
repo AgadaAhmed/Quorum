@@ -9,6 +9,7 @@ import {
   View,
   type ViewToken,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -22,25 +23,25 @@ type Slide = {
 
 const SLIDES: Slide[] = [
   {
-    icon: '🎉',
+    icon: 'people-circle-outline',
     title: 'Welcome to Quorum',
     subtitle: 'The app that turns group indecision into confirmed plans.',
     color: Colors.primary,
   },
   {
-    icon: '🗳️',
+    icon: 'thumbs-up-outline',
     title: 'Vote to Confirm',
     subtitle: "Plans are confirmed once enough people vote. No more 'I'm down if everyone else is.'",
     color: Colors.success,
   },
   {
-    icon: '👥',
+    icon: 'calendar-outline',
     title: 'Invite & Discover',
     subtitle: 'Invite friends, join public events, and connect with your social circle.',
     color: Colors.gold,
   },
   {
-    icon: '🚀',
+    icon: 'rocket-outline',
     title: "Let's Go!",
     subtitle: 'Create your first plan and start making things happen together.',
     color: Colors.primary,
@@ -99,7 +100,7 @@ export default function OnboardingSlider({ visible, onDone }: Props) {
           scrollEventThrottle={16}
           renderItem={({ item }) => (
             <View style={styles.slide}>
-              <Text style={styles.emoji}>{item.icon}</Text>
+              <Ionicons name={item.icon as any} size={48} color={item.color} style={{ marginBottom: Spacing.lg }} />
               <Text style={[styles.title, { color: item.color }]}>{item.title}</Text>
               <Text style={styles.subtitle}>{item.subtitle}</Text>
             </View>
