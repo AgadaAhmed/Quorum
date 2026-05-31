@@ -107,9 +107,9 @@ function getGreeting() {
 }
 
 function getStatusGlow(status: Plan['status'], archived: boolean): string {
-  if (archived) return Colors.textMuted;
-  if (status === 'confirmed') return Colors.success;
-  return Colors.primary;
+  if (archived) return Colors.textDisabled;
+  if (status === 'confirmed') return Colors.secondary;   // teal for confirmed
+  return Colors.primary;                                  // indigo for pending
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +393,7 @@ export default function HomeScreen() {
               <Image source={{ uri: auth.currentUser.photoURL }} style={styles.avatarImage} />
             ) : (
               <LinearGradient
-                colors={[Colors.primary, '#7c3aed']}
+                colors={[Colors.primary, Colors.primaryContainer]}
                 style={styles.avatarGradient}
               >
                 <Text style={styles.avatarLetter}>{avatarLetter}</Text>
@@ -776,7 +776,7 @@ function SwipeablePlanCard({
           <Image source={{ uri: item.coverUrl }} style={styles.coverImage} resizeMode="cover" />
         ) : (
           <LinearGradient
-            colors={['#f43f5e22', '#100d14']}
+            colors={[Colors.primaryDim, Colors.background]}
             style={styles.coverGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -798,12 +798,12 @@ function SwipeablePlanCard({
               <View
                 style={[
                   styles.statusDot,
-                  { backgroundColor: item.status === 'confirmed' ? Colors.success : Colors.primary },
+                  { backgroundColor: item.status === 'confirmed' ? Colors.secondary : Colors.primary },
                 ]}
               />
               <Text style={[
                 styles.statusLabel,
-                { color: item.status === 'confirmed' ? Colors.success : Colors.primary },
+                { color: item.status === 'confirmed' ? Colors.secondaryLight : Colors.primaryLight },
               ]}>
                 {isArchived ? 'Archived' : item.status === 'confirmed' ? 'Confirmed' : 'Pending'}
               </Text>
@@ -894,17 +894,17 @@ function SwipeablePlanCard({
 }
 
 // ---------------------------------------------------------------------------
-// Styles
+// Styles — Social Nexus design system
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  // Header
+  // ── Header ──────────────────────────────────────────────────────────────
   header: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.glassBorder,
+    borderBottomColor: Colors.border,
   },
   headerRow: {
     flexDirection: 'row',
@@ -915,8 +915,8 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: FontSize.xl,
     fontWeight: FontWeight.black,
-    color: Colors.primary,
-    letterSpacing: -0.5,
+    color: Colors.text,
+    letterSpacing: -0.6,
   },
   headerActions: {
     flexDirection: 'row',
@@ -924,73 +924,65 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: Radius.full,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addBtn: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primaryBorder,
+    borderColor: Colors.primary,
   },
   greetingRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   greetingLine: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.sm,
     color: Colors.textMuted,
     fontWeight: FontWeight.medium,
+    letterSpacing: 0.1,
   },
   greetingName: {
     fontSize: FontSize.xxl,
     fontWeight: FontWeight.black,
     color: Colors.text,
-    letterSpacing: -0.5,
-    marginTop: 2,
+    letterSpacing: -0.6,
+    marginTop: 1,
   },
   avatarCircle: {
-    width: 48,
-    height: 48,
+    width: 50,
+    height: 50,
     borderRadius: Radius.full,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: Colors.primaryBorder,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  avatarImage: { width: '100%', height: '100%' },
+  avatarGradient: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   avatarLetter: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.black,
-    color: Colors.text,
+    color: '#fff',
   },
 
-  // Filter pills
-  pillsWrapper: {
-    paddingVertical: Spacing.sm,
-  },
+  // ── Filter pills ──────────────────────────────────────────────────────
+  pillsWrapper: { paddingVertical: Spacing.sm },
 
-  // Search
+  // ── Search ────────────────────────────────────────────────────────────
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: Spacing.md,
+    marginHorizontal: Spacing.container,
     marginBottom: Spacing.sm,
-    backgroundColor: Colors.surfaceRaised,
-    borderRadius: Radius.lg,
+    backgroundColor: Colors.backgroundAlt,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
     paddingVertical: 2,
     gap: 8,
@@ -999,43 +991,41 @@ const styles = StyleSheet.create({
     flex: 1,
     color: Colors.text,
     fontSize: FontSize.md,
-    paddingVertical: 11,
+    paddingVertical: 12,
   },
 
-  // Friends carousel
+  // ── Friends carousel ─────────────────────────────────────────────────
   friendSection: {
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.sm,
   },
   sectionLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+    fontSize: 11,
+    fontWeight: FontWeight.heavy,
     color: Colors.textMuted,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.container,
     marginBottom: Spacing.sm,
-    letterSpacing: 0.8,
+    marginTop: Spacing.lg,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   friendScroll: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.container,
     gap: 10,
     paddingVertical: 4,
   },
   friendCard: {
-    width: 168,
-    minHeight: 116,
+    width: 172,
+    minHeight: 120,
     marginBottom: 0,
-    padding: 14,
+    padding: Spacing.md,
   },
-  friendEmoji: {
-    fontSize: 22,
-    marginBottom: 4,
-  },
+  friendEmoji: { fontSize: 22, marginBottom: 4 },
   friendTitle: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.bold,
     color: Colors.text,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   friendMeta: {
     fontSize: FontSize.xs,
@@ -1050,29 +1040,18 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 6,
   },
-  friendStatusText: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-  },
+  friendStatusText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
 
-  // Plan list
+  // ── Plan list ─────────────────────────────────────────────────────────
   listContent: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: 100,
+    paddingHorizontal: Spacing.container,
+    paddingBottom: 110,
   },
 
-  // Plan card body
-  coverImage: {
-    width: '100%',
-    height: 160,
-  },
-  coverGradient: {
-    width: '100%',
-    height: 80,
-  },
-  cardBody: {
-    padding: Spacing.md,
-  },
+  // ── Plan card body ────────────────────────────────────────────────────
+  coverImage: { width: '100%', height: 180, borderRadius: 0 },
+  coverGradient: { width: '100%', height: 72 },
+  cardBody: { padding: Spacing.md },
   cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1097,11 +1076,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: Radius.full,
-  },
+  statusDot: { width: 6, height: 6, borderRadius: Radius.full },
   statusLabel: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
@@ -1113,6 +1088,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: Spacing.sm,
     letterSpacing: -0.3,
+    lineHeight: 26,
   },
   metaRow: {
     flexDirection: 'row',
@@ -1124,10 +1100,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
   },
   metaText: {
     fontSize: FontSize.xs,
@@ -1135,19 +1113,19 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.medium,
   },
   countdownChip: {
-    backgroundColor: Colors.successDim,
+    backgroundColor: Colors.secondaryDim,
+    borderColor: Colors.secondaryBorder,
   },
   countdownChipPending: {
     backgroundColor: Colors.primaryDim,
+    borderColor: Colors.primaryBorder,
   },
   countdownText: {
     fontSize: FontSize.xs,
     color: Colors.success,
     fontWeight: FontWeight.bold,
   },
-  progressWrapper: {
-    marginBottom: Spacing.sm,
-  },
+  progressWrapper: { marginBottom: Spacing.sm },
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1159,9 +1137,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: Radius.full,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.glassBorder,
   },
@@ -1175,89 +1153,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: Radius.full,
     backgroundColor: Colors.primaryDim,
     borderWidth: 1,
     borderColor: Colors.primaryBorder,
   },
   votesChipText: {
-    color: Colors.primary,
+    color: Colors.primaryLight,
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
   },
   votedPill: {
-    backgroundColor: Colors.primaryDim,
+    backgroundColor: Colors.secondaryDim,
     borderWidth: 1,
-    borderColor: Colors.primaryBorder,
-    borderRadius: 12,
+    borderColor: Colors.secondaryBorder,
+    borderRadius: Radius.full,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
   },
   votedPillText: {
-    color: Colors.primary,
-    fontSize: 11,
+    color: Colors.secondaryLight,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
   },
 
-  // Swipe actions
-  swipeLeftActions: {
-    flexDirection: 'row',
-    marginVertical: 6,
-  },
-  swipeRightActions: {
-    flexDirection: 'row',
-    marginVertical: 6,
-  },
+  // ── Swipe actions ─────────────────────────────────────────────────────
+  swipeLeftActions: { flexDirection: 'row', marginVertical: 6 },
+  swipeRightActions: { flexDirection: 'row', marginVertical: 6 },
   swipePin: {
-    backgroundColor: Colors.primary + 'cc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    borderRadius: Radius.md,
-    gap: 4,
+    backgroundColor: Colors.primary + 'dd',
+    justifyContent: 'center', alignItems: 'center',
+    width: 72, borderRadius: Radius.md, gap: 4,
   },
   swipeUnpin: {
     backgroundColor: Colors.gold + 'cc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    borderRadius: Radius.md,
-    gap: 4,
+    justifyContent: 'center', alignItems: 'center',
+    width: 72, borderRadius: Radius.md, gap: 4,
   },
   swipeArchive: {
-    backgroundColor: Colors.gold + 'cc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    borderRadius: Radius.md,
-    marginRight: 4,
-    gap: 4,
+    backgroundColor: Colors.surfaceBright,
+    borderWidth: 1, borderColor: Colors.glassBorderStrong,
+    justifyContent: 'center', alignItems: 'center',
+    width: 72, borderRadius: Radius.md, marginRight: 4, gap: 4,
   },
   swipeRestore: {
     backgroundColor: Colors.primary + 'cc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    borderRadius: Radius.md,
-    marginRight: 4,
-    gap: 4,
+    justifyContent: 'center', alignItems: 'center',
+    width: 72, borderRadius: Radius.md, marginRight: 4, gap: 4,
   },
   swipeDelete: {
-    backgroundColor: Colors.error + 'cc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    borderRadius: Radius.md,
-    gap: 4,
+    backgroundColor: Colors.tertiary + 'dd',
+    justifyContent: 'center', alignItems: 'center',
+    width: 72, borderRadius: Radius.md, gap: 4,
   },
   swipeLeave: {
-    backgroundColor: Colors.textMuted + 'cc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    borderRadius: Radius.md,
-    gap: 4,
+    backgroundColor: Colors.surfaceBright,
+    borderWidth: 1, borderColor: Colors.glassBorderStrong,
+    justifyContent: 'center', alignItems: 'center',
+    width: 72, borderRadius: Radius.md, gap: 4,
   },
   swipeActionText: {
     fontSize: 11,
@@ -1266,7 +1220,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Empty states
+  // ── Empty states ─────────────────────────────────────────────────────
   onboarding: {
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
@@ -1274,11 +1228,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   onboardingTitle: {
-    fontSize: FontSize.xxl,
+    fontSize: FontSize.xl,
     fontWeight: FontWeight.black,
     color: Colors.text,
     textAlign: 'center',
-    letterSpacing: 0.3,
+    letterSpacing: -0.3,
   },
   onboardingSubtitle: {
     fontSize: FontSize.md,
@@ -1292,25 +1246,15 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 4,
   },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: Radius.xs,
+    width: 26, height: 26,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     marginTop: 1,
   },
-  stepBadgeText: {
-    color: Colors.text,
-    fontWeight: FontWeight.black,
-    fontSize: 12,
-  },
+  stepBadgeText: { color: '#fff', fontWeight: FontWeight.black, fontSize: 13 },
   stepTitle: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.bold,
@@ -1320,19 +1264,20 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     marginTop: 2,
+    lineHeight: 20,
   },
   emptyBtn: {
     marginTop: 4,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 22,
-    paddingVertical: 13,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: Radius.full,
     flexDirection: 'row',
     alignItems: 'center',
-    ...Shadow.rose,
+    ...Shadow.indigo,
   },
   emptyBtnText: {
-    color: Colors.text,
+    color: '#fff',
     fontWeight: FontWeight.bold,
     fontSize: FontSize.md,
   },
@@ -1352,27 +1297,27 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // Context sheet
+  // ── Context bottom sheet ──────────────────────────────────────────────
   contextOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   contextSheet: {
-    backgroundColor: Colors.surfaceRaised,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: Colors.surfaceOverlay,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
     paddingTop: 12,
     paddingBottom: 36,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.glassBorderStrong,
   },
   contextHandle: {
-    width: 40,
+    width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.glassBorder,
+    backgroundColor: Colors.glassBorderStrong,
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -1382,11 +1327,12 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingHorizontal: 4,
     marginBottom: 12,
+    letterSpacing: -0.3,
   },
   contextDivider: {
     height: 1,
     backgroundColor: Colors.glassBorder,
-    marginVertical: 6,
+    marginVertical: 4,
   },
   contextRow: {
     flexDirection: 'row',
