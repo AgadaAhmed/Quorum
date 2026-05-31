@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
   },
   heroHandle: {
     fontSize: FontSize.md,
-    color: Colors.primary,
+    color: Colors.textSecondary,
     fontWeight: FontWeight.semibold,
     marginTop: 2,
   },
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
   },
 
   // Stats
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
     padding: Spacing.md,
   },
   cardHeader: {
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
   },
 
   // Sign out
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     borderTopWidth: 1,
-    borderColor: Colors.glassBorderStrong,
+    borderColor: Colors.borderStrong,
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     maxHeight: '90%',
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
     padding: Spacing.sm + 2,
     color: Colors.text,
     fontSize: FontSize.md,
@@ -755,7 +755,7 @@ const styles = StyleSheet.create({
   },
   sectionDivider: {
     height: 1,
-    backgroundColor: Colors.glassBorder,
+    backgroundColor: Colors.border,
     marginVertical: Spacing.md,
   },
 
@@ -763,15 +763,15 @@ const styles = StyleSheet.create({
   plansSection: { paddingHorizontal: Spacing.md, marginBottom: Spacing.lg },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: FontWeight.heavy,
-    color: Colors.textMuted,
+    fontWeight: '800',
+    color: Colors.textSecondary,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
     paddingHorizontal: Spacing.container,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
   },
-  planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.glassBorder },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
   planRowAccent: { width: 3, alignSelf: 'stretch' },
   planRowContent: { flex: 1, paddingVertical: 12, paddingLeft: 12 },
   planRowTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.text },

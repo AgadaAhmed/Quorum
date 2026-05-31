@@ -498,6 +498,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: FontWeight.semibold,
     textTransform: 'capitalize',
+    color: Colors.textSecondary,
   },
   cardTitle: {
     fontSize: FontSize.lg,
@@ -518,7 +519,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  chipText: { fontSize: FontSize.xs, color: Colors.textMuted, maxWidth: 120 },
+  chipText: { fontSize: FontSize.xs, color: Colors.textSecondary, maxWidth: 120 },
   joinBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -560,7 +561,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semibold,
   },
   emptySubtitle: {
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontSize: FontSize.sm,
     textAlign: 'center',
   },

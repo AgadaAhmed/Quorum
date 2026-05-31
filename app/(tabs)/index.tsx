@@ -943,7 +943,7 @@ const styles = StyleSheet.create({
   },
   greetingLine: {
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontWeight: FontWeight.medium,
     letterSpacing: 0.1,
   },
@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: FontWeight.heavy,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     paddingHorizontal: Spacing.container,
     marginBottom: Spacing.sm,
     marginTop: Spacing.lg,
@@ -1105,7 +1105,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
   },
   metaText: {
     fontSize: FontSize.xs,
@@ -1141,7 +1141,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
   },
   chatBtnText: {
     color: Colors.textSecondary,
@@ -1239,6 +1239,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 4,
+    lineHeight: 22,
   },
   stepsCard: {
     width: '100%',
@@ -1259,6 +1260,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: FontWeight.bold,
     color: Colors.text,
+    lineHeight: 22,
   },
   stepDesc: {
     fontSize: FontSize.sm,
@@ -1295,6 +1297,7 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: FontSize.md,
     color: Colors.textSecondary,
+    lineHeight: 22,
   },
 
   // ── Context bottom sheet ──────────────────────────────────────────────
@@ -1331,7 +1334,7 @@ const styles = StyleSheet.create({
   },
   contextDivider: {
     height: 1,
-    backgroundColor: Colors.glassBorder,
+    backgroundColor: Colors.border,
     marginVertical: 4,
   },
   contextRow: {
