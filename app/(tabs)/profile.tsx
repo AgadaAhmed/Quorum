@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -236,13 +235,6 @@ export default function ProfileScreen() {
       >
         {/* ── Hero Banner ── */}
         <View style={styles.heroContainer}>
-          <LinearGradient
-            colors={['#f43f5e33', '#080608']}
-            style={StyleSheet.absoluteFillObject}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-          />
-
           {/* Avatar */}
           <TouchableOpacity onPress={handleAvatarPick} disabled={uploadingAvatar} style={styles.avatarWrapper}>
             <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
@@ -510,10 +502,12 @@ const styles = StyleSheet.create({
   // Hero
   heroContainer: {
     alignItems: 'center',
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    overflow: 'hidden',
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.container,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
   },
   avatarWrapper: {
     marginBottom: Spacing.md,
@@ -526,7 +520,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 3,
     borderColor: Colors.primaryBorder,
-    ...Shadow.roseStrong,
+    ...Shadow.indigoStrong,
   },
   avatarImage: {
     width: 96,
@@ -601,28 +595,27 @@ const styles = StyleSheet.create({
   // Stats
   statsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.container,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
   },
   statDivider: {
     width: 1,
-    height: 36,
-    backgroundColor: Colors.glassBorder,
+    backgroundColor: Colors.border,
+    marginVertical: 4,
   },
 
   // Actions
   actionsRow: {
     flexDirection: 'row',
+    paddingHorizontal: Spacing.container,
+    paddingVertical: Spacing.md,
     gap: Spacing.sm,
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   actionBtn: {
     flex: 1,
@@ -768,7 +761,16 @@ const styles = StyleSheet.create({
 
   // My Plans section
   plansSection: { paddingHorizontal: Spacing.md, marginBottom: Spacing.lg },
-  sectionLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: FontWeight.heavy,
+    color: Colors.textMuted,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.glassBorder },
   planRowAccent: { width: 3, alignSelf: 'stretch' },
   planRowContent: { flex: 1, paddingVertical: 12, paddingLeft: 12 },
