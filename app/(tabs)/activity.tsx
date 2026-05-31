@@ -463,7 +463,7 @@ export default function ActivityScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.container,
     paddingBottom: 100,
   },
 
@@ -482,12 +482,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   sectionLabel: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textMuted,
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.container,
   },
 
   // Friend request card
@@ -530,7 +531,7 @@ const styles = StyleSheet.create({
   },
   requestUsername: {
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     marginTop: 2,
   },
   requestActions: {
@@ -603,7 +604,7 @@ const styles = StyleSheet.create({
   timeGroupLabel: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     paddingHorizontal: Spacing.xs,
@@ -621,11 +622,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.semibold,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
   },
   emptySubText: {
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
     lineHeight: 20,

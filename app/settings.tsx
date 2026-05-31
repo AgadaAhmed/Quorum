@@ -229,7 +229,7 @@ export default function SettingsScreen() {
             <Switch
               value={showLocation}
               onValueChange={toggleShowLocation}
-              trackColor={{ false: Colors.glassBorder, true: Colors.primary }}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor={Colors.text}
             />
           </View>
@@ -243,7 +243,7 @@ export default function SettingsScreen() {
             <Switch
               value={privateProfile}
               onValueChange={togglePrivateProfile}
-              trackColor={{ false: Colors.glassBorder, true: Colors.primary }}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor={Colors.text}
             />
           </View>
@@ -346,7 +346,7 @@ function SettingRow({ label, description, value, onValueChange, icon }: {
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: Colors.glassBorder, true: Colors.primary }}
+        trackColor={{ false: Colors.border, true: Colors.primary }}
         thumbColor={Colors.text}
       />
     </View>
@@ -362,21 +362,24 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.glassBorder,
+    borderBottomColor: Colors.border,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 30, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   content: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 },
   sectionLabel: {
-    fontSize: FontSize.sm, fontWeight: '700', color: Colors.textMuted,
-    textTransform: 'uppercase', letterSpacing: 1, marginTop: Spacing.md, marginBottom: 4,
+    fontSize: 11, fontWeight: '800', color: Colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 1.5, marginTop: Spacing.lg, marginBottom: Spacing.sm,
   },
   section: {
-    backgroundColor: Colors.surfaceRaised, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.glassBorder, overflow: 'hidden',
+    backgroundColor: Colors.backgroundAlt,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
   },
   dangerSection: { borderColor: Colors.error + '44' },
-  divider: { height: 1, backgroundColor: Colors.glassBorder, marginHorizontal: Spacing.md },
+  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
   settingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: Spacing.md, paddingVertical: 14,
@@ -388,21 +391,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: 14,
   },
   infoLabel: { fontSize: FontSize.md, color: Colors.textSecondary },
-  infoValue: { fontSize: FontSize.md, color: Colors.textMuted, maxWidth: '55%', textAlign: 'right' },
+  infoValue: { fontSize: FontSize.md, color: Colors.textSecondary, maxWidth: '55%', textAlign: 'right' },
   actionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: Spacing.md, paddingVertical: 14,
   },
   actionLabel: { flex: 1, fontSize: FontSize.md, fontWeight: '600', color: Colors.text },
-  actionDesc: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
+  actionDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   version: {
-    textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.sm, marginTop: Spacing.xl,
+    textAlign: 'center', color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.xl,
   },
   planValue: {
     fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2,
   },
   upgradeBadge: {
-    backgroundColor: Colors.primary, borderRadius: Radius.full,
+    backgroundColor: Colors.primary, borderRadius: Radius.md,
     paddingHorizontal: 14, paddingVertical: 6,
   },
   upgradeBadgeText: {
