@@ -762,6 +762,16 @@ export default function PlanDetailScreen() {
           })}
         </View>
 
+        {/* LAST TIME... */}
+        <View style={styles.lastTimeSection}>
+          <Text style={styles.lastTimeLabelText}>LAST TIME...</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.lastTimeScroll}>
+            {[1, 2, 3].map((i) => (
+              <View key={i} style={styles.lastTimePhoto} />
+            ))}
+          </ScrollView>
+        </View>
+
         {/* Quorum Details Box */}
         <View style={styles.detailsBox}>
           <Text style={styles.detailsBoxLabel}>QUORUM DETAILS</Text>
@@ -933,6 +943,7 @@ export default function PlanDetailScreen() {
 
       {/* Participants */}
       <AnimatedCard index={2} style={{ marginBottom: Spacing.md }}>
+        <Text style={styles.liveActivityLabel}>LIVE ACTIVITY</Text>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             Participants ({plan.participants?.length || 0}{plan.maxParticipants ? `/${plan.maxParticipants}` : ''})
@@ -945,6 +956,27 @@ export default function PlanDetailScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* WHO'S IN strip */}
+        {plan.participants && plan.participants.length > 0 && (
+          <View style={styles.whoIsInSection}>
+            <Text style={styles.whoIsInLabel}>WHO'S IN</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.whoIsInScroll}>
+              {plan.participants.slice(0, 10).map((pid: string, i: number) => (
+                <View key={pid} style={[styles.whoIsInAvatar, { marginLeft: i === 0 ? 0 : -8 }]}>
+                  <Text style={styles.whoIsInInitial}>{pid.charAt(0).toUpperCase()}</Text>
+                </View>
+              ))}
+              {plan.participants.length > 10 && (
+                <View style={[styles.whoIsInAvatar, { marginLeft: -8, backgroundColor: Colors.surfaceRaised }]}>
+                  <Text style={[styles.whoIsInInitial, { color: Colors.textSecondary }]}>
+                    +{plan.participants.length - 10}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
 
         {plan.participants?.map((pid: string) => {
           const name = participantNames[pid] || 'Loading...';
@@ -1641,7 +1673,14 @@ const styles = StyleSheet.create({
   // Plan info
   coverImage: { width: '100%', height: 140, borderRadius: Radius.md, marginBottom: 12 },
   planTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8, gap: 8 },
-  planTitle: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.text, flex: 1 },
+  planTitle: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: Colors.text,
+    flex: 1,
+    letterSpacing: -1,
+    lineHeight: 44,
+  },
   categoryTag: { color: Colors.primary, fontSize: FontSize.sm, fontWeight: '600', marginTop: 4 },
   planDesc: { fontSize: FontSize.md, color: Colors.textSecondary, marginBottom: 12, lineHeight: 22 },
   metaGrid: { gap: 8, marginBottom: 12 },
@@ -2017,6 +2056,78 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginHorizontal: Spacing.md,
+  },
+  whoIsInSection: {
+    paddingHorizontal: Spacing.container,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginVertical: Spacing.sm,
+  },
+  whoIsInLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+  whoIsInScroll: {
+    flexDirection: 'row',
+  },
+  whoIsInAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.backgroundAlt,
+  },
+  whoIsInInitial: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  lastTimeSection: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  lastTimeLabelText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    paddingHorizontal: Spacing.container,
+    marginBottom: 10,
+  },
+  lastTimeScroll: {
+    paddingHorizontal: Spacing.container,
+    gap: 8,
+  },
+  lastTimePhoto: {
+    width: 120,
+    height: 90,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  liveActivityLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.sm,
+    paddingBottom: 8,
   },
 });
 
