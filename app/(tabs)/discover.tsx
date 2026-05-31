@@ -209,7 +209,7 @@ export default function DiscoverScreen() {
           <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
         ) : (
           <LinearGradient
-            colors={['#f43f5e22', '#100d14']}
+            colors={[Colors.primaryDim, Colors.background]}
             style={styles.cardCoverGradient}
           />
         )}
@@ -421,7 +421,7 @@ export default function DiscoverScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.container,
     paddingBottom: Spacing.sm,
     gap: 12,
   },
@@ -429,48 +429,50 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xxl,
     fontWeight: FontWeight.black,
     color: Colors.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.surfaceRaised,
-    borderRadius: Radius.full,
+    backgroundColor: Colors.backgroundAlt,
+    borderRadius: Radius.md,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
   },
   searchInput: { flex: 1, color: Colors.text, fontSize: FontSize.md },
   list: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.container,
     paddingTop: Spacing.sm,
   },
   card: { padding: 0 },
   cardCover: {
     width: '100%',
-    height: 130,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
+    height: 180,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   cardCoverGradient: {
     width: '100%',
     height: 60,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   cardBody: { padding: Spacing.md, gap: 10 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   catPill: {
     paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: Radius.full,
+    borderRadius: Radius.md,
     backgroundColor: Colors.primaryDim,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
   },
   catText: {
     fontSize: FontSize.xs,
-    color: Colors.primary,
+    color: Colors.primaryLight,
     fontWeight: FontWeight.semibold,
   },
   ownPill: {
@@ -479,7 +481,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     backgroundColor: Colors.goldDim,
     borderWidth: 1,
-    borderColor: Colors.goldGlow,
+    borderColor: Colors.goldBorder,
   },
   ownPillText: {
     fontSize: FontSize.xs,
@@ -502,16 +504,19 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: Colors.text,
     letterSpacing: -0.3,
+    lineHeight: 26,
   },
-  chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  chipsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.md,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   chipText: { fontSize: FontSize.xs, color: Colors.textMuted, maxWidth: 120 },
   joinBtn: {
@@ -519,27 +524,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 2,
-    paddingVertical: 10,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.primaryDim,
-    borderWidth: 1,
-    borderColor: Colors.primaryBorder,
+    marginTop: 4,
+    paddingVertical: 12,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primary,
+    borderWidth: 0,
   },
   joinBtnJoined: {
-    backgroundColor: Colors.success + '22',
-    borderColor: Colors.success + '44',
+    backgroundColor: Colors.secondaryDim,
+    borderColor: Colors.secondaryBorder,
+    borderWidth: 1,
   },
   joinBtnFull: {
-    backgroundColor: Colors.surface,
-    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.border,
+    borderWidth: 1,
   },
   joinBtnText: {
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+    color: '#ffffff',
   },
-  joinBtnTextJoined: { color: Colors.success },
+  joinBtnTextJoined: { color: Colors.secondary },
   joinBtnTextFull: { color: Colors.textMuted },
   empty: {
     flex: 1,
