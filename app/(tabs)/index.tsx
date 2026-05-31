@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
   collection,
@@ -392,12 +391,9 @@ export default function HomeScreen() {
             {auth.currentUser?.photoURL ? (
               <Image source={{ uri: auth.currentUser.photoURL }} style={styles.avatarImage} />
             ) : (
-              <LinearGradient
-                colors={[Colors.primary, Colors.primaryContainer]}
-                style={styles.avatarGradient}
-              >
+              <View style={styles.avatarGradient}>
                 <Text style={styles.avatarLetter}>{avatarLetter}</Text>
-              </LinearGradient>
+              </View>
             )}
           </TouchableOpacity>
         </View>
@@ -769,54 +765,41 @@ function SwipeablePlanCard({
         index={index}
         onPress={onPress}
         onLongPress={onLongPress}
-        glowColor={glowColor}
       >
-        {/* Cover image or gradient placeholder */}
-        {item.coverUrl ? (
-          <Image source={{ uri: item.coverUrl }} style={styles.coverImage} resizeMode="cover" />
-        ) : (
-          <LinearGradient
-            colors={[Colors.primaryDim, Colors.background]}
-            style={styles.coverGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-        )}
+        {/* Cover image with status badge overlay */}
+        <View style={{ position: 'relative' }}>
+          {item.coverUrl ? (
+            <Image source={{ uri: item.coverUrl }} style={styles.coverImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.coverPlaceholder} />
+          )}
+          {/* Status badge overlaid on image */}
+          <View style={[
+            styles.imageBadge,
+            item.status === 'confirmed' ? styles.imageBadgeConfirmed : styles.imageBadgePending,
+          ]}>
+            <Text style={styles.imageBadgeText}>
+              {isArchived ? 'Archived' : item.status === 'confirmed' ? '• Confirmed' : '• Pending'}
+            </Text>
+          </View>
+          {isPinned && (
+            <View style={styles.pinnedBadge}>
+              <Ionicons name="bookmark" size={12} color={Colors.gold} />
+            </View>
+          )}
+        </View>
 
         <View style={styles.cardBody}>
-          {/* Category pill + status row */}
-          <View style={styles.cardTopRow}>
-            {item.category ? (
-              <View style={styles.categoryPill}>
-                <Text style={styles.categoryPillText}>
-                  {CATEGORY_EMOJI[item.category] || '📌'} {item.category}
-                </Text>
-              </View>
-            ) : <View />}
-
-            <View style={styles.statusRow}>
-              <View
-                style={[
-                  styles.statusDot,
-                  { backgroundColor: item.status === 'confirmed' ? Colors.secondary : Colors.primary },
-                ]}
-              />
-              <Text style={[
-                styles.statusLabel,
-                { color: item.status === 'confirmed' ? Colors.secondaryLight : Colors.primaryLight },
-              ]}>
-                {isArchived ? 'Archived' : item.status === 'confirmed' ? 'Confirmed' : 'Pending'}
-              </Text>
-              {isPinned && (
-                <Ionicons name="bookmark" size={13} color={Colors.gold} style={{ marginLeft: 4 }} />
-              )}
-            </View>
-          </View>
+          {/* Category • Status label */}
+          <Text style={styles.cardCategoryLabel}>
+            {item.category ? `${item.category.toUpperCase()} • ` : ''}
+            {isArchived ? 'ARCHIVED' : item.status === 'confirmed' ? 'CONFIRMED' : 'ACTIVE'}
+          </Text>
 
           {/* Plan title */}
           <Text style={styles.planTitle} numberOfLines={2}>{item.title}</Text>
 
-          {/* Meta chips row */}
+          {/* Date + location */}
           <View style={styles.metaRow}>
             {item.date ? (
               <View style={styles.metaChip}>
@@ -830,63 +813,32 @@ function SwipeablePlanCard({
                 <Text style={styles.metaText} numberOfLines={1}>{item.location}</Text>
               </View>
             ) : null}
-            {participants.length > 0 && (
-              <View style={styles.metaChip}>
-                <Ionicons name="people-outline" size={12} color={Colors.textMuted} />
-                <Text style={styles.metaText}>{participants.length}</Text>
-              </View>
-            )}
-            {countdown && item.status !== 'cancelled' ? (
-              <View style={[
-                styles.metaChip,
-                item.status === 'confirmed' ? styles.countdownChip : styles.countdownChipPending,
-              ]}>
-                <Ionicons
-                  name="time-outline"
-                  size={12}
-                  color={item.status === 'confirmed' ? Colors.success : Colors.primary}
-                />
-                <Text style={[
-                  styles.countdownText,
-                  item.status !== 'confirmed' && { color: Colors.primary },
-                ]}>{countdown}</Text>
-              </View>
-            ) : null}
           </View>
 
-          {/* Progress bar */}
+          {/* Quorum Status */}
           <View style={styles.progressWrapper}>
+            <View style={styles.progressLabelRow}>
+              <Text style={styles.progressLabel}>Quorum Status</Text>
+              <Text style={styles.progressPct}>
+                {Math.round(Math.min((item.votes?.length || 0) / Math.max(item.requiredVotes || 3, 1), 1) * 100)}%
+              </Text>
+            </View>
             <QuorumProgressBar
               votes={item.votes?.length || 0}
               required={item.requiredVotes || 3}
             />
           </View>
 
-          {/* Card action row */}
-          <View style={styles.cardActions}>
-            <TouchableOpacity
-              style={styles.chatBtn}
-              onPress={(e) => {
-                e.stopPropagation();
-                Haptics.selectionAsync();
-                onChatPress();
-              }}
-            >
-              <Ionicons name="chatbubble-outline" size={13} color={Colors.textSecondary} />
-              <Text style={styles.chatBtnText}>Chat</Text>
-            </TouchableOpacity>
-            <View style={styles.votesChip}>
-              <Ionicons name="thumbs-up-outline" size={12} color={Colors.primary} />
-              <Text style={styles.votesChipText}>
-                {item.votes?.length || 0}/{item.requiredVotes || 3}
-              </Text>
-            </View>
-            {item.votes?.includes(uid) && (
-              <View style={styles.votedPill}>
-                <Text style={styles.votedPillText}>✓ Voted</Text>
-              </View>
-            )}
-          </View>
+          {/* Text action button */}
+          <TouchableOpacity
+            style={styles.viewDetailsBtn}
+            onPress={(e) => { e.stopPropagation(); onPress(); }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.viewDetailsBtnText}>
+              {isCreator ? 'Manage Plan →' : 'View Details →'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </GlassCard>
     </Swipeable>
@@ -965,7 +917,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryBorder,
   },
   avatarImage: { width: '100%', height: '100%' },
-  avatarGradient: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  avatarGradient: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
   avatarLetter: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.black,
@@ -1056,136 +1008,116 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 0,
   },
-  coverGradient: { width: '100%', height: 72 },
+  coverPlaceholder: {
+    width: '100%',
+    height: 160,
+    backgroundColor: '#1a1a1a',
+  },
+  imageBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.md,
+  },
+  imageBadgePending: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  imageBadgeConfirmed: {
+    backgroundColor: Colors.secondary,
+  },
+  imageBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  pinnedBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+  },
   cardBody: {
     padding: Spacing.md,
     gap: 8,
   },
-  cardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
-  },
-  categoryPill: {
-    backgroundColor: Colors.primaryDim,
-    borderWidth: 1,
-    borderColor: Colors.primaryBorder,
-    borderRadius: Radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  categoryPillText: {
-    fontSize: FontSize.xs,
-    color: Colors.primaryLight,
-    fontWeight: FontWeight.semibold,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  statusDot: { width: 6, height: 6, borderRadius: Radius.full },
-  statusLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 0.3,
+  cardCategoryLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   planTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.heavy,
+    fontSize: 22,
+    fontWeight: '900',
     color: Colors.text,
-    marginBottom: Spacing.sm,
-    letterSpacing: -0.3,
-    lineHeight: 26,
+    letterSpacing: -0.5,
+    lineHeight: 28,
   },
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: Spacing.sm,
+    gap: 12,
   },
   metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.background,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    gap: 5,
   },
   metaText: {
     fontSize: FontSize.xs,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontWeight: FontWeight.medium,
   },
-  countdownChip: {
-    backgroundColor: Colors.secondaryDim,
-    borderColor: Colors.secondaryBorder,
+  progressWrapper: {
+    gap: 6,
   },
-  countdownChipPending: {
-    backgroundColor: Colors.primaryDim,
-    borderColor: Colors.primaryBorder,
-  },
-  countdownText: {
-    fontSize: FontSize.xs,
-    color: Colors.success,
-    fontWeight: FontWeight.bold,
-  },
-  progressWrapper: { marginBottom: Spacing.sm },
-  cardActions: {
+  progressLabelRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
   },
-  chatBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  chatBtnText: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-  },
-  votesChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  votesChipText: {
+  progressLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  votedPill: {
-    backgroundColor: Colors.secondaryDim,
-    borderWidth: 1,
-    borderColor: Colors.secondaryBorder,
-    borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  progressPct: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.text,
   },
-  votedPillText: {
-    color: Colors.secondaryLight,
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+  viewDetailsBtn: {
+    alignSelf: 'flex-end',
+    paddingTop: 4,
   },
+  viewDetailsBtnText: {
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+    color: Colors.text,
+    letterSpacing: 0.2,
+  },
+  // legacy — keep so swipe actions compile
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  categoryPill: {},
+  categoryPillText: {},
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statusDot: { width: 6, height: 6, borderRadius: Radius.full },
+  statusLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  countdownChip: {},
+  countdownChipPending: {},
+  countdownText: { fontSize: FontSize.xs, color: Colors.success, fontWeight: FontWeight.bold },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chatBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  chatBtnText: { color: Colors.textSecondary, fontSize: FontSize.sm },
+  votesChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  votesChipText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  votedPill: { paddingHorizontal: 8, paddingVertical: 4 },
+  votedPillText: { color: Colors.secondaryLight, fontSize: FontSize.xs, fontWeight: FontWeight.bold },
 
   // ── Swipe actions ─────────────────────────────────────────────────────
   swipeLeftActions: { flexDirection: 'row', marginVertical: 6 },

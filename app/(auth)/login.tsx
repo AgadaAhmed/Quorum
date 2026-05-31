@@ -131,7 +131,7 @@ function PasswordStrengthBar({ password }: { password: string }) {
             key={i}
             style={{
               flex: 1, height: 3, borderRadius: 2,
-              backgroundColor: i <= segments ? color : Colors.glassBorder,
+              backgroundColor: i <= segments ? color : Colors.border,
             }}
           />
         ))}
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
   cityDropdown: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: Colors.glassBorderStrong,
+    borderColor: Colors.border,
     borderRadius: Radius.md,
     overflow: 'hidden',
   },
@@ -766,7 +766,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.glassBorder,
+    borderBottomColor: Colors.border,
     paddingHorizontal: Spacing.md,
     backgroundColor: Colors.background,
   },
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.glassBorder,
+    borderBottomColor: Colors.border,
   },
   cityItemText: {
     color: Colors.text,

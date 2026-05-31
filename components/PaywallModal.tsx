@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.border,
     padding: Spacing.md,
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.04)',

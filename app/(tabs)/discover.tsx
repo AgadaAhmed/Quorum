@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import {
   arrayUnion,
@@ -200,113 +199,77 @@ export default function DiscoverScreen() {
             params: { id: item.id },
           })
         }
-        glowColor={
-          item.status === 'confirmed' ? Colors.success : Colors.primary
-        }
         style={styles.card}
       >
-        {item.coverUrl ? (
-          <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
-        ) : (
-          <LinearGradient
-            colors={[Colors.primaryDim, Colors.background]}
-            style={styles.cardCoverGradient}
-          />
-        )}
-        <View style={styles.cardBody}>
-          <View style={styles.metaRow}>
-            {item.category ? (
-              <View style={styles.catPill}>
-                <Text style={styles.catText}>{item.category}</Text>
-              </View>
-            ) : null}
-            {isOwn && (
-              <View style={styles.ownPill}>
-                <Text style={styles.ownPillText}>Yours</Text>
-              </View>
-            )}
-            <View
-              style={[
-                styles.statusDot,
-                {
-                  backgroundColor:
-                    item.status === 'confirmed'
-                      ? Colors.success
-                      : Colors.primary,
-                },
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusLabel,
-                {
-                  color:
-                    item.status === 'confirmed'
-                      ? Colors.success
-                      : Colors.primary,
-                },
-              ]}
-            >
-              {item.status}
+        {/* Cover image with status badge — matches Home card */}
+        <View style={{ position: 'relative' }}>
+          {item.coverUrl ? (
+            <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
+          ) : (
+            <View style={styles.cardCoverPlaceholder} />
+          )}
+          <View style={[
+            styles.cardImageBadge,
+            item.status === 'confirmed' ? styles.cardImageBadgeConfirmed : styles.cardImageBadgePending,
+          ]}>
+            <Text style={styles.cardImageBadgeText}>
+              {item.status === 'confirmed' ? '• Confirmed' : '• Pending'}
             </Text>
           </View>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {item.title}
+          {isOwn && (
+            <View style={styles.ownCornerBadge}>
+              <Text style={styles.ownCornerBadgeText}>Yours</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.cardBody}>
+          {/* Category • Status */}
+          <Text style={styles.cardCategoryLabel}>
+            {item.category ? `${item.category.toUpperCase()} • ` : ''}
+            {item.status === 'confirmed' ? 'CONFIRMED' : 'ACTIVE'}
+            {distKm != null ? ` • ${formatDistance(distKm)}` : ''}
           </Text>
-          <View style={styles.chipsRow}>
+
+          {/* Title */}
+          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+
+          {/* Date + Location */}
+          <View style={styles.metaRow}>
             {item.date ? (
-              <View style={styles.chip}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={11}
-                  color={Colors.textMuted}
-                />
-                <Text style={styles.chipText}>
-                  {item.date?.seconds
-                    ? new Date(item.date.seconds * 1000).toLocaleDateString(
-                        'en-US',
-                        { month: 'short', day: 'numeric' }
-                      )
-                    : item.date}
+              <View style={styles.metaChip}>
+                <Ionicons name="calendar-outline" size={12} color={Colors.textMuted} />
+                <Text style={styles.metaText}>
+                  {(item.date as any)?.seconds
+                    ? new Date((item.date as any).seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    : String(item.date)}
                 </Text>
               </View>
             ) : null}
             {item.location ? (
-              <View style={styles.chip}>
-                <Ionicons name="location-outline" size={11} color={Colors.textMuted} />
-                <Text style={styles.chipText} numberOfLines={1}>{item.location}</Text>
+              <View style={styles.metaChip}>
+                <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                <Text style={styles.metaText} numberOfLines={1}>{item.location}</Text>
               </View>
             ) : null}
-            {distKm != null ? (
-              <View style={[styles.chip, styles.distChip]}>
-                <Ionicons name="navigate-outline" size={11} color={Colors.primary} />
-                <Text style={[styles.chipText, { color: Colors.primary }]}>
-                  {formatDistance(distKm)}
-                </Text>
-              </View>
-            ) : null}
-            <View style={styles.chip}>
-              <Ionicons
-                name="people-outline"
-                size={11}
-                color={Colors.textMuted}
-              />
-              <Text style={styles.chipText}>
-                {item.participants?.length ?? 0}
-                {item.maxParticipants ? `/${item.maxParticipants}` : ''}
+          </View>
+
+          {/* Quorum Status */}
+          <View style={styles.progressWrapper}>
+            <View style={styles.progressLabelRow}>
+              <Text style={styles.progressLabel}>Quorum Status</Text>
+              <Text style={styles.progressPct}>
+                {Math.round(Math.min((item.votes?.length ?? 0) / Math.max(item.requiredVotes ?? 1, 1), 1) * 100)}%
               </Text>
             </View>
+            <QuorumProgressBar
+              votes={item.votes?.length ?? 0}
+              required={item.requiredVotes ?? 1}
+            />
           </View>
-          <QuorumProgressBar
-            votes={item.votes?.length ?? 0}
-            required={item.requiredVotes ?? 1}
-          />
+          {/* Text action — matches Home card */}
           <TouchableOpacity
-            style={[
-              styles.joinBtn,
-              joined && styles.joinBtnJoined,
-              full && !joined && styles.joinBtnFull,
-            ]}
+            style={styles.viewDetailsBtn}
             onPress={() =>
               joined
                 ? router.push({ pathname: '/plan-detail', params: { id: item.id } })
@@ -315,34 +278,16 @@ export default function DiscoverScreen() {
                 : handleJoin(item)
             }
             disabled={joiningId === item.id || (full && !joined)}
+            activeOpacity={0.7}
           >
-            <Ionicons
-              name={
-                joined
-                  ? 'checkmark-circle-outline'
-                  : full
-                  ? 'close-circle-outline'
-                  : 'enter-outline'
-              }
-              size={15}
-              color={
-                joined ? Colors.success : full ? Colors.textMuted : Colors.primary
-              }
-            />
-            <Text
-              style={[
-                styles.joinBtnText,
-                joined && styles.joinBtnTextJoined,
-                full && !joined && styles.joinBtnTextFull,
-              ]}
-            >
+            <Text style={styles.viewDetailsBtnText}>
               {joiningId === item.id
                 ? 'Joining...'
                 : joined
-                ? 'View Plan'
+                ? 'View Plan →'
                 : full
-                ? 'Full'
-                : 'Join Plan'}
+                ? 'Plan Full'
+                : 'Join Plan →'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -461,7 +406,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 0,
   },
   cardBody: { padding: Spacing.md, gap: 10 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  _metaRowLegacy: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   catPill: {
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -500,37 +445,61 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
     color: Colors.textSecondary,
   },
-  cardTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.text,
-    letterSpacing: -0.3,
-    lineHeight: 26,
+  // ── Card — matches Home page card exactly ───────────────────────────
+  cardCoverPlaceholder: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#1a1a1a',
   },
-  chipsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.surfaceRaised,
+  cardImageBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: Radius.md,
+  },
+  cardImageBadgePending: { backgroundColor: 'rgba(0,0,0,0.55)' },
+  cardImageBadgeConfirmed: { backgroundColor: Colors.secondary },
+  cardImageBadgeText: { color: '#ffffff', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
+  ownCornerBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: Colors.gold,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  chipText: { fontSize: FontSize.xs, color: Colors.textSecondary, maxWidth: 120 },
-  joinBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 4,
-    paddingVertical: 12,
     borderRadius: Radius.md,
-    backgroundColor: Colors.primary,
-    borderWidth: 0,
   },
+  ownCornerBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
+  cardCategoryLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: Colors.text,
+    letterSpacing: -0.5,
+    lineHeight: 28,
+  },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.medium },
+  progressWrapper: { gap: 6 },
+  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8 },
+  progressPct: { fontSize: 11, fontWeight: '800', color: Colors.text },
+  viewDetailsBtn: { alignSelf: 'flex-end', paddingTop: 4 },
+  viewDetailsBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text, letterSpacing: 0.2 },
+  // legacy stubs
+  chipsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chipText: { fontSize: FontSize.xs, color: Colors.textSecondary },
+  joinBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   joinBtnJoined: {
     backgroundColor: Colors.secondaryDim,
     borderColor: Colors.secondaryBorder,

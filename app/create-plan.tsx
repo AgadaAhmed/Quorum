@@ -675,14 +675,14 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.glassBorder,
+    borderBottomColor: Colors.border,
   },
   closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 30, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   form: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 },
-  label: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
+  label: { fontSize: 11, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1.5 },
   input: {
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.backgroundAlt, borderWidth: 1.5, borderColor: Colors.border,
     borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 14,
     color: Colors.text, fontSize: FontSize.md, justifyContent: 'center',
   },
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   charCount: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'right', marginTop: -4 },
   coverPicker: {
     borderRadius: Radius.md, overflow: 'hidden', borderWidth: 1,
-    borderColor: Colors.glassBorder, borderStyle: 'dashed',
+    borderColor: Colors.border, borderStyle: 'dashed',
   },
   coverPreview: { width: '100%', height: 140 },
   coverPlaceholder: {
@@ -703,14 +703,14 @@ const styles = StyleSheet.create({
   dateModalContent: { backgroundColor: Colors.surfaceRaised, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, paddingBottom: 30 },
   dateModalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', padding: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.glassBorder,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   dateModalCancel: { color: Colors.textSecondary, fontSize: FontSize.md },
   dateModalDone: { color: Colors.primary, fontSize: FontSize.md, fontWeight: '700' },
   categoryRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   categoryChip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
   },
   categoryChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   categoryChipText: { color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm },
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   voteRow: { flexDirection: 'row', gap: 8 },
   voteChip: {
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
   },
   voteChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   voteChipText: { color: Colors.textSecondary, fontWeight: '700' },
@@ -726,7 +726,7 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', gap: 10 },
   toggleBtn: {
     flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
   },
   toggleBtnActive: { backgroundColor: Colors.primary + '33', borderColor: Colors.primary },
   toggleText: { color: Colors.textSecondary, fontWeight: '600' },
@@ -734,10 +734,10 @@ const styles = StyleSheet.create({
   pollToggleBtn: {
     paddingVertical: 12, paddingHorizontal: Spacing.md,
     backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.glassBorder, alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.border, alignItems: 'center',
   },
   pollToggleText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.md },
-  pollSection: { gap: Spacing.sm, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.glassBorder },
+  pollSection: { gap: Spacing.sm, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border },
   pollSectionLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
   pollOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   removeOptionBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
   templateItem: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.background, borderRadius: Radius.md,
-    padding: Spacing.md, borderWidth: 1, borderColor: Colors.glassBorder,
+    padding: Spacing.md, borderWidth: 1, borderColor: Colors.border,
   },
   templateItemTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
   templateItemDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },

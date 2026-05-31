@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     maxWidth: '88%',
     backgroundColor: Colors.surfaceOverlay,
     borderWidth: 1,
-    borderColor: Colors.glassBorderStrong,
+    borderColor: Colors.border,
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 8,
