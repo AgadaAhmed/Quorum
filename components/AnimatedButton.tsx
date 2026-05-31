@@ -49,20 +49,22 @@ export default function AnimatedButton({
   const fontSize = size === 'sm' ? FontSize.sm : size === 'lg' ? FontSize.lg : FontSize.md;
 
   const bgColor =
-    variant === 'primary' ? Colors.primary :
-    variant === 'gold'    ? Colors.gold :
-    variant === 'danger'  ? Colors.tertiary :
+    variant === 'primary'   ? Colors.primary :
+    variant === 'gold'      ? Colors.gold :
+    variant === 'danger'    ? Colors.tertiaryDim :
+    variant === 'secondary' ? Colors.surfaceRaised :
     'transparent';
 
   const txtColor =
     variant === 'ghost'     ? Colors.primary :
     variant === 'secondary' ? Colors.text :
+    variant === 'danger'    ? Colors.tertiary :
     '#ffffff';
 
   const borderColor =
-    variant === 'ghost'     ? Colors.primaryBorder :
+    variant === 'ghost'     ? Colors.primary :
     variant === 'secondary' ? Colors.borderStrong :
-    variant === 'danger'    ? Colors.tertiaryBorder :
+    variant === 'danger'    ? Colors.tertiary :
     'transparent';
 
   const borderWidth =
@@ -118,7 +120,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
+    fontWeight: FontWeight.semibold,
   },
   disabled: { opacity: 0.38 },
 });
