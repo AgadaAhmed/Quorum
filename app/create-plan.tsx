@@ -31,10 +31,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'];
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  Music: '🎵', Food: '🍔', Sports: '⚽', Art: '🎨',
-  Gaming: '🎮', Travel: '✈️', Party: '🎉', Study: '📚',
-};
+const CATEGORY_EMOJI: Record<string, string> = {};
 
 export default function CreatePlanScreen() {
   const router = useRouter();
@@ -454,7 +451,7 @@ export default function CreatePlanScreen() {
                 style={[styles.categoryChip, category === c && !usingCustomCategory && styles.categoryChipActive]}
                 onPress={() => { setUsingCustomCategory(false); setCategory(category === c ? '' : c); }}
               >
-                <Text style={[styles.categoryChipText, category === c && !usingCustomCategory && styles.categoryChipTextActive]}>{CATEGORY_EMOJI[c]} {c}</Text>
+                <Text style={[styles.categoryChipText, category === c && !usingCustomCategory && styles.categoryChipTextActive]}>{c}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity

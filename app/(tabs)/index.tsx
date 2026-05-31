@@ -47,10 +47,7 @@ import { Ionicons } from '@expo/vector-icons';
 // Types & constants
 // ---------------------------------------------------------------------------
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  Music: '🎵', Food: '🍔', Sports: '⚽', Art: '🎨',
-  Gaming: '🎮', Travel: '✈️', Party: '🎉', Study: '📚',
-};
+const CATEGORY_EMOJI: Record<string, string> = {};
 
 const FILTER_PILLS = [
   { label: 'All', value: 'all' },
@@ -450,9 +447,6 @@ export default function HomeScreen() {
                   router.push({ pathname: '/plan-detail', params: { id: item.id } })
                 }
               >
-                {item.category && (
-                  <Text style={styles.friendEmoji}>{CATEGORY_EMOJI[item.category] || '📌'}</Text>
-                )}
                 <Text style={styles.friendTitle} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.friendMeta}>{item.friendName} is going</Text>
                 <View

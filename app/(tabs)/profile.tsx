@@ -40,17 +40,17 @@ type UserProfile = {
   ratingAvg?: number;
 };
 
-function StatBadge({ label, value, sub }: { label: string; value: any; sub?: string }) {
+function ProfileStatItem({ label, value, sub }: { label: string; value: any; sub?: string }) {
   return (
-    <View style={statStyles.badge}>
-      <Text style={statStyles.value}>{value}</Text>
-      {sub ? <Text style={statStyles.sub}>{sub}</Text> : null}
-      <Text style={statStyles.label}>{label}</Text>
+    <View style={profileStatStyles.badge}>
+      <Text style={profileStatStyles.value}>{value}</Text>
+      {sub ? <Text style={profileStatStyles.sub}>{sub}</Text> : null}
+      <Text style={profileStatStyles.label}>{label}</Text>
     </View>
   );
 }
 
-const statStyles = StyleSheet.create({
+const profileStatStyles = StyleSheet.create({
   badge: { flex: 1, alignItems: 'center', paddingVertical: 14 },
   value: { fontSize: 22, fontWeight: '800', color: '#0f0f0f', letterSpacing: -0.5 },
   sub: { fontSize: 10, color: '#5c5959', fontWeight: '600' },
@@ -244,18 +244,18 @@ export default function ProfileScreen() {
       >
         {/* ── Stats Grid ── */}
         <View style={styles.statsContainer}>
-          <StatBadge label="Plans" value={planCount} />
+          <ProfileStatItem label="Plans" value={planCount} />
           <View style={styles.statDivider} />
-          <StatBadge label="Votes" value={voteCount} />
+          <ProfileStatItem label="Votes" value={voteCount} />
           <View style={styles.statDivider} />
-          <StatBadge label="Network" value={profile?.friends?.length ?? 0} />
+          <ProfileStatItem label="Network" value={profile?.friends?.length ?? 0} />
         </View>
         <View style={[styles.statsContainer, { borderTopWidth: 0 }]}>
-          <StatBadge label="Quorum Rate" value={planCount > 0 ? `${Math.round((voteCount / Math.max(planCount * 3, 1)) * 100)}%` : '—'} />
+          <ProfileStatItem label="Quorum Rate" value={planCount > 0 ? `${Math.round((voteCount / Math.max(planCount * 3, 1)) * 100)}%` : '—'} />
           <View style={styles.statDivider} />
-          <StatBadge label="Hosted" value={myPlans.filter((p: any) => p.createdBy === uid).length} />
+          <ProfileStatItem label="Hosted" value={myPlans.filter((p: any) => p.createdBy === uid).length} />
           <View style={styles.statDivider} />
-          <StatBadge label="Confirmed" value={myPlans.filter((p: any) => p.status === 'confirmed').length} />
+          <ProfileStatItem label="Confirmed" value={myPlans.filter((p: any) => p.status === 'confirmed').length} />
         </View>
 
         {/* ── Hero Banner ── */}
@@ -368,13 +368,13 @@ export default function ProfileScreen() {
           <Text style={styles.sectionLabel}>Achievements</Text>
           <View style={styles.achievementsRow}>
             {[
-              { icon: '🏆', label: 'Quorum King', unlocked: voteCount >= 10 },
-              { icon: '🎯', label: 'On Target', unlocked: planCount >= 3 },
-              { icon: '🤝', label: 'Connector', unlocked: (profile?.friends?.length ?? 0) >= 5 },
-              { icon: '⚡', label: 'Fast Mover', unlocked: myPlans.some((p: any) => p.status === 'confirmed') },
+              { icon: 'trophy-outline', label: 'Quorum King', unlocked: voteCount >= 10 },
+              { icon: 'checkmark-circle-outline', label: 'On Target', unlocked: planCount >= 3 },
+              { icon: 'people-outline', label: 'Connector', unlocked: (profile?.friends?.length ?? 0) >= 5 },
+              { icon: 'flash-outline', label: 'Fast Mover', unlocked: myPlans.some((p: any) => p.status === 'confirmed') },
             ].map((a) => (
               <View key={a.label} style={[styles.achievementBadge, !a.unlocked && styles.achievementLocked]}>
-                <Text style={styles.achievementIcon}>{a.icon}</Text>
+                <Ionicons name={a.icon as any} size={20} color={a.unlocked ? '#ffffff' : 'rgba(0,0,0,0.25)'} />
                 <Text style={[styles.achievementLabel, !a.unlocked && styles.achievementLabelLocked]}>{a.label}</Text>
               </View>
             ))}

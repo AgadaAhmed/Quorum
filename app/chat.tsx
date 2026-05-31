@@ -47,7 +47,7 @@ import { SkeletonChatBubble } from '../components/SkeletonLoader';
 import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+const REACTION_EMOJIS = ['+1', 'love', 'haha', 'wow', 'sad', 'fire'];
 
 type Message = {
   id: string;
