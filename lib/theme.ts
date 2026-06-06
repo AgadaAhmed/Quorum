@@ -1,19 +1,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Quorum Design System — "Minimalist" (Stitch variant)
-// Primary: Black  |  Secondary: Teal  |  Accent: Red
+// Quorum Design System — "Monochrome"
+// Strictly black / white / grey. No hue. Meaning is carried by weight,
+// size, borders, and iconography — never color.
 // Fonts: Plus Jakarta Sans (headings) + Inter (body)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Colors = {
-  // ── Base backgrounds (M3 light surface hierarchy) ─────────────────────────
-  background:     '#ffffff',   // Surface / background (off-white)
-  backgroundAlt:  '#ffffff',   // Surface container lowest
+  // ── Base backgrounds ──────────────────────────────────────────────────────
+  background:     '#ffffff',
+  backgroundAlt:  '#ffffff',
   surface:        '#ffffff',
-  surfaceRaised:  '#f2f2f2',   // Surface container (cards)
-  surfaceOverlay: '#e8e8e8',   // Surface container high (elevated cards)
-  surfaceBright:  '#e0e0e0',   // Surface bright (hover / press states)
+  surfaceRaised:  '#f2f2f2',   // cards
+  surfaceOverlay: '#e8e8e8',   // elevated cards
+  surfaceBright:  '#e0e0e0',   // hover / press
 
-  // ── Glass (semi-transparent overlays — light frosted) ────────────────────
+  // ── Glass (semi-transparent neutral overlays) ─────────────────────────────
   glass:              'rgba(255,255,255,0.8)',
   glassMid:           'rgba(0,0,0,0.04)',
   glassStrong:        'rgba(0,0,0,0.08)',
@@ -29,37 +30,37 @@ export const Colors = {
   primaryGlow:      'rgba(0,0,0,0.15)',
   primaryBorder:    'rgba(0,0,0,0.55)',
 
-  // ── Secondary — Teal (confirmations / success / quorum reached) ───────────
-  secondary:      '#0d9488',
-  secondaryLight: '#2dd4bf',
-  secondaryDim:   'rgba(13,148,136,0.12)',
-  secondaryBorder:'rgba(13,148,136,0.30)',
+  // ── Secondary (was teal — success / quorum reached) → dark grey ───────────
+  secondary:      '#2b2b2b',
+  secondaryLight: '#555555',
+  secondaryDim:   'rgba(0,0,0,0.06)',
+  secondaryBorder:'rgba(0,0,0,0.22)',
 
-  // ── Tertiary / Accent — Red (notifications / live / destructive) ──────────
-  tertiary:      '#ba1a1a',
-  tertiaryLight: '#ff5449',
-  tertiaryDim:   'rgba(186,26,26,0.10)',
-  tertiaryBorder:'rgba(186,26,26,0.28)',
+  // ── Tertiary / Accent (was red — live / destructive) → near-black ─────────
+  tertiary:      '#1a1a1a',
+  tertiaryLight: '#444444',
+  tertiaryDim:   'rgba(0,0,0,0.06)',
+  tertiaryBorder:'rgba(0,0,0,0.22)',
 
-  // ── Gold (pins / premium) ─────────────────────────────────────────────────
-  gold:       '#b45309',
-  goldLight:  '#d97706',
-  goldDim:    'rgba(180,83,9,0.10)',
-  goldGlow:   'rgba(180,83,9,0.20)',
-  goldBorder: 'rgba(180,83,9,0.28)',
+  // ── Gold (was amber — pins / premium) → mid grey ──────────────────────────
+  gold:       '#4a4a4a',
+  goldLight:  '#6b6b6b',
+  goldDim:    'rgba(0,0,0,0.06)',
+  goldGlow:   'rgba(0,0,0,0.12)',
+  goldBorder: 'rgba(0,0,0,0.22)',
 
   // ── Text ──────────────────────────────────────────────────────────────────
-  text:         '#1a1b22',   // on-surface
-  textSecondary:'#4c4546',   // on-surface-variant
-  textMuted:    '#5c5959',   // outline — 6.6:1 contrast on #fbf8ff
-  textDisabled: '#cfc4c5',   // outline-variant
+  text:         '#1a1b22',
+  textSecondary:'#4c4546',
+  textMuted:    '#5c5959',
+  textDisabled: '#cfc4c5',
 
-  // ── Status ────────────────────────────────────────────────────────────────
-  success:    '#0d9488',   // teal — quorum confirmed
-  successDim: 'rgba(13,148,136,0.12)',
-  successGlow:'rgba(13,148,136,0.20)',
-  error:      '#ba1a1a',
-  errorDim:   'rgba(186,26,26,0.10)',
+  // ── Status (grayscale — distinguish by context, not hue) ──────────────────
+  success:    '#2b2b2b',
+  successDim: 'rgba(0,0,0,0.06)',
+  successGlow:'rgba(0,0,0,0.12)',
+  error:      '#1a1a1a',
+  errorDim:   'rgba(0,0,0,0.06)',
 
   // ── Misc ──────────────────────────────────────────────────────────────────
   border:       'rgba(0,0,0,0.08)',
@@ -72,7 +73,7 @@ export const Colors = {
   cardElevated: '#e8e8e8',
 
   /** @deprecated use primary */
-  primaryLegacyRose: '#ba1a1a',
+  primaryLegacyRose: '#1a1a1a',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,10 +147,10 @@ export const Fonts = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shadows
+// Shadows  (neutral only — black shadow color throughout)
 // ─────────────────────────────────────────────────────────────────────────────
 export const Shadow = {
-  /** Primary card shadow — light mode */
+  /** Primary card shadow */
   primary: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -164,33 +165,33 @@ export const Shadow = {
     shadowRadius: 16,
     elevation: 8,
   },
-  /** Teal glow — confirmed/success states */
+  /** was teal glow — now neutral */
   teal: {
-    shadowColor: '#0d9488',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.18,
     shadowRadius: 14,
     elevation: 8,
   },
-  /** Red — notifications, live, urgent */
+  /** was red — now neutral */
   rose: {
-    shadowColor: '#ba1a1a',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.18,
     shadowRadius: 14,
     elevation: 8,
   },
   roseStrong: {
-    shadowColor: '#ba1a1a',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.28,
     shadowRadius: 20,
     elevation: 12,
   },
   gold: {
-    shadowColor: '#b45309',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.18,
     shadowRadius: 12,
     elevation: 6,
   },
