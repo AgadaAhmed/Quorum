@@ -37,10 +37,13 @@ import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -48,6 +51,27 @@ function formatDistance(km: number) {
   if (km < 1) return `${Math.round(km * 1000)}m`;
   if (km < 10) return `${km.toFixed(1)}km`;
   return `${Math.round(km)}km`;
+}
+
+function formatPlanDate(date: Plan['date']): string | null {
+  if (!date) return null;
+  if (typeof date === 'string') return date;
+  if (typeof date.seconds === 'number') {
+    return new Date(date.seconds * 1000).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+  return null;
+}
+
+function quorumPct(votes: number, required: number): number {
+  return Math.round(Math.min(votes / Math.max(required, 1), 1) * 100);
+}
+
+interface Coords {
+  lat: number;
+  lng: number;
 }
 
 interface Plan {
@@ -72,16 +96,145 @@ interface Plan {
 }
 
 const CATEGORIES = [
-  { label: 'All',    value: 'all' },
-  { label: 'Music',  value: 'Music' },
-  { label: 'Food',   value: 'Food' },
+  { label: 'All', value: 'all' },
+  { label: 'Music', value: 'Music' },
+  { label: 'Food', value: 'Food' },
   { label: 'Sports', value: 'Sports' },
-  { label: 'Art',    value: 'Art' },
+  { label: 'Art', value: 'Art' },
   { label: 'Gaming', value: 'Gaming' },
   { label: 'Travel', value: 'Travel' },
-  { label: 'Party',  value: 'Party' },
-  { label: 'Study',  value: 'Study' },
+  { label: 'Party', value: 'Party' },
+  { label: 'Study', value: 'Study' },
 ];
+
+// ── Card (memoized) ──────────────────────────────────────────────────────────
+interface PlanCardProps {
+  item: Plan;
+  index: number;
+  joined: boolean;
+  full: boolean;
+  isOwn: boolean;
+  distKm: number | null;
+  joining: boolean;
+  onPress: (id: string) => void;
+  onJoin: (item: Plan) => void;
+}
+
+const PlanCard = React.memo(function PlanCard({
+  item,
+  index,
+  joined,
+  full,
+  isOwn,
+  distKm,
+  joining,
+  onPress,
+  onJoin,
+}: PlanCardProps) {
+  const dateLabel = formatPlanDate(item.date);
+  const votes = item.votes?.length ?? 0;
+  const required = item.requiredVotes ?? 1;
+  const confirmed = item.status === 'confirmed';
+
+  const handleCardPress = useCallback(() => onPress(item.id), [onPress, item.id]);
+
+  const handleAction = useCallback(() => {
+    if (joined) onPress(item.id);
+    else if (!full) onJoin(item);
+  }, [joined, full, onPress, onJoin, item]);
+
+  const actionLabel = joining
+    ? 'Joining...'
+    : joined
+    ? 'View Plan'
+    : full
+    ? 'Plan Full'
+    : 'Join Plan';
+
+  return (
+    <GlassCard index={index} onPress={handleCardPress} style={styles.card}>
+      <View style={styles.coverWrap}>
+        {item.coverUrl ? (
+          <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
+        ) : (
+          <View style={styles.cardCoverPlaceholder} />
+        )}
+        <View
+          style={[
+            styles.cardImageBadge,
+            confirmed ? styles.cardImageBadgeConfirmed : styles.cardImageBadgePending,
+          ]}
+        >
+          <Text style={styles.cardImageBadgeText}>
+            {confirmed ? 'Confirmed' : 'Pending'}
+          </Text>
+        </View>
+        {isOwn ? (
+          <View style={styles.ownCornerBadge}>
+            <Text style={styles.ownCornerBadgeText}>Yours</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.cardBody}>
+        <Text style={styles.cardCategoryLabel} numberOfLines={1}>
+          {item.category ? `${item.category.toUpperCase()} · ` : ''}
+          {confirmed ? 'CONFIRMED' : 'ACTIVE'}
+          {distKm != null ? ` · ${formatDistance(distKm)}` : ''}
+        </Text>
+
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+
+        {(dateLabel || item.location) ? (
+          <View style={styles.metaRow}>
+            {dateLabel ? (
+              <View style={styles.metaChip}>
+                <Ionicons name="calendar-outline" size={12} color={Colors.textMuted} />
+                <Text style={styles.metaText}>{dateLabel}</Text>
+              </View>
+            ) : null}
+            {item.location ? (
+              <View style={styles.metaChip}>
+                <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {item.location}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        <View style={styles.progressWrapper}>
+          <View style={styles.progressLabelRow}>
+            <Text style={styles.progressLabel}>Quorum Status</Text>
+            <Text style={styles.progressPct}>{quorumPct(votes, required)}%</Text>
+          </View>
+          <QuorumProgressBar votes={votes} required={required} />
+        </View>
+
+        <TouchableOpacity
+          style={styles.viewDetailsBtn}
+          onPress={handleAction}
+          disabled={joining || (full && !joined)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${actionLabel}: ${item.title}`}
+        >
+          <Text
+            style={[
+              styles.viewDetailsBtnText,
+              full && !joined ? styles.viewDetailsBtnTextDisabled : null,
+            ]}
+          >
+            {actionLabel}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </GlassCard>
+  );
+});
 
 export default function DiscoverScreen() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -90,255 +243,223 @@ export default function DiscoverScreen() {
   const [search, setSearch] = useState('');
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [userCoords, setUserCoords] = useState<Coords | null>(null);
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
   const router = useRouter();
   const { showToast } = useToast();
-
   const insets = useSafeAreaInsets();
-  const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
   // Keep uid in sync with auth state — queries must not fire unauthenticated
-  useEffect(() => {
-    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
-  }, []);
+  useEffect(() => onAuthStateChanged(auth, (u) => setUid(u?.uid || '')), []);
 
   // Request location permission and get coords for distance calculation
   useEffect(() => {
-    Location.requestForegroundPermissionsAsync().then(({ status }) => {
-      if (status !== 'granted') return;
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then((pos) => {
-        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      }).catch(() => {});
-    });
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelled) return;
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (!cancelled) {
+          setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        }
+      } catch {
+        // Location unavailable — distance sorting is simply skipped.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const plansQuery = useMemo(() => query(
-    collection(db, 'plans'),
-    where('isPublic', '==', true),
-    where('status', 'in', ['pending', 'confirmed']),
-    orderBy('createdAt', 'desc'),
-    limit(50)
-  ), []);
+  const plansQuery = useMemo(
+    () =>
+      query(
+        collection(db, 'plans'),
+        where('isPublic', '==', true),
+        where('status', 'in', ['pending', 'confirmed']),
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      ),
+    []
+  );
 
   useEffect(() => {
     if (!uid) return; // don't query until authenticated
-    const unsub = onSnapshot(plansQuery, (snap) => {
-      setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Plan[]);
-      setLoading(false);
-    }, () => {
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      plansQuery,
+      (snap) => {
+        setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Plan[]);
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+        showToast('Could not load plans', 'error');
+      }
+    );
     return unsub;
-  }, [uid, plansQuery]);
+  }, [uid, plansQuery, showToast]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       const snap = await getDocs(plansQuery);
       setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Plan[]);
+    } catch {
+      showToast('Could not refresh', 'error');
     } finally {
       setRefreshing(false);
     }
-  }, [plansQuery]);
+  }, [plansQuery, showToast]);
 
-  const handleJoin = async (item: Plan) => {
-    if (joiningId) return;
-    setJoiningId(item.id);
-    try {
-      await updateDoc(doc(db, 'plans', item.id), {
-        participants: arrayUnion(uid),
-        votes: arrayUnion(uid),
-      });
-      showToast(`Joined "${item.title}"`, 'success');
-      router.push({ pathname: '/plan-detail', params: { id: item.id } });
-    } catch {
-      showToast('Failed to join plan', 'error');
-    } finally {
-      setJoiningId(null);
-    }
-  };
+  const goToPlan = useCallback(
+    (id: string) => router.push({ pathname: '/plan-detail', params: { id } }),
+    [router]
+  );
 
-  const isParticipant = (item: Plan) => item.participants?.includes(uid);
-  const isFull = (item: Plan) =>
-    !!item.maxParticipants && (item.participants?.length || 0) >= item.maxParticipants;
+  const handleJoin = useCallback(
+    async (item: Plan) => {
+      if (joiningId || !uid) return;
+      setJoiningId(item.id);
+      try {
+        await updateDoc(doc(db, 'plans', item.id), {
+          participants: arrayUnion(uid),
+          votes: arrayUnion(uid),
+        });
+        showToast(`Joined "${item.title}"`, 'success');
+        goToPlan(item.id);
+      } catch {
+        showToast('Failed to join plan', 'error');
+      } finally {
+        setJoiningId(null);
+      }
+    },
+    [joiningId, uid, showToast, goToPlan]
+  );
 
   const filtered = useMemo(() => {
-    const result = plans.filter((p: Plan) => {
+    const q = search.trim().toLowerCase();
+    const result = plans.filter((p) => {
       const matchCat = category === 'all' || p.category === category;
-      const matchSearch = !search || p.title?.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !q || p.title?.toLowerCase().includes(q);
       return matchCat && matchSearch;
     });
     // Sort by distance when user location is available, otherwise keep createdAt order
     if (userCoords) {
-      result.sort((a, b) => {
-        const distA = a.lat != null && a.lng != null
-          ? haversineKm(userCoords.lat, userCoords.lng, a.lat, a.lng) : Infinity;
-        const distB = b.lat != null && b.lng != null
-          ? haversineKm(userCoords.lat, userCoords.lng, b.lat, b.lng) : Infinity;
-        return distA - distB;
-      });
+      const dist = (p: Plan) =>
+        p.lat != null && p.lng != null
+          ? haversineKm(userCoords.lat, userCoords.lng, p.lat, p.lng)
+          : Infinity;
+      result.sort((a, b) => dist(a) - dist(b));
     }
     return result;
   }, [plans, category, search, userCoords]);
 
   const keyExtractor = useCallback((item: Plan) => item.id, []);
 
-  const renderItem = useCallback(({ item, index }: { item: Plan; index: number }) => {
-    const joined = isParticipant(item);
-    const full = isFull(item);
-    const isOwn = item.createdBy === uid;
-    const distKm = userCoords && item.lat != null && item.lng != null
-      ? haversineKm(userCoords.lat, userCoords.lng, item.lat, item.lng)
-      : null;
-    return (
-      <GlassCard
-        index={index}
-        onPress={() =>
-          router.push({
-            pathname: '/plan-detail',
-            params: { id: item.id },
-          })
-        }
-        style={styles.card}
-      >
-        {/* Cover image with status badge — matches Home card */}
-        <View style={{ position: 'relative' }}>
-          {item.coverUrl ? (
-            <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
-          ) : (
-            <View style={styles.cardCoverPlaceholder} />
-          )}
-          <View style={[
-            styles.cardImageBadge,
-            item.status === 'confirmed' ? styles.cardImageBadgeConfirmed : styles.cardImageBadgePending,
-          ]}>
-            <Text style={styles.cardImageBadgeText}>
-              {item.status === 'confirmed' ? '• Confirmed' : '• Pending'}
-            </Text>
-          </View>
-          {isOwn && (
-            <View style={styles.ownCornerBadge}>
-              <Text style={styles.ownCornerBadgeText}>Yours</Text>
-            </View>
-          )}
-        </View>
+  const renderItem = useCallback(
+    ({ item, index }: { item: Plan; index: number }) => {
+      const distKm =
+        userCoords && item.lat != null && item.lng != null
+          ? haversineKm(userCoords.lat, userCoords.lng, item.lat, item.lng)
+          : null;
+      return (
+        <PlanCard
+          item={item}
+          index={index}
+          joined={!!item.participants?.includes(uid)}
+          full={
+            !!item.maxParticipants &&
+            (item.participants?.length || 0) >= item.maxParticipants
+          }
+          isOwn={item.createdBy === uid}
+          distKm={distKm}
+          joining={joiningId === item.id}
+          onPress={goToPlan}
+          onJoin={handleJoin}
+        />
+      );
+    },
+    [uid, userCoords, joiningId, goToPlan, handleJoin]
+  );
 
-        <View style={styles.cardBody}>
-          {/* Category • Status */}
-          <Text style={styles.cardCategoryLabel}>
-            {item.category ? `${item.category.toUpperCase()} • ` : ''}
-            {item.status === 'confirmed' ? 'CONFIRMED' : 'ACTIVE'}
-            {distKm != null ? ` • ${formatDistance(distKm)}` : ''}
-          </Text>
-
-          {/* Title */}
-          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-
-          {/* Date + Location */}
-          <View style={styles.metaRow}>
-            {item.date ? (
-              <View style={styles.metaChip}>
-                <Ionicons name="calendar-outline" size={12} color={Colors.textMuted} />
-                <Text style={styles.metaText}>
-                  {(item.date as any)?.seconds
-                    ? new Date((item.date as any).seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                    : String(item.date)}
-                </Text>
-              </View>
-            ) : null}
-            {item.location ? (
-              <View style={styles.metaChip}>
-                <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
-                <Text style={styles.metaText} numberOfLines={1}>{item.location}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* Quorum Status */}
-          <View style={styles.progressWrapper}>
-            <View style={styles.progressLabelRow}>
-              <Text style={styles.progressLabel}>Quorum Status</Text>
-              <Text style={styles.progressPct}>
-                {Math.round(Math.min((item.votes?.length ?? 0) / Math.max(item.requiredVotes ?? 1, 1), 1) * 100)}%
-              </Text>
-            </View>
-            <QuorumProgressBar
-              votes={item.votes?.length ?? 0}
-              required={item.requiredVotes ?? 1}
+  const listHeader = useMemo(
+    () => (
+      <>
+        <View style={styles.header}>
+          <Text style={styles.title}>Discover</Text>
+          <View style={styles.searchBar}>
+            <Ionicons name="search-outline" size={16} color={Colors.textMuted} />
+            <TextInput
+              placeholder="Search plans..."
+              placeholderTextColor={Colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              style={styles.searchInput}
+              returnKeyType="search"
+              autoCorrect={false}
+              accessibilityLabel="Search plans"
             />
+            {search.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setSearch('')}
+                hitSlop={HIT_SLOP}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+              >
+                <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
           </View>
-          {/* Text action — matches Home card */}
-          <TouchableOpacity
-            style={styles.viewDetailsBtn}
-            onPress={() =>
-              joined
-                ? router.push({ pathname: '/plan-detail', params: { id: item.id } })
-                : full
-                ? undefined
-                : handleJoin(item)
-            }
-            disabled={joiningId === item.id || (full && !joined)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.viewDetailsBtnText}>
-              {joiningId === item.id
-                ? 'Joining...'
-                : joined
-                ? 'View Plan →'
-                : full
-                ? 'Plan Full'
-                : 'Join Plan →'}
-            </Text>
-          </TouchableOpacity>
         </View>
-      </GlassCard>
-    );
-  }, [uid, router, joiningId, userCoords, handleJoin]);
+        <CategoryPillRow pills={CATEGORIES} selected={category} onSelect={setCategory} />
+        {loading ? (
+          <View style={styles.skeletonWrap}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </View>
+        ) : null}
+      </>
+    ),
+    [search, category, loading]
+  );
 
-  const listHeader = (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={16} color={Colors.textMuted} />
-          <TextInput
-            placeholder="Search plans..."
-            placeholderTextColor={Colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            style={styles.searchInput}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
+  const listEmpty = useMemo(
+    () =>
+      loading ? null : (
+        <View style={styles.empty}>
+          <Ionicons name="compass-outline" size={48} color={Colors.textMuted} />
+          <Text style={styles.emptyTitle}>No plans found</Text>
+          <Text style={styles.emptySubtitle}>
+            {search || category !== 'all'
+              ? 'Try adjusting your filters'
+              : 'Public plans will appear here'}
+          </Text>
         </View>
-      </View>
-      <CategoryPillRow
-        pills={CATEGORIES}
-        selected={category}
-        onSelect={setCategory}
-      />
-      {loading ? (
-        <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, gap: 12 }}>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </View>
-      ) : null}
-    </>
+      ),
+    [loading, search, category]
+  );
+
+  const contentContainerStyle = useMemo(
+    () => [styles.list, { paddingBottom: insets.bottom + 90 }],
+    [insets.bottom]
   );
 
   return (
     <ScreenWrapper>
       <FlatList
-        data={loading ? [] : filtered}
+        data={loading ? EMPTY_DATA : filtered}
         keyExtractor={keyExtractor}
-        removeClippedSubviews={true}
+        removeClippedSubviews
+        initialNumToRender={6}
+        maxToRenderPerBatch={8}
+        windowSize={9}
         ListHeaderComponent={listHeader}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 90 }]}
+        contentContainerStyle={contentContainerStyle}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -347,28 +468,21 @@ export default function DiscoverScreen() {
             tintColor={Colors.primary}
           />
         }
-        ListEmptyComponent={loading ? null : (
-          <View style={styles.empty}>
-            <Ionicons name="compass-outline" size={48} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>No plans found</Text>
-            <Text style={styles.emptySubtitle}>
-              {search || category !== 'all'
-                ? 'Try adjusting your filters'
-                : 'Public plans will appear here'}
-            </Text>
-          </View>
-        )}
+        ListEmptyComponent={listEmpty}
         renderItem={renderItem}
       />
     </ScreenWrapper>
   );
 }
 
+const EMPTY_DATA: Plan[] = [];
+const HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
+
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.container,
     paddingBottom: Spacing.sm,
-    gap: 12,
+    gap: Spacing.sm,
   },
   title: {
     fontSize: FontSize.xxl,
@@ -379,7 +493,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.xs * 2,
     backgroundColor: Colors.backgroundAlt,
     borderRadius: Radius.md,
     paddingHorizontal: 14,
@@ -388,69 +502,25 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   searchInput: { flex: 1, color: Colors.text, fontSize: FontSize.md },
+  skeletonWrap: {
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
   list: {
     paddingHorizontal: Spacing.container,
     paddingTop: Spacing.sm,
+    flexGrow: 1,
   },
   card: { padding: 0 },
-  cardCover: {
-    width: '100%',
-    height: 180,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-  },
-  cardCoverGradient: {
-    width: '100%',
-    height: 60,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-  },
-  cardBody: { padding: Spacing.md, gap: 10 },
-  _metaRowLegacy: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  catPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.primaryDim,
-    borderWidth: 1,
-    borderColor: Colors.primaryBorder,
-  },
-  catText: {
-    fontSize: FontSize.xs,
-    color: Colors.primaryLight,
-    fontWeight: FontWeight.semibold,
-  },
-  ownPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.goldDim,
-    borderWidth: 1,
-    borderColor: Colors.goldBorder,
-  },
-  ownPillText: {
-    fontSize: FontSize.xs,
-    color: Colors.gold,
-    fontWeight: FontWeight.semibold,
-  },
-  distChip: {
-    backgroundColor: Colors.primaryDim,
-    borderWidth: 1,
-    borderColor: Colors.primaryBorder,
-  },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.semibold,
-    textTransform: 'capitalize',
-    color: Colors.textSecondary,
-  },
-  // ── Card — matches Home page card exactly ───────────────────────────
+  coverWrap: { position: 'relative' },
+  cardCover: { width: '100%', height: 180 },
   cardCoverPlaceholder: {
     width: '100%',
     height: 180,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: Colors.surfaceRaised,
   },
+  cardBody: { padding: Spacing.md, gap: 10 },
   cardImageBadge: {
     position: 'absolute',
     top: 12,
@@ -459,9 +529,14 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: Radius.md,
   },
-  cardImageBadgePending: { backgroundColor: 'rgba(0,0,0,0.55)' },
+  cardImageBadgePending: { backgroundColor: Colors.overlay },
   cardImageBadgeConfirmed: { backgroundColor: Colors.secondary },
-  cardImageBadgeText: { color: '#ffffff', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
+  cardImageBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 0.3,
+  },
   ownCornerBadge: {
     position: 'absolute',
     top: 12,
@@ -471,52 +546,55 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: Radius.md,
   },
-  ownCornerBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
+  ownCornerBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: FontWeight.heavy },
   cardCategoryLabel: {
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: FontWeight.heavy,
     color: Colors.textMuted,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   cardTitle: {
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.black,
     color: Colors.text,
     letterSpacing: -0.5,
     lineHeight: 28,
   },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   metaChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.medium },
+  metaText: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+  },
   progressWrapper: { gap: 6 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8 },
-  progressPct: { fontSize: 11, fontWeight: '800', color: Colors.text },
-  viewDetailsBtn: { alignSelf: 'flex-end', paddingTop: 4 },
-  viewDetailsBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text, letterSpacing: 0.2 },
-  // legacy stubs
-  chipsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  chipText: { fontSize: FontSize.xs, color: Colors.textSecondary },
-  joinBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  joinBtnJoined: {
-    backgroundColor: Colors.secondaryDim,
-    borderColor: Colors.secondaryBorder,
-    borderWidth: 1,
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  joinBtnFull: {
-    backgroundColor: Colors.surfaceRaised,
-    borderColor: Colors.border,
-    borderWidth: 1,
+  progressLabel: {
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  joinBtnText: {
+  progressPct: { fontSize: 11, fontWeight: FontWeight.heavy, color: Colors.text },
+  viewDetailsBtn: {
+    alignSelf: 'flex-end',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  viewDetailsBtnText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.bold,
-    color: '#ffffff',
+    color: Colors.text,
+    letterSpacing: 0.2,
   },
-  joinBtnTextJoined: { color: Colors.secondary },
-  joinBtnTextFull: { color: Colors.textMuted },
+  viewDetailsBtnTextDisabled: { color: Colors.textMuted },
   empty: {
     flex: 1,
     alignItems: 'center',

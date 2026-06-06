@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -25,18 +25,25 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
-import GlassCard from '../../components/GlassCard';
 import AnimatedButton from '../../components/AnimatedButton';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type ActivityType =
+  | 'plan_confirmed'
+  | 'plan_joined'
+  | 'plan_cancelled'
+  | 'friend_accepted';
+
+type FirestoreTimestamp = { toDate: () => Date };
+
 type ActivityItem = {
   id: string;
-  type: 'plan_confirmed' | 'plan_joined' | 'plan_cancelled' | 'friend_accepted';
+  type: ActivityType;
   message: string;
-  timestamp: any;
+  timestamp: FirestoreTimestamp | Date | number | string | null;
   planId?: string;
 };
 
@@ -47,13 +54,27 @@ type FriendRequest = {
   fromAvatar?: string;
 };
 
+type FilterKey = 'all' | 'plans' | 'friends';
+
+const FILTERS: readonly FilterKey[] = ['all', 'plans', 'friends'] as const;
+const TIME_GROUP_ORDER = ['Today', 'Yesterday', 'This Week', 'Earlier'] as const;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatRelTime(ts: any): string {
-  if (!ts) return '';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  if (isNaN(d.getTime())) return '';
-  const diff = Date.now() - d.getTime();
+function toMillis(ts: ActivityItem['timestamp']): number {
+  if (ts == null) return 0;
+  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
+    const d = ts.toDate();
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+  const d = new Date(ts as Date | number | string);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function formatRelTime(ts: ActivityItem['timestamp']): string {
+  const t = toMillis(ts);
+  if (!t) return '';
+  const diff = Date.now() - t;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -61,37 +82,183 @@ function formatRelTime(ts: any): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function getTimeGroup(ts: any): string {
-  if (!ts) return 'Earlier';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  if (isNaN(d.getTime())) return 'Earlier';
+function getTimeGroup(ts: ActivityItem['timestamp']): string {
+  const t = toMillis(ts);
+  if (!t) return 'Earlier';
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const yesterdayStart = todayStart - 86400000;
   const weekStart = todayStart - 6 * 86400000;
-  const t = d.getTime();
   if (t >= todayStart) return 'Today';
   if (t >= yesterdayStart) return 'Yesterday';
   if (t >= weekStart) return 'This Week';
   return 'Earlier';
 }
 
-function getIconColor(type: ActivityItem['type']) {
-  if (type === 'plan_confirmed') return Colors.success;
-  if (type === 'plan_cancelled') return Colors.error;
-  if (type === 'friend_accepted') return Colors.gold;
-  return Colors.primary;
-}
-
-function getIconName(type: ActivityItem['type']): keyof typeof Ionicons.glyphMap {
+function getIconName(type: ActivityType): keyof typeof Ionicons.glyphMap {
   if (type === 'plan_confirmed') return 'checkmark-circle';
   if (type === 'plan_cancelled') return 'close-circle';
   if (type === 'friend_accepted') return 'people';
   return 'person-add';
 }
+
+// ─── Local sub-components ─────────────────────────────────────────────────────
+
+const FilterPill = React.memo(function FilterPill({
+  filter,
+  active,
+  onPress,
+}: {
+  filter: FilterKey;
+  active: boolean;
+  onPress: (f: FilterKey) => void;
+}) {
+  const label = filter.charAt(0).toUpperCase() + filter.slice(1);
+  return (
+    <TouchableOpacity
+      style={[styles.filterPill, active && styles.filterPillActive]}
+      onPress={() => onPress(filter)}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={`Show ${label}`}
+    >
+      <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+const HighlightCard = React.memo(function HighlightCard({
+  item,
+  onPress,
+}: {
+  item: ActivityItem;
+  onPress: (item: ActivityItem) => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.highlightCard}
+      onPress={() => onPress(item)}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={item.message}
+    >
+      <View style={styles.highlightImagePlaceholder} />
+      <View style={styles.highlightOverlay}>
+        <Text style={styles.highlightTitle} numberOfLines={2}>
+          {item.message}
+        </Text>
+        <Text style={styles.highlightSub}>Quorum reached</Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const RequestCard = React.memo(function RequestCard({
+  req,
+  processing,
+  onAccept,
+  onDecline,
+}: {
+  req: FriendRequest;
+  processing: boolean;
+  onAccept: (req: FriendRequest) => void;
+  onDecline: (req: FriendRequest) => void;
+}) {
+  const initial = (req.fromName || '?').charAt(0).toUpperCase();
+  return (
+    <View style={styles.requestCard}>
+      <View style={styles.requestRow}>
+        {req.fromAvatar ? (
+          <Image source={{ uri: req.fromAvatar }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatarFallback}>
+            <Text style={styles.avatarInitial}>{initial}</Text>
+          </View>
+        )}
+
+        <View style={styles.requestInfo}>
+          <Text style={styles.requestName} numberOfLines={1}>
+            {req.fromName}
+          </Text>
+          {req.fromUsername ? (
+            <Text style={styles.requestUsername} numberOfLines={1}>
+              @{req.fromUsername}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.requestActions}>
+          <AnimatedButton
+            label="Accept"
+            variant="primary"
+            size="sm"
+            loading={processing}
+            onPress={() => onAccept(req)}
+            style={styles.acceptBtn}
+          />
+          <AnimatedButton
+            label="Decline"
+            variant="ghost"
+            size="sm"
+            disabled={processing}
+            onPress={() => onDecline(req)}
+          />
+        </View>
+      </View>
+    </View>
+  );
+});
+
+const ActivityRow = React.memo(function ActivityRow({
+  item,
+  onPress,
+}: {
+  item: ActivityItem;
+  onPress: (item: ActivityItem) => void;
+}) {
+  const iconName = getIconName(item.type);
+  const pressable = !!item.planId && item.type !== 'plan_cancelled';
+  return (
+    <TouchableOpacity
+      onPress={pressable ? () => onPress(item) : undefined}
+      disabled={!pressable}
+      activeOpacity={0.7}
+      style={styles.activityItem}
+      accessibilityRole={pressable ? 'button' : 'text'}
+      accessibilityLabel={`${item.message}. ${formatRelTime(item.timestamp)}`}
+    >
+      <View style={styles.activityRow}>
+        <View style={styles.iconCircle}>
+          <Ionicons name={iconName} size={18} color={Colors.text} />
+        </View>
+        <Text style={styles.activityMessage} numberOfLines={2}>
+          {item.message}
+        </Text>
+        <Text style={styles.activityTime}>{formatRelTime(item.timestamp)}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const SkeletonCard = React.memo(function SkeletonCard() {
+  return (
+    <View style={styles.skeletonCard}>
+      <View style={styles.skeletonRow}>
+        <View style={styles.skeletonCircle} />
+        <View style={styles.skeletonLines}>
+          <View style={[styles.skeletonLine, styles.skeletonLineMain]} />
+          <View style={[styles.skeletonLine, styles.skeletonLineSub]} />
+        </View>
+      </View>
+    </View>
+  );
+});
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -108,7 +275,7 @@ export default function ActivityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingReq, setProcessingReq] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'plans' | 'friends'>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
   // Keep a mutable ref to friend-derived items so refresh can merge with latest
   const friendItemsRef = useRef<ActivityItem[]>([]);
@@ -116,6 +283,7 @@ export default function ActivityScreen() {
   // ── Data loading ────────────────────────────────────────────────────────────
 
   const fetchPlanItems = useCallback(async (): Promise<ActivityItem[]> => {
+    if (!uid) return [];
     const plansQuery = query(
       collection(db, 'plans'),
       where('participants', 'array-contains', uid),
@@ -126,12 +294,13 @@ export default function ActivityScreen() {
     const planItems: ActivityItem[] = [];
     snap.docs.forEach((d) => {
       const data = d.data();
-      const ts = data.createdAt || null;
+      const ts = data.createdAt ?? null;
+      const title = data.title ?? 'Untitled plan';
       if (data.status === 'confirmed') {
         planItems.push({
           id: `confirmed-${d.id}`,
           type: 'plan_confirmed',
-          message: `"${data.title}" reached quorum`,
+          message: `"${title}" reached quorum`,
           timestamp: ts,
           planId: d.id,
         });
@@ -140,7 +309,7 @@ export default function ActivityScreen() {
         planItems.push({
           id: `cancelled-${d.id}`,
           type: 'plan_cancelled',
-          message: `"${data.title}" was cancelled`,
+          message: `"${title}" was cancelled`,
           timestamp: ts,
           planId: d.id,
         });
@@ -149,7 +318,7 @@ export default function ActivityScreen() {
         planItems.push({
           id: `created-${d.id}`,
           type: 'plan_joined',
-          message: `You created "${data.title}"`,
+          message: `You created "${title}"`,
           timestamp: ts,
           planId: d.id,
         });
@@ -157,7 +326,7 @@ export default function ActivityScreen() {
         planItems.push({
           id: `joined-${d.id}`,
           type: 'plan_joined',
-          message: `You joined "${data.title}"`,
+          message: `You joined "${title}"`,
           timestamp: ts,
           planId: d.id,
         });
@@ -166,82 +335,104 @@ export default function ActivityScreen() {
     return planItems;
   }, [uid]);
 
-  const mergeAndSetItems = useCallback((planItems: ActivityItem[], friendItems: ActivityItem[]) => {
-    const merged = [...planItems, ...friendItems];
-    merged.sort((a, b) => {
-      const aTime = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp || 0).getTime();
-      const bTime = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp || 0).getTime();
-      return bTime - aTime;
-    });
-    setItems([...merged]);
-  }, []);
+  const mergeAndSetItems = useCallback(
+    (planItems: ActivityItem[], friendItems: ActivityItem[]) => {
+      const merged = [...planItems, ...friendItems];
+      merged.sort((a, b) => toMillis(b.timestamp) - toMillis(a.timestamp));
+      setItems(merged);
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setItems([]);
+      setFriendRequests([]);
+      friendItemsRef.current = [];
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
 
     // Initial plan fetch
     fetchPlanItems()
       .then((planItems) => {
+        if (cancelled) return;
         mergeAndSetItems(planItems, friendItemsRef.current);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        /* keep existing items; surfaced via empty/refresh */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     // Friend requests + accepted friends — real-time
-    const userUnsub = onSnapshot(doc(db, 'users', uid), async (snap) => {
-      const data = snap.data();
-      const requests: any[] = data?.friendRequests || [];
-      const friendIds: string[] = data?.friends || [];
+    const userUnsub = onSnapshot(
+      doc(db, 'users', uid),
+      async (snap) => {
+        const data = snap.data();
+        const requests: any[] = data?.friendRequests || [];
+        const friendIds: string[] = data?.friends || [];
 
-      // Enrich pending requests with profile data
-      const enrichedRequests = await Promise.all(
-        requests.map(async (r) => {
-          try {
-            const profileSnap = await getDoc(doc(db, 'users', r.fromId));
-            const profile = profileSnap.data();
-            return {
-              fromId: r.fromId,
-              fromName: r.fromName || profile?.displayName || 'Unknown',
-              fromUsername: profile?.username,
-              fromAvatar: profile?.photoURL,
-            } as FriendRequest;
-          } catch {
-            return {
-              fromId: r.fromId,
-              fromName: r.fromName || 'Unknown',
-            } as FriendRequest;
-          }
-        })
-      );
-      setFriendRequests(enrichedRequests);
+        // Enrich pending requests with profile data
+        const enrichedRequests = await Promise.all(
+          requests.map(async (r) => {
+            try {
+              const profileSnap = await getDoc(doc(db, 'users', r.fromId));
+              const profile = profileSnap.data();
+              return {
+                fromId: r.fromId,
+                fromName: r.fromName || profile?.displayName || 'Unknown',
+                fromUsername: profile?.username,
+                fromAvatar: profile?.photoURL,
+              } as FriendRequest;
+            } catch {
+              return {
+                fromId: r.fromId,
+                fromName: r.fromName || 'Unknown',
+              } as FriendRequest;
+            }
+          })
+        );
+        if (cancelled) return;
+        setFriendRequests(enrichedRequests);
 
-      // Recent friends as activity items (cap at 5)
-      const recentFriends = friendIds.slice(0, 5);
-      const friendDocs = await Promise.all(
-        recentFriends.map((id) => getDoc(doc(db, 'users', id)))
-      );
-      const acceptedItems: ActivityItem[] = friendDocs
-        .filter((d) => d.exists())
-        .map((d) => ({
-          id: `friend-${d.id}`,
-          type: 'friend_accepted' as const,
-          message: `You and ${d.data()?.displayName} are now friends`,
-          timestamp: null,
-        }));
+        // Recent friends as activity items (cap at 5)
+        const recentFriends = friendIds.slice(0, 5);
+        const friendDocs = await Promise.all(
+          recentFriends.map((id) => getDoc(doc(db, 'users', id)).catch(() => null))
+        );
+        const acceptedItems: ActivityItem[] = friendDocs
+          .filter((d): d is NonNullable<typeof d> => !!d && d.exists())
+          .map((d) => ({
+            id: `friend-${d.id}`,
+            type: 'friend_accepted' as const,
+            message: `You and ${d.data()?.displayName ?? 'a friend'} are now friends`,
+            timestamp: null,
+          }));
 
-      friendItemsRef.current = acceptedItems;
-      setItems((prev) => {
-        const planItems = prev.filter((i) => !i.id.startsWith('friend-'));
-        return [...planItems, ...acceptedItems].sort((a, b) => {
-          const aTime = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp || 0).getTime();
-          const bTime = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp || 0).getTime();
-          return bTime - aTime;
+        if (cancelled) return;
+        friendItemsRef.current = acceptedItems;
+        setItems((prev) => {
+          const planItems = prev.filter((i) => !i.id.startsWith('friend-'));
+          return [...planItems, ...acceptedItems].sort(
+            (a, b) => toMillis(b.timestamp) - toMillis(a.timestamp)
+          );
         });
-      });
-    });
+      },
+      () => {
+        /* snapshot error — ignore, list stays as-is */
+      }
+    );
 
-    return () => userUnsub();
-  }, [uid]);
+    return () => {
+      cancelled = true;
+      userUnsub();
+    };
+  }, [uid, fetchPlanItems, mergeAndSetItems]);
 
   const onRefresh = useCallback(async () => {
     if (!uid) return;
@@ -249,6 +440,8 @@ export default function ActivityScreen() {
     try {
       const planItems = await fetchPlanItems();
       mergeAndSetItems(planItems, friendItemsRef.current);
+    } catch {
+      /* keep existing items */
     } finally {
       setRefreshing(false);
     }
@@ -256,51 +449,112 @@ export default function ActivityScreen() {
 
   // ── Friend request actions ──────────────────────────────────────────────────
 
-  const acceptRequest = async (req: FriendRequest) => {
-    setProcessingReq(req.fromId);
-    try {
-      const mySnap = await getDoc(doc(db, 'users', uid));
-      const currentRequests: any[] = mySnap.data()?.friendRequests || [];
-      await updateDoc(doc(db, 'users', uid), {
-        friends: arrayUnion(req.fromId),
-        friendRequests: currentRequests.filter((r) => r.fromId !== req.fromId),
-      });
-      await updateDoc(doc(db, 'users', req.fromId), {
-        friends: arrayUnion(uid),
-      });
-    } catch {
-      // silent fail — snapshot will update UI anyway
-    } finally {
-      setProcessingReq(null);
-    }
-  };
+  const acceptRequest = useCallback(
+    async (req: FriendRequest) => {
+      if (!uid) return;
+      setProcessingReq(req.fromId);
+      try {
+        const mySnap = await getDoc(doc(db, 'users', uid));
+        const currentRequests: any[] = mySnap.data()?.friendRequests || [];
+        await updateDoc(doc(db, 'users', uid), {
+          friends: arrayUnion(req.fromId),
+          friendRequests: currentRequests.filter((r) => r.fromId !== req.fromId),
+        });
+        await updateDoc(doc(db, 'users', req.fromId), {
+          friends: arrayUnion(uid),
+        });
+      } catch {
+        // silent fail — snapshot will update UI anyway
+      } finally {
+        setProcessingReq(null);
+      }
+    },
+    [uid]
+  );
 
-  const declineRequest = async (req: FriendRequest) => {
-    setProcessingReq(req.fromId);
-    try {
-      const mySnap = await getDoc(doc(db, 'users', uid));
-      const currentRequests: any[] = mySnap.data()?.friendRequests || [];
-      await updateDoc(doc(db, 'users', uid), {
-        friendRequests: currentRequests.filter((r) => r.fromId !== req.fromId),
-      });
-    } catch {
-      // silent fail
-    } finally {
-      setProcessingReq(null);
-    }
-  };
+  const declineRequest = useCallback(
+    async (req: FriendRequest) => {
+      if (!uid) return;
+      setProcessingReq(req.fromId);
+      try {
+        const mySnap = await getDoc(doc(db, 'users', uid));
+        const currentRequests: any[] = mySnap.data()?.friendRequests || [];
+        await updateDoc(doc(db, 'users', uid), {
+          friendRequests: currentRequests.filter((r) => r.fromId !== req.fromId),
+        });
+      } catch {
+        // silent fail
+      } finally {
+        setProcessingReq(null);
+      }
+    },
+    [uid]
+  );
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
-  const handleItemPress = (item: ActivityItem) => {
-    if (item.planId && item.type !== 'plan_cancelled') {
-      router.push({ pathname: '/plan-detail', params: { id: item.planId } });
+  const handleItemPress = useCallback(
+    (item: ActivityItem) => {
+      if (item.planId && item.type !== 'plan_cancelled') {
+        router.push({ pathname: '/plan-detail', params: { id: item.planId } });
+      }
+    },
+    [router]
+  );
+
+  const handleHighlightPress = useCallback(
+    (item: ActivityItem) => {
+      if (item.planId) {
+        router.push({ pathname: '/plan-detail', params: { id: item.planId } });
+      }
+    },
+    [router]
+  );
+
+  const handleSetFilter = useCallback((f: FilterKey) => setActiveFilter(f), []);
+  const handleViewAll = useCallback(() => router.push('/discover' as any), [router]);
+
+  // ── Derived data (memoized) ───────────────────────────────────────────────────
+
+  const highlights = useMemo(
+    () => items.filter((i) => i.type === 'plan_confirmed').slice(0, 2),
+    [items]
+  );
+
+  // Filter tab applied to the activity feed (previously a no-op bug).
+  const filteredItems = useMemo(() => {
+    if (activeFilter === 'plans') {
+      return items.filter((i) => i.type !== 'friend_accepted');
     }
-  };
+    if (activeFilter === 'friends') {
+      return items.filter((i) => i.type === 'friend_accepted');
+    }
+    return items;
+  }, [items, activeFilter]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, ActivityItem[]>();
+    filteredItems.forEach((item) => {
+      const label = getTimeGroup(item.timestamp);
+      const arr = map.get(label);
+      if (arr) arr.push(item);
+      else map.set(label, [item]);
+    });
+    return Array.from(map.entries())
+      .map(([label, data]) => ({ label, data }))
+      .sort(
+        (a, b) =>
+          TIME_GROUP_ORDER.indexOf(a.label as (typeof TIME_GROUP_ORDER)[number]) -
+          TIME_GROUP_ORDER.indexOf(b.label as (typeof TIME_GROUP_ORDER)[number])
+      );
+  }, [filteredItems]);
+
+  const showHighlights = !loading && activeFilter !== 'friends' && highlights.length > 0;
+  const showFriendRequests = activeFilter !== 'plans' && friendRequests.length > 0;
+  const isEmpty =
+    !loading && filteredItems.length === 0 && !showFriendRequests && !showHighlights;
 
   // ── Render ──────────────────────────────────────────────────────────────────
-
-  const isEmpty = !loading && items.length === 0 && friendRequests.length === 0;
 
   return (
     <ScreenWrapper>
@@ -319,180 +573,106 @@ export default function ActivityScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>QUORUM</Text>
-          <Ionicons name="search-outline" size={22} color={Colors.text} />
+          <TouchableOpacity
+            hitSlop={styles.hitSlop}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+            onPress={() => router.push('/discover' as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="search-outline" size={22} color={Colors.text} />
+          </TouchableOpacity>
         </View>
 
         {/* Filter tabs */}
         <View style={styles.filterRow}>
-          {(['all', 'plans', 'friends'] as const).map((f) => (
-            <TouchableOpacity
+          {FILTERS.map((f) => (
+            <FilterPill
               key={f}
-              style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
-              onPress={() => setActiveFilter(f)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterPillText, activeFilter === f && styles.filterPillTextActive]}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </Text>
-            </TouchableOpacity>
+              filter={f}
+              active={activeFilter === f}
+              onPress={handleSetFilter}
+            />
           ))}
         </View>
 
         {/* Weekly Highlights — shown when we have confirmed plans to display */}
-        {items.filter(i => i.type === 'plan_confirmed').length > 0 && (
+        {showHighlights && (
           <View style={styles.highlightsSection}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionLabel}>Weekly Highlights</Text>
-              <TouchableOpacity onPress={() => router.push('/discover' as any)}>
+              <TouchableOpacity
+                onPress={handleViewAll}
+                hitSlop={styles.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel="View all highlights"
+              >
                 <Text style={styles.viewAllLink}>View All</Text>
               </TouchableOpacity>
             </View>
-            {items.filter(i => i.type === 'plan_confirmed').slice(0, 2).map((item, i) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.highlightCard}
-                onPress={() => item.planId && router.push({ pathname: '/plan-detail', params: { id: item.planId } })}
-                activeOpacity={0.85}
-              >
-                <View style={styles.highlightImagePlaceholder} />
-                <View style={styles.highlightOverlay}>
-                  <Text style={styles.highlightTitle}>{item.message}</Text>
-                  <Text style={styles.highlightSub}>Quorum reached</Text>
-                </View>
-              </TouchableOpacity>
+            {highlights.map((item) => (
+              <HighlightCard key={item.id} item={item} onPress={handleHighlightPress} />
             ))}
           </View>
         )}
 
         {/* Friend Requests section */}
-        {friendRequests.length > 0 && (
+        {showFriendRequests && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Friend Requests</Text>
-            {friendRequests.map((req, index) => (
-              <View
+            {friendRequests.map((req) => (
+              <RequestCard
                 key={req.fromId}
-                style={styles.requestCard}
-              >
-                <View style={styles.requestRow}>
-                  {/* Avatar */}
-                  {req.fromAvatar ? (
-                    <Image source={{ uri: req.fromAvatar }} style={styles.avatar} />
-                  ) : (
-                    <View style={styles.avatarFallback}>
-                      <Text style={styles.avatarInitial}>
-                        {req.fromName.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Name / username */}
-                  <View style={styles.requestInfo}>
-                    <Text style={styles.requestName} numberOfLines={1}>
-                      {req.fromName}
-                    </Text>
-                    {req.fromUsername ? (
-                      <Text style={styles.requestUsername} numberOfLines={1}>
-                        @{req.fromUsername}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  {/* Actions */}
-                  <View style={styles.requestActions}>
-                    <AnimatedButton
-                      label="Accept"
-                      variant="primary"
-                      size="sm"
-                      loading={processingReq === req.fromId}
-                      onPress={() => acceptRequest(req)}
-                      style={styles.acceptBtn}
-                    />
-                    <AnimatedButton
-                      label="Decline"
-                      variant="ghost"
-                      size="sm"
-                      disabled={processingReq === req.fromId}
-                      onPress={() => declineRequest(req)}
-                    />
-                  </View>
-                </View>
-              </View>
+                req={req}
+                processing={processingReq === req.fromId}
+                onAccept={acceptRequest}
+                onDecline={declineRequest}
+              />
             ))}
           </View>
         )}
 
         {/* Recent activity section */}
-        {(loading || items.length > 0) && (
+        {(loading || filteredItems.length > 0) && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Live Updates</Text>
 
-            {loading
-              ? [0, 1, 2, 3].map((i) => (
-                  <View key={i} style={styles.skeletonCard}>
-                    <View style={styles.skeletonRow}>
-                      <View style={styles.skeletonCircle} />
-                      <View style={styles.skeletonLines}>
-                        <View style={[styles.skeletonLine, { width: '65%' }]} />
-                        <View style={[styles.skeletonLine, { width: '40%', marginTop: 6 }]} />
-                      </View>
-                    </View>
-                  </View>
-                ))
-              : (() => {
-                  // Group items by time bucket
-                  const groups: { label: string; data: typeof items }[] = [];
-                  const ORDER = ['Today', 'Yesterday', 'This Week', 'Earlier'];
-                  items.forEach((item) => {
-                    const label = getTimeGroup(item.timestamp);
-                    let g = groups.find((x) => x.label === label);
-                    if (!g) { g = { label, data: [] }; groups.push(g); }
-                    g.data.push(item);
-                  });
-                  groups.sort((a, b) => ORDER.indexOf(a.label) - ORDER.indexOf(b.label));
-                  let cardIdx = 0;
-                  return groups.map((group) => (
-                    <View key={group.label}>
-                      <Text style={styles.timeGroupLabel}>{group.label}</Text>
-                      {group.data.map((item) => {
-                        const color = getIconColor(item.type);
-                        const iconName = getIconName(item.type);
-                        const ci = cardIdx++;
-                        return (
-                          <TouchableOpacity
-                            key={item.id}
-                            onPress={
-                              item.planId && item.type !== 'plan_cancelled'
-                                ? () => handleItemPress(item)
-                                : undefined
-                            }
-                            activeOpacity={0.7}
-                            style={styles.activityItem}
-                          >
-                            <View style={styles.activityRow}>
-                              <View style={[styles.iconCircle, { backgroundColor: color + '15' }]}>
-                                <Ionicons name={iconName} size={18} color={color} />
-                              </View>
-                              <Text style={styles.activityMessage} numberOfLines={2}>
-                                {item.message}
-                              </Text>
-                              <Text style={styles.activityTime}>
-                                {formatRelTime(item.timestamp)}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ));
-                })()}
+            {loading ? (
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            ) : (
+              groups.map((group) => (
+                <View key={group.label}>
+                  <Text style={styles.timeGroupLabel}>{group.label}</Text>
+                  {group.data.map((item) => (
+                    <ActivityRow key={item.id} item={item} onPress={handleItemPress} />
+                  ))}
+                </View>
+              ))
+            )}
           </View>
         )}
 
         {/* Empty state */}
         {isEmpty && (
           <View style={styles.empty}>
-            <Ionicons name="pulse-outline" size={56} color={Colors.textMuted} style={{ opacity: 0.5 }} />
-            <Text style={styles.emptyText}>All quiet here</Text>
+            <Ionicons
+              name="pulse-outline"
+              size={56}
+              color={Colors.textMuted}
+              style={styles.emptyIcon}
+            />
+            <Text style={styles.emptyText}>
+              {activeFilter === 'friends'
+                ? 'No friend activity yet'
+                : activeFilter === 'plans'
+                ? 'No plan activity yet'
+                : 'All quiet here'}
+            </Text>
             <Text style={styles.emptySubText}>
               Friend requests, plan confirmations, and activity will show up here.
             </Text>
@@ -511,6 +691,8 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
 
+  hitSlop: { top: 10, bottom: 10, left: 10, right: 10 },
+
   // Header
   header: {
     flexDirection: 'row',
@@ -524,8 +706,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundAlt,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.black,
     color: Colors.text,
     letterSpacing: 3,
   },
@@ -533,17 +715,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: Spacing.container,
     paddingVertical: Spacing.sm,
-    gap: 8,
+    gap: Spacing.xs * 2,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   filterPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: Spacing.gutter,
+    paddingVertical: Spacing.xs * 2,
     borderRadius: Radius.md,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
+    minHeight: 36,
+    justifyContent: 'center',
   },
   filterPillActive: {
     backgroundColor: Colors.primary,
@@ -551,11 +735,11 @@ const styles = StyleSheet.create({
   },
   filterPillText: {
     fontSize: FontSize.sm,
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
     color: Colors.textSecondary,
   },
   filterPillTextActive: {
-    color: '#ffffff',
+    color: Colors.background,
   },
   highlightsSection: {
     paddingTop: Spacing.md,
@@ -573,7 +757,7 @@ const styles = StyleSheet.create({
   viewAllLink: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
   },
   highlightCard: {
     marginHorizontal: Spacing.container,
@@ -593,18 +777,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    padding: Spacing.sm,
+    backgroundColor: Colors.overlay,
   },
   highlightTitle: {
     fontSize: FontSize.md,
-    fontWeight: '800',
-    color: '#ffffff',
+    fontWeight: FontWeight.heavy,
+    color: Colors.background,
     letterSpacing: -0.3,
   },
   highlightSub: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: FontSize.xs,
+    color: Colors.glassHighlight,
     marginTop: 2,
   },
 
@@ -614,8 +798,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.container,
   },
   sectionLabel: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
@@ -631,7 +815,7 @@ const styles = StyleSheet.create({
   requestRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Spacing.sm,
   },
   avatar: {
     width: 46,
@@ -669,7 +853,7 @@ const styles = StyleSheet.create({
   },
   requestActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.xs * 2,
     alignItems: 'center',
   },
   acceptBtn: {
@@ -685,7 +869,7 @@ const styles = StyleSheet.create({
   activityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Spacing.sm,
   },
   iconCircle: {
     width: 36,
@@ -694,6 +878,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    backgroundColor: Colors.surfaceRaised,
   },
   activityMessage: {
     flex: 1,
@@ -703,7 +888,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   activityTime: {
-    fontSize: 11,
+    fontSize: FontSize.xs,
     color: Colors.textMuted,
     fontWeight: FontWeight.medium,
     flexShrink: 0,
@@ -718,7 +903,7 @@ const styles = StyleSheet.create({
   skeletonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Spacing.sm,
   },
   skeletonCircle: {
     width: 44,
@@ -734,11 +919,18 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xs,
     backgroundColor: Colors.surfaceOverlay,
   },
+  skeletonLineMain: {
+    width: '65%',
+  },
+  skeletonLineSub: {
+    width: '40%',
+    marginTop: 6,
+  },
 
   // Time group label (Today / Yesterday / This Week / Earlier)
   timeGroupLabel: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
@@ -751,7 +943,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 100,
-    gap: 12,
+    gap: Spacing.sm,
+  },
+  emptyIcon: {
+    opacity: 0.5,
   },
   emptyText: {
     fontSize: FontSize.lg,

@@ -1,32 +1,37 @@
 import { Image } from 'expo-image';
+import { useMemo } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
-import { Collapsible } from '@/components/ui/collapsible';
 import { ExternalLink } from '@/components/external-link';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Collapsible } from '@/components/ui/collapsible';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { Colors, FontSize, FontWeight, Fonts, Spacing } from '@/lib/theme';
+
+const HEADER_ICON_SIZE = 310;
+
+// Strictly monochrome header backdrop (light / dark scheme grey pair).
+const HEADER_BACKGROUND = { light: Colors.surfaceBright, dark: Colors.primaryContainer } as const;
 
 export default function TabTwoScreen() {
+  const headerImage = useMemo(
+    () => (
+      <IconSymbol
+        size={HEADER_ICON_SIZE}
+        color={Colors.textMuted}
+        name="chevron.left.forwardslash.chevron.right"
+        style={styles.headerImage}
+      />
+    ),
+    []
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
+    <ParallaxScrollView headerBackgroundColor={HEADER_BACKGROUND} headerImage={headerImage}>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
+        <ThemedText type="title" style={styles.title}>
           Explore
         </ThemedText>
       </ThemedView>
@@ -57,10 +62,7 @@ export default function TabTwoScreen() {
           <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
           different screen densities
         </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
+        <Image source={require('@/assets/images/react-logo.png')} style={styles.image} />
         <ExternalLink href="https://reactnative.dev/docs/images">
           <ThemedText type="link">Learn more</ThemedText>
         </ExternalLink>
@@ -80,7 +82,7 @@ export default function TabTwoScreen() {
           This template includes an example of an animated component. The{' '}
           <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
           the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
+          <ThemedText type="defaultSemiBold" style={styles.mono}>
             react-native-reanimated
           </ThemedText>{' '}
           library to create a waving hand animation.
@@ -100,13 +102,26 @@ export default function TabTwoScreen() {
 
 const styles = StyleSheet.create({
   headerImage: {
-    color: '#808080',
+    color: Colors.textMuted,
     bottom: -90,
     left: -35,
     position: 'absolute',
   },
   titleContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.xs,
+  },
+  title: {
+    fontFamily: Fonts.heading,
+    fontWeight: FontWeight.bold,
+  },
+  image: {
+    width: 100,
+    height: 100,
+    alignSelf: 'center',
+  },
+  mono: {
+    fontFamily: Platform.select({ ios: 'ui-monospace', default: 'monospace' }),
+    fontSize: FontSize.md,
   },
 });

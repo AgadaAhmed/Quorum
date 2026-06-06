@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -23,15 +23,16 @@ import { auth, db, storage } from '../../lib/firebase';
 import { useToast } from '../../components/Toast';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
-import { Colors, FontSize, FontWeight, Radius, Spacing, Shadow } from '../../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
 type UserProfile = {
   displayName: string;
   username?: string;
+  usernameLower?: string;
   email: string;
   city?: string;
   country?: string;
-  friends: string[];
+  friends?: string[];
   bio?: string;
   avatarUrl?: string;
   emergencyContact?: { name: string; phone: string };
@@ -40,21 +41,109 @@ type UserProfile = {
   ratingAvg?: number;
 };
 
-function ProfileStatItem({ label, value, sub }: { label: string; value: any; sub?: string }) {
+type Plan = {
+  id: string;
+  title?: string;
+  category?: string;
+  status?: string;
+  createdBy?: string;
+  coverUrl?: string;
+  location?: string;
+  date?: { seconds: number } | null;
+};
+
+const DEFAULT_INTERESTS = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel'];
+
+/** Number of votes assumed to constitute "full consensus" per plan. */
+const VOTES_PER_QUORUM = 3;
+
+function getConsensusPercent(voteCount: number, planCount: number): number {
+  if (planCount <= 0) return 0;
+  return Math.min(
+    Math.round((voteCount / Math.max(planCount * VOTES_PER_QUORUM, 1)) * 100),
+    100
+  );
+}
+
+const ProfileStatItem = React.memo(function ProfileStatItem({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
   return (
-    <View style={profileStatStyles.badge}>
+    <View style={profileStatStyles.badge} accessible accessibilityLabel={`${value} ${label}`}>
       <Text style={profileStatStyles.value}>{value}</Text>
       {sub ? <Text style={profileStatStyles.sub}>{sub}</Text> : null}
       <Text style={profileStatStyles.label}>{label}</Text>
     </View>
   );
-}
+});
 
 const profileStatStyles = StyleSheet.create({
-  badge: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  value: { fontSize: 22, fontWeight: '800', color: '#0f0f0f', letterSpacing: -0.5 },
-  sub: { fontSize: 10, color: '#5c5959', fontWeight: '600' },
-  label: { fontSize: 9, color: '#5c5959', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 2 },
+  badge: { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm + 2 },
+  value: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text, letterSpacing: -0.5 },
+  sub: { fontSize: 10, color: Colors.textMuted, fontWeight: FontWeight.semibold },
+  label: {
+    fontSize: 9,
+    color: Colors.textMuted,
+    fontWeight: FontWeight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginTop: 2,
+  },
+});
+
+type Achievement = { icon: keyof typeof Ionicons.glyphMap; label: string; unlocked: boolean };
+
+const PlanRow = React.memo(function PlanRow({
+  plan,
+  onPress,
+}: {
+  plan: Plan;
+  onPress: (id: string) => void;
+}) {
+  const handlePress = useCallback(() => onPress(plan.id), [onPress, plan.id]);
+  const dateLabel =
+    plan.date?.seconds != null
+      ? new Date(plan.date.seconds * 1000).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : '';
+  const meta = [dateLabel, plan.location].filter(Boolean).join(' · ');
+  return (
+    <TouchableOpacity
+      style={styles.planRow}
+      onPress={handlePress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`Open plan ${plan.title || 'Untitled plan'}`}
+    >
+      <View style={styles.planRowThumb}>
+        {plan.coverUrl ? (
+          <Image source={{ uri: plan.coverUrl }} style={styles.planRowThumbImage} />
+        ) : (
+          <View style={styles.planRowThumbPlaceholder} />
+        )}
+      </View>
+      <View style={styles.planRowInfo}>
+        <Text style={styles.planRowTitle} numberOfLines={1}>
+          {plan.title || 'Untitled plan'}
+        </Text>
+        {meta ? (
+          <Text style={styles.planRowMeta} numberOfLines={1}>
+            {meta}
+          </Text>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+    </TouchableOpacity>
+  );
 });
 
 export default function ProfileScreen() {
@@ -73,7 +162,7 @@ export default function ProfileScreen() {
   const [voteCount, setVoteCount] = useState(0);
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
-  const [myPlans, setMyPlans] = useState<any[]>([]);
+  const [myPlans, setMyPlans] = useState<Plan[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const { showToast } = useToast();
@@ -86,33 +175,46 @@ export default function ProfileScreen() {
 
   const loadProfile = useCallback(async () => {
     if (!uid) return;
-    const snap = await getDoc(doc(db, 'users', uid));
-    const data = snap.data() as UserProfile;
-    setProfile(data);
-    setBio(data?.bio || '');
-    setDisplayName(data?.displayName || '');
-    setUsername(data?.username || '');
-    setCity(data?.city || '');
-    setCountry(data?.country || '');
-    setEmergencyName(data?.emergencyContact?.name || '');
-    setEmergencyPhone(data?.emergencyContact?.phone || '');
-  }, [uid]);
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      const data = (snap.exists() ? snap.data() : {}) as UserProfile;
+      setProfile(data);
+      setBio(data.bio || '');
+      setDisplayName(data.displayName || '');
+      setUsername(data.username || '');
+      setCity(data.city || '');
+      setCountry(data.country || '');
+      setEmergencyName(data.emergencyContact?.name || '');
+      setEmergencyPhone(data.emergencyContact?.phone || '');
+    } catch {
+      showToast('Failed to load profile', 'error');
+    }
+  }, [uid, showToast]);
 
   const loadStats = useCallback(async () => {
     if (!uid) return;
-    const snap = await getDocs(query(collection(db, 'plans'), where('participants', 'array-contains', uid)));
-    setPlanCount(snap.size);
-    let votes = 0;
-    snap.docs.forEach((d) => {
-      if ((d.data().votes || []).includes(uid)) votes++;
-    });
-    setVoteCount(votes);
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'plans'), where('participants', 'array-contains', uid))
+      );
+      setPlanCount(snap.size);
+      let votes = 0;
+      snap.docs.forEach((d) => {
+        if ((d.data().votes || []).includes(uid)) votes++;
+      });
+      setVoteCount(votes);
+    } catch {
+      // Stats are non-critical; fail silently rather than blocking the screen.
+    }
   }, [uid]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadProfile(), loadStats()]);
-    setRefreshing(false);
+    try {
+      await Promise.all([loadProfile(), loadStats()]);
+    } finally {
+      setRefreshing(false);
+    }
   }, [loadProfile, loadStats]);
 
   useEffect(() => {
@@ -127,7 +229,7 @@ export default function ProfileScreen() {
       delay: 200,
       useNativeDriver: true,
     }).start();
-  }, [uid]);
+  }, [uid, loadProfile, loadStats, avatarScale]);
 
   useEffect(() => {
     if (!uid) return;
@@ -138,12 +240,13 @@ export default function ProfileScreen() {
       limit(10)
     );
     const unsub = onSnapshot(q, (snap) => {
-      setMyPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setMyPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Plan));
     });
     return unsub;
   }, [uid]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
+    if (!uid || saving) return;
     setUsernameError('');
     if (!displayName.trim()) {
       showToast('Display name cannot be empty', 'error');
@@ -162,11 +265,14 @@ export default function ProfileScreen() {
       }
     }
     setSaving(true);
-    const updates: any = {
-      displayName,
+    const trimmedName = displayName.trim();
+    const trimmedCity = city.trim();
+    const trimmedCountry = country.trim();
+    const updates: Partial<UserProfile> = {
+      displayName: trimmedName,
       bio,
-      city: city.trim(),
-      country: country.trim(),
+      city: trimmedCity,
+      country: trimmedCountry,
       emergencyContact: { name: emergencyName.trim(), phone: emergencyPhone.trim() },
     };
     if (trimmedUsername !== profile?.username && trimmedUsername) {
@@ -176,7 +282,17 @@ export default function ProfileScreen() {
     try {
       await updateDoc(doc(db, 'users', uid), updates);
       setProfile((p) =>
-        p ? { ...p, displayName, bio, username: trimmedUsername, city: city.trim(), country: country.trim() } : p
+        p
+          ? {
+              ...p,
+              displayName: trimmedName,
+              bio,
+              username: trimmedUsername || p.username,
+              city: trimmedCity,
+              country: trimmedCountry,
+              emergencyContact: { name: emergencyName.trim(), phone: emergencyPhone.trim() },
+            }
+          : p
       );
       setEditing(false);
       showToast('Profile saved!');
@@ -185,11 +301,27 @@ export default function ProfileScreen() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    uid,
+    saving,
+    displayName,
+    username,
+    bio,
+    city,
+    country,
+    emergencyName,
+    emergencyPhone,
+    profile?.username,
+    showToast,
+  ]);
 
-  const handleAvatarPick = async () => {
+  const handleAvatarPick = useCallback(async () => {
+    if (!uid || uploadingAvatar) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
+    if (status !== 'granted') {
+      showToast('Photo permission is required', 'error');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images' as ImagePicker.MediaType],
       allowsEditing: true,
@@ -213,23 +345,88 @@ export default function ProfileScreen() {
     } finally {
       setUploadingAvatar(false);
     }
-  };
+  }, [uid, uploadingAvatar, showToast]);
 
-  const handleSignOut = async () => {
-    await auth.signOut();
-  };
+  const handleSignOut = useCallback(async () => {
+    try {
+      await auth.signOut();
+    } catch {
+      showToast('Failed to sign out', 'error');
+    }
+  }, [showToast]);
 
-  const initials = (profile?.displayName || auth.currentUser?.email || 'U')[0].toUpperCase();
+  const openEdit = useCallback(() => setEditing(true), []);
+  const closeEdit = useCallback(() => setEditing(false), []);
+  const goToSettings = useCallback(() => router.push('/settings' as any), [router]);
+  const goToFriends = useCallback(() => router.push('/social' as any), [router]);
+  const openPlan = useCallback(
+    (id: string) => router.push({ pathname: '/plan-detail', params: { id } } as any),
+    [router]
+  );
+
+  const initials = useMemo(
+    () => (profile?.displayName || auth.currentUser?.email || 'U').trim().charAt(0).toUpperCase() || 'U',
+    [profile?.displayName]
+  );
 
   const hasLocation = !!(profile?.city || profile?.country);
-  const ratingAvg = profile?.ratingAvg;
+  const locationLabel = useMemo(
+    () => [profile?.city, profile?.country].filter(Boolean).join(', '),
+    [profile?.city, profile?.country]
+  );
+
+  const consensusPct = useMemo(
+    () => getConsensusPercent(voteCount, planCount),
+    [voteCount, planCount]
+  );
+
+  const hostedCount = useMemo(
+    () => myPlans.filter((p) => p.createdBy === uid).length,
+    [myPlans, uid]
+  );
+  const confirmedCount = useMemo(
+    () => myPlans.filter((p) => p.status === 'confirmed').length,
+    [myPlans]
+  );
+  const hasConfirmed = confirmedCount > 0;
+  const friendCount = profile?.friends?.length ?? 0;
+
+  const displayInterests = useMemo(() => {
+    const categoryMap = new Map<string, number>();
+    myPlans.forEach((p) => {
+      if (p.category) categoryMap.set(p.category, (categoryMap.get(p.category) || 0) + 1);
+    });
+    const interests = [...categoryMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat]) => cat);
+    return (interests.length > 0 ? interests : DEFAULT_INTERESTS).slice(0, 8);
+  }, [myPlans]);
+
+  const achievements = useMemo<Achievement[]>(
+    () => [
+      { icon: 'trophy-outline', label: 'Quorum King', unlocked: voteCount >= 10 },
+      { icon: 'checkmark-circle-outline', label: 'On Target', unlocked: planCount >= 3 },
+      { icon: 'people-outline', label: 'Connector', unlocked: friendCount >= 5 },
+      { icon: 'flash-outline', label: 'Fast Mover', unlocked: hasConfirmed },
+    ],
+    [voteCount, planCount, friendCount, hasConfirmed]
+  );
+
+  const loading = !profile;
 
   return (
     <ScreenWrapper>
       {/* App Header */}
       <View style={styles.appHeader}>
         <Text style={styles.appHeaderTitle}>QUORUM</Text>
-        <Ionicons name="search-outline" size={22} color={Colors.text} />
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="search-outline" size={22} color={Colors.text} />
+        </TouchableOpacity>
       </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -248,20 +445,27 @@ export default function ProfileScreen() {
           <View style={styles.statDivider} />
           <ProfileStatItem label="Votes" value={voteCount} />
           <View style={styles.statDivider} />
-          <ProfileStatItem label="Network" value={profile?.friends?.length ?? 0} />
+          <ProfileStatItem label="Network" value={friendCount} />
         </View>
-        <View style={[styles.statsContainer, { borderTopWidth: 0 }]}>
-          <ProfileStatItem label="Quorum Rate" value={planCount > 0 ? `${Math.round((voteCount / Math.max(planCount * 3, 1)) * 100)}%` : '—'} />
+        <View style={styles.statsContainerNoTop}>
+          <ProfileStatItem label="Quorum Rate" value={planCount > 0 ? `${consensusPct}%` : '—'} />
           <View style={styles.statDivider} />
-          <ProfileStatItem label="Hosted" value={myPlans.filter((p: any) => p.createdBy === uid).length} />
+          <ProfileStatItem label="Hosted" value={hostedCount} />
           <View style={styles.statDivider} />
-          <ProfileStatItem label="Confirmed" value={myPlans.filter((p: any) => p.status === 'confirmed').length} />
+          <ProfileStatItem label="Confirmed" value={confirmedCount} />
         </View>
 
         {/* ── Hero Banner ── */}
         <View style={styles.heroContainer}>
           {/* Avatar */}
-          <TouchableOpacity onPress={handleAvatarPick} disabled={uploadingAvatar} style={styles.avatarWrapper}>
+          <TouchableOpacity
+            onPress={handleAvatarPick}
+            disabled={uploadingAvatar}
+            style={styles.avatarWrapper}
+            accessibilityRole="button"
+            accessibilityLabel="Change profile photo"
+            accessibilityState={{ disabled: uploadingAvatar, busy: uploadingAvatar }}
+          >
             <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
               {profile?.avatarUrl ? (
                 <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
@@ -272,41 +476,45 @@ export default function ProfileScreen() {
               )}
               {uploadingAvatar && (
                 <View style={styles.avatarOverlay}>
-                  <Ionicons name="cloud-upload-outline" size={18} color={Colors.text} />
+                  <Ionicons name="cloud-upload-outline" size={18} color={Colors.background} />
                 </View>
               )}
             </Animated.View>
             <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={10} color="#fff" />
+              <Ionicons name="camera" size={10} color={Colors.background} />
             </View>
           </TouchableOpacity>
 
           {/* Name, handle, bio, consensus — beside avatar */}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroName}>{profile?.displayName || 'Loading...'}</Text>
+          <View style={styles.heroInfo}>
+            <Text style={styles.heroName} numberOfLines={1}>
+              {profile?.displayName || (loading ? 'Loading…' : 'Unnamed')}
+            </Text>
             {profile?.username ? (
               <Text style={styles.heroHandle}>@{profile.username}</Text>
             ) : null}
             {profile?.bio ? (
-              <Text style={styles.heroBio} numberOfLines={2}>{profile.bio}</Text>
+              <Text style={styles.heroBio} numberOfLines={2}>
+                {profile.bio}
+              </Text>
             ) : null}
             {hasLocation ? (
               <View style={styles.locationRow}>
                 <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
-                <Text style={styles.locationText}>
-                  {[profile?.city, profile?.country].filter(Boolean).join(', ')}
+                <Text style={styles.locationText} numberOfLines={1}>
+                  {locationLabel}
                 </Text>
               </View>
             ) : null}
             {/* Consensus bar */}
-            <View style={styles.consensusRow}>
-              <Text style={styles.consensusLabel}>
-                {planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0}% Consensus
-              </Text>
+            <View
+              style={styles.consensusRow}
+              accessible
+              accessibilityLabel={`${consensusPct} percent consensus`}
+            >
+              <Text style={styles.consensusLabel}>{consensusPct}% Consensus</Text>
               <View style={styles.consensusTrack}>
-                <View style={[styles.consensusFill, {
-                  width: `${Math.min(planCount > 0 ? Math.round((voteCount / Math.max(planCount * 3, 1)) * 100) : 0, 100)}%`
-                }]} />
+                <View style={[styles.consensusFill, { width: `${consensusPct}%` }]} />
               </View>
             </View>
           </View>
@@ -316,21 +524,21 @@ export default function ProfileScreen() {
         <View style={styles.actionsRow}>
           <AnimatedButton
             label="Edit Profile"
-            onPress={() => setEditing(true)}
+            onPress={openEdit}
             variant="secondary"
             size="sm"
             style={styles.actionBtn}
           />
           <AnimatedButton
             label="Settings"
-            onPress={() => router.push('/settings' as any)}
+            onPress={goToSettings}
             variant="ghost"
             size="sm"
             style={styles.actionBtn}
           />
           <AnimatedButton
             label="Friends"
-            onPress={() => router.push('/social' as any)}
+            onPress={goToFriends}
             variant="ghost"
             size="sm"
             style={styles.actionBtn}
@@ -338,44 +546,36 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Social Interests ── */}
-        {(() => {
-          // Derive interests from plan categories
-          const categoryMap: Record<string, number> = {};
-          myPlans.forEach((p: any) => {
-            if (p.category) categoryMap[p.category] = (categoryMap[p.category] || 0) + 1;
-          });
-          const interests = Object.entries(categoryMap)
-            .sort((a, b) => b[1] - a[1])
-            .map(([cat]) => cat);
-          const DEFAULT_INTERESTS = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel'];
-          const displayInterests = interests.length > 0 ? interests : DEFAULT_INTERESTS;
-          return (
-            <View style={styles.interestsSection}>
-              <Text style={styles.sectionLabel}>Social Interests</Text>
-              <View style={styles.interestsTags}>
-                {displayInterests.slice(0, 8).map((tag) => (
-                  <View key={tag} style={styles.interestTag}>
-                    <Text style={styles.interestTagText}>{tag}</Text>
-                  </View>
-                ))}
+        <View style={styles.interestsSection}>
+          <Text style={styles.sectionLabel}>Social Interests</Text>
+          <View style={styles.interestsTags}>
+            {displayInterests.map((tag) => (
+              <View key={tag} style={styles.interestTag}>
+                <Text style={styles.interestTagText}>{tag}</Text>
               </View>
-            </View>
-          );
-        })()}
+            ))}
+          </View>
+        </View>
 
         {/* ── Achievements ── */}
         <View style={styles.achievementsSection}>
           <Text style={styles.sectionLabel}>Achievements</Text>
           <View style={styles.achievementsRow}>
-            {[
-              { icon: 'trophy-outline', label: 'Quorum King', unlocked: voteCount >= 10 },
-              { icon: 'checkmark-circle-outline', label: 'On Target', unlocked: planCount >= 3 },
-              { icon: 'people-outline', label: 'Connector', unlocked: (profile?.friends?.length ?? 0) >= 5 },
-              { icon: 'flash-outline', label: 'Fast Mover', unlocked: myPlans.some((p: any) => p.status === 'confirmed') },
-            ].map((a) => (
-              <View key={a.label} style={[styles.achievementBadge, !a.unlocked && styles.achievementLocked]}>
-                <Ionicons name={a.icon as any} size={20} color={a.unlocked ? '#ffffff' : 'rgba(0,0,0,0.25)'} />
-                <Text style={[styles.achievementLabel, !a.unlocked && styles.achievementLabelLocked]}>{a.label}</Text>
+            {achievements.map((a) => (
+              <View
+                key={a.label}
+                style={[styles.achievementBadge, !a.unlocked && styles.achievementLocked]}
+                accessible
+                accessibilityLabel={`${a.label}, ${a.unlocked ? 'unlocked' : 'locked'}`}
+              >
+                <Ionicons
+                  name={a.icon}
+                  size={20}
+                  color={a.unlocked ? Colors.background : Colors.textDisabled}
+                />
+                <Text style={[styles.achievementLabel, !a.unlocked && styles.achievementLabelLocked]}>
+                  {a.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -385,28 +585,8 @@ export default function ProfileScreen() {
         {myPlans.length > 0 && (
           <View style={styles.plansSection}>
             <Text style={styles.sectionLabel}>Active Plans</Text>
-            {myPlans.map((plan: any, index: number) => (
-              <TouchableOpacity
-                key={plan.id}
-                style={styles.planRow}
-                onPress={() => router.push({ pathname: '/plan-detail', params: { id: plan.id } } as any)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.planRowThumb}>
-                  {plan.coverUrl ? (
-                    <Image source={{ uri: plan.coverUrl }} style={styles.planRowThumbImage} />
-                  ) : (
-                    <View style={styles.planRowThumbPlaceholder} />
-                  )}
-                </View>
-                <View style={styles.planRowInfo}>
-                  <Text style={styles.planRowTitle} numberOfLines={1}>{plan.title}</Text>
-                  <Text style={styles.planRowMeta} numberOfLines={1}>
-                    {plan.date ? new Date(plan.date.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}{plan.location ? ` · ${plan.location}` : ''}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              </TouchableOpacity>
+            {myPlans.map((plan) => (
+              <PlanRow key={plan.id} plan={plan} onPress={openPlan} />
             ))}
           </View>
         )}
@@ -426,7 +606,7 @@ export default function ProfileScreen() {
             <Text style={styles.cardTitle}>Emergency Contact</Text>
           </View>
           {emergencyName || emergencyPhone ? (
-            <View style={{ gap: 6 }}>
+            <View style={styles.infoGroup}>
               {emergencyName ? (
                 <View style={styles.infoRow}>
                   <Ionicons name="person-outline" size={14} color={Colors.textMuted} />
@@ -446,14 +626,20 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Sign Out ── */}
-        <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
+        <TouchableOpacity
+          style={styles.signOutBtn}
+          onPress={handleSignOut}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
           <Ionicons name="log-out-outline" size={16} color={Colors.error} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
       {/* ── Edit Modal ── */}
-      <Modal visible={editing} animationType="slide" transparent>
+      <Modal visible={editing} animationType="slide" transparent onRequestClose={closeEdit}>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -462,7 +648,13 @@ export default function ProfileScreen() {
             {/* Modal header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Profile</Text>
-              <TouchableOpacity onPress={() => setEditing(false)} style={styles.modalClose}>
+              <TouchableOpacity
+                onPress={closeEdit}
+                style={styles.modalClose}
+                accessibilityRole="button"
+                accessibilityLabel="Close edit profile"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Ionicons name="close" size={22} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -531,10 +723,10 @@ export default function ProfileScreen() {
               <View style={styles.sectionDivider} />
               <View style={styles.cardHeader}>
                 <Ionicons name="shield-checkmark-outline" size={14} color={Colors.success} />
-                <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>Emergency Contact</Text>
+                <Text style={styles.cardHeaderLabel}>Emergency Contact</Text>
               </View>
 
-              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Contact Name</Text>
+              <Text style={styles.fieldLabel}>Contact Name</Text>
               <TextInput
                 style={styles.fieldInput}
                 value={emergencyName}
@@ -559,7 +751,7 @@ export default function ProfileScreen() {
                 variant="primary"
                 loading={saving}
                 disabled={saving}
-                style={{ marginTop: Spacing.lg, marginBottom: Spacing.xl }}
+                style={styles.saveBtn}
               />
             </ScrollView>
           </View>
@@ -618,7 +810,7 @@ const styles = StyleSheet.create({
   },
   avatarOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: Colors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 32,
@@ -636,6 +828,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.background,
   },
+  heroInfo: {
+    flex: 1,
+  },
   heroName: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.heavy,
@@ -651,10 +846,8 @@ const styles = StyleSheet.create({
   heroBio: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
     lineHeight: 20,
-    maxWidth: 280,
   },
   locationRow: {
     flexDirection: 'row',
@@ -673,6 +866,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.container,
     borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  statsContainerNoTop: {
+    flexDirection: 'row',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.container,
     borderBottomWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
@@ -716,6 +917,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: FontWeight.bold,
     color: Colors.text,
+  },
+  cardHeaderLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textSecondary,
+  },
+  infoGroup: {
+    gap: 6,
   },
   infoRow: {
     flexDirection: 'row',
@@ -828,6 +1037,10 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 2,
   },
+  saveBtn: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
   sectionDivider: {
     height: 1,
     backgroundColor: Colors.border,
@@ -847,10 +1060,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundAlt,
   },
   appHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.black,
     color: Colors.text,
     letterSpacing: 3,
+  },
+  headerIconBtn: {
+    padding: 6,
   },
 
   // Consensus bar
@@ -860,8 +1076,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   consensusLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
     color: Colors.textSecondary,
   },
   consensusTrack: {
@@ -881,7 +1097,7 @@ const styles = StyleSheet.create({
   plansSection: { marginBottom: Spacing.lg },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
@@ -920,7 +1136,7 @@ const styles = StyleSheet.create({
   },
   planRowTitle: {
     fontSize: FontSize.md,
-    fontWeight: '700',
+    fontWeight: FontWeight.bold,
     color: Colors.text,
   },
   planRowMeta: {
@@ -931,74 +1147,73 @@ const styles = StyleSheet.create({
 
   // Social Interests
   interestsSection: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 16,
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
+    borderBottomColor: Colors.border,
   },
   interestsTags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
+    gap: Spacing.xs + 4,
+    marginTop: Spacing.sm,
   },
   interestTag: {
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 4,
+    borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: '#0f0f0f',
-    backgroundColor: '#ffffff',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
   },
   interestTagText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0f0f0f',
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
     letterSpacing: 0.3,
   },
 
   // Achievements
   achievementsSection: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 16,
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
+    borderBottomColor: Colors.border,
   },
   achievementsRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
+    gap: Spacing.xs + 6,
+    marginTop: Spacing.sm,
     flexWrap: 'wrap',
   },
   achievementBadge: {
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 4,
+    borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: '#0f0f0f',
-    backgroundColor: '#0f0f0f',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
     minWidth: 80,
+    minHeight: 44,
   },
   achievementLocked: {
-    backgroundColor: '#ffffff',
-    borderColor: 'rgba(0,0,0,0.15)',
-  },
-  achievementIcon: {
-    fontSize: 22,
-    marginBottom: 4,
+    backgroundColor: Colors.surface,
+    borderColor: Colors.border,
   },
   achievementLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#ffffff',
+    fontWeight: FontWeight.heavy,
+    color: Colors.background,
     letterSpacing: 0.8,
     textAlign: 'center',
+    marginTop: 4,
   },
   achievementLabelLocked: {
-    color: 'rgba(0,0,0,0.3)',
+    color: Colors.textDisabled,
   },
 
   // Recent Posts
