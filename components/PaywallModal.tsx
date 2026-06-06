@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,13 +23,43 @@ interface Props {
   reason?: string;
 }
 
+type Plan = 'monthly' | 'annual';
+
+const FEATURES = [
+  'Unlimited active plans',
+  'Unlimited moments + HD quality',
+  'Full chat history',
+  'Unlimited templates',
+  'Custom plan covers & themes',
+  'Plan analytics',
+] as const;
+
+// Monochrome backdrop gradient.
+const BACKDROP_GRADIENT = [Colors.surface, Colors.surfaceRaised] as const;
+
+const FeatureRow = React.memo(function FeatureRow({ label }: { label: string }) {
+  return (
+    <View style={styles.featureRow}>
+      <Ionicons name="checkmark" size={16} color={Colors.secondary} />
+      <Text style={styles.featureText}>{label}</Text>
+    </View>
+  );
+});
+
 export default function PaywallModal({ visible, onClose, reason }: Props) {
   const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual');
+  const [selectedPlan, setSelectedPlan] = useState<Plan>('annual');
 
-  const handlePurchase = async () => {
+  const markPro = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      await updateDoc(doc(db, 'users', uid), { subscriptionTier: 'pro' });
+    }
+  }, []);
+
+  const handlePurchase = useCallback(async () => {
     setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
       const productId = selectedPlan === 'annual' ? RC_ANNUAL_PRODUCT_ID : RC_MONTHLY_PRODUCT_ID;
       const products = await Purchases.getProducts([productId]);
@@ -36,31 +67,27 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
       const { customerInfo } = await Purchases.purchaseStoreProduct(products[0]);
       const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
       if (isPro) {
-        const uid = auth.currentUser?.uid;
-        if (uid) {
-          await updateDoc(doc(db, 'users', uid), { subscriptionTier: 'pro' });
-        }
+        await markPro();
         onClose();
       }
-    } catch (e: any) {
-      if (!e.userCancelled) {
+    } catch (e) {
+      // RevenueCat sets userCancelled on cancellation; any other error is silently
+      // ignored so the user can retry.
+      if (!(e as { userCancelled?: boolean })?.userCancelled) {
         // purchase error — user can retry
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPlan, markPro, onClose]);
 
-  const handleRestore = async () => {
+  const handleRestore = useCallback(async () => {
     setLoading(true);
     try {
       const info = await Purchases.restorePurchases();
       const isPro = typeof info.entitlements.active['pro'] !== 'undefined';
       if (isPro) {
-        const uid = auth.currentUser?.uid;
-        if (uid) {
-          await updateDoc(doc(db, 'users', uid), { subscriptionTier: 'pro' });
-        }
+        await markPro();
         onClose();
       }
     } catch {
@@ -68,68 +95,95 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [markPro, onClose]);
+
+  const selectAnnual = useCallback(() => setSelectedPlan('annual'), []);
+  const selectMonthly = useCallback(() => setSelectedPlan('monthly'), []);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <LinearGradient colors={['#0D0D0F', '#1A0A1E']} style={styles.container}>
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-          <Ionicons name="close" size={18} color={Colors.text} />
-        </TouchableOpacity>
-
-        <Ionicons name="star" size={24} color={Colors.gold} />
-        <Text style={styles.title}>Quorum Pro</Text>
-        {reason ? <Text style={styles.reason}>{reason}</Text> : null}
-
-        <View style={styles.features}>
-          {[
-            'Unlimited active plans',
-            'Unlimited moments + HD quality',
-            'Full chat history',
-            'Unlimited templates',
-            'Custom plan covers & themes',
-            'Plan analytics',
-          ].map((f) => (
-            <View key={f} style={styles.featureRow}>
-              <Ionicons name="checkmark" size={16} color={Colors.secondary} />
-              <Text style={styles.featureText}>{f}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.planRow}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <LinearGradient colors={BACKDROP_GRADIENT} style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <TouchableOpacity
-            style={[styles.planOption, selectedPlan === 'annual' && styles.planOptionSelected]}
-            onPress={() => setSelectedPlan('annual')}
+            style={styles.closeBtn}
+            onPress={onClose}
+            accessibilityLabel="Close"
+            accessibilityRole="button"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Text style={styles.planLabel}>Annual</Text>
-            <Text style={styles.planPrice}>$44.99 / yr</Text>
-            <Text style={styles.planSavings}>Save 37%</Text>
+            <Ionicons name="close" size={20} color={Colors.textMuted} />
           </TouchableOpacity>
+
+          <Ionicons name="star" size={28} color={Colors.gold} style={styles.heroIcon} />
+          <Text style={styles.title}>Quorum Pro</Text>
+          {reason ? <Text style={styles.reason}>{reason}</Text> : null}
+
+          <View style={styles.features}>
+            {FEATURES.map((f) => (
+              <FeatureRow key={f} label={f} />
+            ))}
+          </View>
+
+          <View style={styles.planRow}>
+            <TouchableOpacity
+              style={[styles.planOption, selectedPlan === 'annual' && styles.planOptionSelected]}
+              onPress={selectAnnual}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: selectedPlan === 'annual' }}
+              accessibilityLabel="Annual plan, $44.99 per year, save 37%"
+            >
+              <Text style={styles.planLabel}>Annual</Text>
+              <Text style={styles.planPrice}>$44.99 / yr</Text>
+              <Text style={styles.planSavings}>Save 37%</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.planOption, selectedPlan === 'monthly' && styles.planOptionSelected]}
+              onPress={selectMonthly}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: selectedPlan === 'monthly' }}
+              accessibilityLabel="Monthly plan, $5.99 per month"
+            >
+              <Text style={styles.planLabel}>Monthly</Text>
+              <Text style={styles.planPrice}>$5.99 / mo</Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            style={[styles.planOption, selectedPlan === 'monthly' && styles.planOptionSelected]}
-            onPress={() => setSelectedPlan('monthly')}
+            style={[styles.ctaBtn, loading && styles.btnDisabled]}
+            onPress={handlePurchase}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Get Quorum Pro"
           >
-            <Text style={styles.planLabel}>Monthly</Text>
-            <Text style={styles.planPrice}>$5.99 / mo</Text>
+            {loading ? (
+              <ActivityIndicator color={Colors.background} />
+            ) : (
+              <Text style={styles.ctaText}>Get Quorum Pro</Text>
+            )}
           </TouchableOpacity>
-        </View>
 
-        <TouchableOpacity style={styles.ctaBtn} onPress={handlePurchase} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.ctaText}>Get Quorum Pro</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.restoreBtn}
+            onPress={handleRestore}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Restore purchases"
+          >
+            <Text style={styles.restoreText}>Restore purchases</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore} disabled={loading}>
-          <Text style={styles.restoreText}>Restore purchases</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.legal}>
-          Subscription auto-renews. Cancel anytime in App Store / Google Play settings.
-        </Text>
+          <Text style={styles.legal}>
+            Subscription auto-renews. Cancel anytime in App Store / Google Play settings.
+          </Text>
+        </ScrollView>
       </LinearGradient>
     </Modal>
   );
@@ -138,30 +192,57 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingTop: 60,
+    paddingBottom: Spacing.xl,
   },
-  closeBtn: { position: 'absolute', top: 16, right: 16, padding: 8 },
-  closeBtnText: { color: Colors.textMuted, fontSize: 18 },
-  crown: { fontSize: 40, color: Colors.primary, marginBottom: 8 },
+  closeBtn: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.md,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroIcon: {
+    marginBottom: Spacing.xs,
+  },
   title: {
     fontSize: FontSize.xxl,
     fontWeight: FontWeight.bold,
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Spacing.xs,
   },
   reason: {
     fontSize: FontSize.sm,
     color: Colors.textMuted,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.md,
   },
-  features: { alignSelf: 'stretch', gap: 10, marginBottom: 32 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  featureCheck: { color: Colors.primary, fontSize: 16, width: 20 },
-  featureText: { color: Colors.text, fontSize: FontSize.md },
-  planRow: { flexDirection: 'row', gap: 12, marginBottom: 24, alignSelf: 'stretch' },
+  features: {
+    alignSelf: 'stretch',
+    gap: 10,
+    marginBottom: Spacing.lg,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  featureText: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+  },
+  planRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    alignSelf: 'stretch',
+  },
   planOption: {
     flex: 1,
     borderRadius: Radius.md,
@@ -169,29 +250,56 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     padding: Spacing.md,
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: Colors.surfaceRaised,
   },
   planOptionSelected: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primaryDim,
   },
-  planLabel: { color: Colors.textMuted, fontSize: FontSize.sm, marginBottom: 4 },
-  planPrice: { color: Colors.text, fontSize: FontSize.lg, fontWeight: FontWeight.bold },
-  planSavings: { color: Colors.primary, fontSize: FontSize.xs, marginTop: 2 },
+  planLabel: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    marginBottom: Spacing.xs,
+  },
+  planPrice: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+  },
+  planSavings: {
+    color: Colors.text,
+    fontSize: FontSize.xs,
+    marginTop: 2,
+    fontWeight: FontWeight.semibold,
+  },
   ctaBtn: {
     alignSelf: 'stretch',
     backgroundColor: Colors.primary,
     borderRadius: Radius.full,
     paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.sm,
   },
-  ctaText: { color: '#fff', fontSize: FontSize.md, fontWeight: FontWeight.bold },
-  restoreBtn: { padding: 8, marginBottom: 16 },
-  restoreText: { color: Colors.textMuted, fontSize: FontSize.sm },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  ctaText: {
+    color: Colors.background,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+  },
+  restoreBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  restoreText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+  },
   legal: {
     color: Colors.textMuted,
-    fontSize: 11,
+    fontSize: FontSize.xs,
     textAlign: 'center',
     paddingHorizontal: Spacing.md,
   },

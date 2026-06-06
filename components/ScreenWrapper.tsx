@@ -1,29 +1,39 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Edge, SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../lib/theme';
+
+const DEFAULT_EDGES: readonly Edge[] = ['top', 'left', 'right'];
 
 interface Props {
   children: React.ReactNode;
-  style?: ViewStyle;
-  edges?: ('top' | 'bottom' | 'left' | 'right')[];
+  style?: ViewStyle | ViewStyle[];
+  edges?: readonly Edge[];
 }
 
-export default function ScreenWrapper({ children, style, edges = ['top', 'left', 'right'] }: Props) {
+function ScreenWrapper({ children, style, edges = DEFAULT_EDGES }: Props) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }).start();
-  }, []);
+    const animation = Animated.timing(opacity, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+
+  const fillStyle = useMemo(() => [styles.fill, { opacity }], [opacity]);
 
   return (
     <SafeAreaView style={[styles.safe, style]} edges={edges}>
-      <Animated.View style={[styles.fill, { opacity }]}>
-        {children}
-      </Animated.View>
+      <Animated.View style={fillStyle}>{children}</Animated.View>
     </SafeAreaView>
   );
 }
+
+export default React.memo(ScreenWrapper);
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },

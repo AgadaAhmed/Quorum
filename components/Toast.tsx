@@ -1,7 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -13,6 +13,12 @@ interface ToastItem {
 interface ToastContextValue {
   showToast: (message: string, type?: ToastType) => void;
 }
+
+const ICONS: Record<ToastType, keyof typeof Ionicons.glyphMap> = {
+  success: 'checkmark-circle',
+  error: 'alert-circle',
+  info: 'information-circle',
+};
 
 export const ToastContext = createContext<ToastContextValue>({ showToast: () => {} });
 
@@ -26,10 +32,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showing = useRef(false);
+  const mounted = useRef(true);
 
   const showNext = useCallback(() => {
-    if (queue.current.length === 0 || showing.current) return;
+    if (!mounted.current || queue.current.length === 0 || showing.current) return;
     const next = queue.current.shift()!;
     showing.current = true;
     setCurrent(next);
@@ -40,6 +48,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       Animated.spring(translateY, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
     ]).start();
 
+    // Announce for screen readers.
+    AccessibilityInfo.announceForAccessibility?.(next.message);
+
     // Show longer for longer messages (min 2s, +40ms per char over 30, max 4.5s)
     const duration = Math.min(2000 + Math.max(0, next.message.length - 30) * 40, 4500);
     timer.current = setTimeout(() => {
@@ -47,44 +58,48 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }),
         Animated.timing(translateY, { toValue: 20, duration: 250, useNativeDriver: true }),
       ]).start(() => {
+        if (!mounted.current) return;
         setCurrent(null);
         showing.current = false;
-        setTimeout(showNext, 80);
+        gapTimer.current = setTimeout(showNext, 80);
       });
     }, duration);
-  }, []);
+  }, [opacity, translateY]);
 
-  const showToast = useCallback((msg: string, t: ToastType = 'success') => {
-    queue.current.push({ message: msg, type: t });
-    showNext();
-  }, [showNext]);
+  const showToast = useCallback(
+    (msg: string, t: ToastType = 'success') => {
+      if (!msg) return;
+      queue.current.push({ message: msg, type: t });
+      showNext();
+    },
+    [showNext]
+  );
 
   useEffect(() => {
+    mounted.current = true;
     return () => {
+      mounted.current = false;
       if (timer.current) clearTimeout(timer.current);
+      if (gapTimer.current) clearTimeout(gapTimer.current);
     };
   }, []);
 
-  const bgColor =
-    current?.type === 'error' ? Colors.errorDim :
-    current?.type === 'info' ? Colors.primaryDim :
-    Colors.successDim;
+  const value = useMemo(() => ({ showToast }), [showToast]);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={value}>
       {children}
       {current ? (
         <Animated.View
-          style={[styles.toast, { backgroundColor: bgColor, opacity, transform: [{ translateY }] }]}
+          style={[styles.toast, { opacity, transform: [{ translateY }] }]}
           pointerEvents="none"
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
         >
-          <Ionicons
-            name={current.type === 'error' ? 'alert-circle' : current.type === 'info' ? 'information-circle' : 'checkmark-circle'}
-            size={18}
-            color="#fff"
-            style={{ marginRight: 7 }}
-          />
-          <Text style={styles.toastText}>{current.message}</Text>
+          <Ionicons name={ICONS[current.type]} size={18} color={Colors.background} style={styles.icon} />
+          <Text style={styles.toastText} numberOfLines={3}>
+            {current.message}
+          </Text>
         </Animated.View>
       ) : null}
     </ToastContext.Provider>
@@ -94,27 +109,32 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   toast: {
     position: 'absolute',
-    bottom: 40,
+    bottom: Spacing.xl,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
     maxWidth: '88%',
-    backgroundColor: Colors.surfaceOverlay,
+    // Solid dark surface keeps light text legible for every toast type;
+    // the icon (not color) signals success / error / info.
+    backgroundColor: Colors.primaryContainer,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.glassBorderStrong,
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
     zIndex: 9999,
   },
+  icon: {
+    marginRight: Spacing.xs + 3,
+  },
   toastText: {
-    color: '#fff',
+    flexShrink: 1,
+    color: Colors.background,
     fontSize: FontSize.sm,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: FontWeight.bold,
   },
 });

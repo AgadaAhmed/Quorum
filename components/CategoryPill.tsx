@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
 interface Pill {
   label: string;
@@ -13,43 +13,60 @@ interface Props {
   onSelect: (value: string) => void;
 }
 
-export default function CategoryPillRow({ pills, selected, onSelect }: Props) {
+interface PillItemProps {
+  pill: Pill;
+  active: boolean;
+  onSelect: (value: string) => void;
+}
+
+const PillItem = React.memo(function PillItem({ pill, active, onSelect }: PillItemProps) {
+  const handlePress = useCallback(() => onSelect(pill.value), [onSelect, pill.value]);
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      style={[styles.pill, active && styles.pillActive]}
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={pill.label}
+      accessibilityState={{ selected: active }}
+    >
+      <Text style={[styles.label, active && styles.labelActive]}>{pill.label}</Text>
+    </TouchableOpacity>
+  );
+});
+
+function CategoryPillRow({ pills, selected, onSelect }: Props) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}
     >
-      {pills.map((p) => {
-        const active = p.value === selected;
-        return (
-          <TouchableOpacity
-            key={p.value}
-            onPress={() => onSelect(p.value)}
-            style={[styles.pill, active && styles.pillActive]}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.label, active && styles.labelActive]}>{p.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+      {pills.map((p) => (
+        <PillItem key={p.value} pill={p} active={p.value === selected} onSelect={onSelect} />
+      ))}
     </ScrollView>
   );
 }
+
+export default React.memo(CategoryPillRow);
 
 const styles = StyleSheet.create({
   row: {
     paddingHorizontal: Spacing.container,
     gap: Spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: Spacing.xs,
   },
   pill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
     borderRadius: Radius.md,
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
     borderColor: Colors.border,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   pillActive: {
     backgroundColor: Colors.primary,
@@ -57,10 +74,10 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FontSize.sm,
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
     color: Colors.textMuted,
   },
   labelActive: {
-    color: '#ffffff',
+    color: Colors.background,
   },
 });

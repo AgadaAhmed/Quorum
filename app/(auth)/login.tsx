@@ -312,7 +312,7 @@ export default function LoginScreen() {
           friends: [],
         });
       }
-      router.replace('/(tabs)/');
+      router.replace('/');
     } catch (e: any) {
       const code = e?.code || '';
       if (

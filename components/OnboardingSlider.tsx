@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
+  type ListRenderItem,
   Modal,
   StyleSheet,
   Text,
@@ -10,12 +11,14 @@ import {
   type ViewToken,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
 type Slide = {
-  icon: string;
+  icon: IconName;
   title: string;
   subtitle: string;
   color: string;
@@ -32,13 +35,13 @@ const SLIDES: Slide[] = [
     icon: 'thumbs-up-outline',
     title: 'Vote to Confirm',
     subtitle: "Plans are confirmed once enough people vote. No more 'I'm down if everyone else is.'",
-    color: Colors.success,
+    color: Colors.text,
   },
   {
     icon: 'calendar-outline',
     title: 'Invite & Discover',
     subtitle: 'Invite friends, join public events, and connect with your social circle.',
-    color: Colors.gold,
+    color: Colors.text,
   },
   {
     icon: 'rocket-outline',
@@ -48,41 +51,86 @@ const SLIDES: Slide[] = [
   },
 ];
 
+const VIEWABILITY_CONFIG = { viewAreaCoveragePercentThreshold: 50 };
+
 type Props = { visible: boolean; onDone: () => void };
+
+const SlideItem = React.memo(function SlideItem({ slide }: { slide: Slide }) {
+  return (
+    <View style={styles.slide}>
+      <Ionicons name={slide.icon} size={48} color={slide.color} style={styles.slideIcon} />
+      <Text style={[styles.title, { color: slide.color }]}>{slide.title}</Text>
+      <Text style={styles.subtitle}>{slide.subtitle}</Text>
+    </View>
+  );
+});
 
 export default function OnboardingSlider({ visible, onDone }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList<Slide>>(null);
 
-  const handleDone = () => {
+  const handleDone = useCallback(() => {
     onDone();
     setCurrentIndex(0);
-  };
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [onDone]);
 
-  const handleNext = () => {
-    const next = currentIndex + 1;
-    flatListRef.current?.scrollToIndex({ index: next, animated: true });
-    setCurrentIndex(next);
-  };
+  const handleNext = useCallback(() => {
+    setCurrentIndex((prev) => {
+      const next = Math.min(prev + 1, SLIDES.length - 1);
+      flatListRef.current?.scrollToIndex({ index: next, animated: true });
+      return next;
+    });
+  }, []);
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0 && viewableItems[0].index !== null) {
-        setCurrentIndex(viewableItems[0].index as number);
+      const index = viewableItems[0]?.index;
+      if (typeof index === 'number') {
+        setCurrentIndex(index);
       }
     }
   ).current;
 
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+  const getItemLayout = useCallback(
+    (_: ArrayLike<Slide> | null | undefined, index: number) => ({
+      length: SCREEN_WIDTH,
+      offset: SCREEN_WIDTH * index,
+      index,
+    }),
+    []
+  );
+
+  const renderItem = useCallback<ListRenderItem<Slide>>(
+    ({ item }) => <SlideItem slide={item} />,
+    []
+  );
 
   const isLast = currentIndex === SLIDES.length - 1;
+  const handlePrimary = isLast ? handleDone : handleNext;
+
+  const dots = useMemo(
+    () =>
+      SLIDES.map((_, i) => (
+        <View
+          key={i}
+          style={[styles.dot, i === currentIndex ? styles.dotActive : styles.dotInactive]}
+        />
+      )),
+    [currentIndex]
+  );
 
   return (
-    <Modal visible={visible} animationType="fade" transparent={false}>
+    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={handleDone}>
       <View style={styles.container}>
         <View style={styles.skipRow}>
           {!isLast && (
-            <TouchableOpacity onPress={handleDone} style={styles.skipButton}>
+            <TouchableOpacity
+              onPress={handleDone}
+              style={styles.skipButton}
+              accessibilityRole="button"
+              accessibilityLabel="Skip onboarding"
+            >
               <Text style={styles.skipText}>Skip</Text>
             </TouchableOpacity>
           )}
@@ -96,38 +144,23 @@ export default function OnboardingSlider({ visible, onDone }: Props) {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
+          viewabilityConfig={VIEWABILITY_CONFIG}
+          getItemLayout={getItemLayout}
           scrollEventThrottle={16}
-          renderItem={({ item }) => (
-            <View style={styles.slide}>
-              <Ionicons name={item.icon as any} size={48} color={item.color} style={{ marginBottom: Spacing.lg }} />
-              <Text style={[styles.title, { color: item.color }]}>{item.title}</Text>
-              <Text style={styles.subtitle}>{item.subtitle}</Text>
-            </View>
-          )}
+          renderItem={renderItem}
         />
 
         <View style={styles.bottom}>
-          <View style={styles.dotsRow}>
-            {SLIDES.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  i === currentIndex ? styles.dotActive : styles.dotInactive,
-                ]}
-              />
-            ))}
-          </View>
+          <View style={styles.dotsRow}>{dots}</View>
 
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={isLast ? handleDone : handleNext}
+            onPress={handlePrimary}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={isLast ? 'Get started' : 'Next slide'}
           >
-            <Text style={styles.primaryButtonText}>
-              {isLast ? 'Get Started' : 'Next'}
-            </Text>
+            <Text style={styles.primaryButtonText}>{isLast ? 'Get Started' : 'Next'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -148,6 +181,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   skipButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: Spacing.xs,
     paddingHorizontal: Spacing.sm,
   },
@@ -162,13 +197,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
   },
-  emoji: {
-    fontSize: 80,
+  slideIcon: {
     marginBottom: Spacing.lg,
   },
   title: {
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.heavy,
     textAlign: 'center',
     marginBottom: Spacing.md,
   },
@@ -198,19 +232,19 @@ const styles = StyleSheet.create({
     width: 24,
   },
   dotInactive: {
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.borderStrong,
     width: 8,
   },
   primaryButton: {
     width: '100%',
     backgroundColor: Colors.primary,
-    borderRadius: 99,
+    borderRadius: Radius.full,
     paddingVertical: 16,
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: Colors.text,
+    color: Colors.background,
     fontSize: FontSize.lg,
-    fontWeight: '700',
+    fontWeight: FontWeight.bold,
   },
 });

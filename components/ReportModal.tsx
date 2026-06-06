@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -11,7 +11,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../lib/firebase';
 import { useToast } from './Toast';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
 const REASONS = [
   'Scam / Fraud',
@@ -20,7 +20,7 @@ const REASONS = [
   'Fake or spam event',
   'Inappropriate content',
   'Other',
-];
+] as const;
 
 interface Props {
   visible: boolean;
@@ -29,14 +29,51 @@ interface Props {
   onClose: () => void;
 }
 
+interface ReasonOptionProps {
+  reason: string;
+  selected: boolean;
+  onSelect: (reason: string) => void;
+}
+
+const ReasonOption = React.memo(function ReasonOption({
+  reason,
+  selected,
+  onSelect,
+}: ReasonOptionProps) {
+  const handlePress = useCallback(() => onSelect(reason), [onSelect, reason]);
+  return (
+    <TouchableOpacity
+      style={[styles.option, selected && styles.optionSelected]}
+      onPress={handlePress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={reason}
+    >
+      <View style={[styles.radio, selected && styles.radioSelected]}>
+        {selected && <View style={styles.radioDot} />}
+      </View>
+      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{reason}</Text>
+    </TouchableOpacity>
+  );
+});
+
 export default function ReportModal({ visible, planId, planTitle, onClose }: Props) {
   const [selected, setSelected] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { showToast } = useToast();
-  const uid = auth.currentUser?.uid || '';
 
-  const handleSubmit = async () => {
-    if (!selected) return;
+  const handleClose = useCallback(() => {
+    setSelected('');
+    onClose();
+  }, [onClose]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!selected || submitting) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      showToast('You must be signed in to report.', 'error');
+      return;
+    }
     setSubmitting(true);
     try {
       await addDoc(collection(db, 'reports'), {
@@ -46,7 +83,7 @@ export default function ReportModal({ visible, planId, planTitle, onClose }: Pro
         status: 'pending',
         createdAt: serverTimestamp(),
       });
-      showToast('Report submitted — we\'ll review it shortly.');
+      showToast("Report submitted — we'll review it shortly.");
       setSelected('');
       onClose();
     } catch {
@@ -54,43 +91,47 @@ export default function ReportModal({ visible, planId, planTitle, onClose }: Pro
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [selected, submitting, planId, showToast, onClose]);
+
+  const submitDisabled = !selected || submitting;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.header}>
-            <Ionicons name="flag-outline" size={20} color={Colors.error} style={{ marginRight: 8 }} />
+            <Ionicons name="flag-outline" size={20} color={Colors.text} style={styles.headerIcon} />
             <Text style={styles.title}>Report Event</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={handleClose}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Ionicons name="close" size={22} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
           {planTitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>"{planTitle}"</Text>
+            <Text style={styles.subtitle} numberOfLines={1}>
+              &quot;{planTitle}&quot;
+            </Text>
           ) : null}
-          <Text style={styles.label}>What's the issue?</Text>
+          <Text style={styles.label}>What&apos;s the issue?</Text>
           {REASONS.map((r) => (
-            <TouchableOpacity
-              key={r}
-              style={[styles.option, selected === r && styles.optionSelected]}
-              onPress={() => setSelected(r)}
-            >
-              <View style={[styles.radio, selected === r && styles.radioSelected]}>
-                {selected === r && <View style={styles.radioDot} />}
-              </View>
-              <Text style={[styles.optionText, selected === r && styles.optionTextSelected]}>{r}</Text>
-            </TouchableOpacity>
+            <ReasonOption key={r} reason={r} selected={selected === r} onSelect={setSelected} />
           ))}
           <TouchableOpacity
-            style={[styles.submitBtn, (!selected || submitting) && styles.submitBtnDisabled]}
+            style={[styles.submitBtn, submitDisabled && styles.submitBtnDisabled]}
             onPress={handleSubmit}
-            disabled={!selected || submitting}
+            disabled={submitDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Submit report"
+            accessibilityState={{ disabled: submitDisabled }}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color={Colors.text} />
+              <ActivityIndicator size="small" color={Colors.background} />
             ) : (
               <Text style={styles.submitText}>Submit Report</Text>
             )}
@@ -112,8 +153,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: Spacing.md,
-    paddingBottom: 40,
-    paddingTop: 12,
+    paddingBottom: Spacing.xl,
+    paddingTop: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -121,93 +162,99 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.borderStrong,
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
+  },
+  headerIcon: {
+    marginRight: 8,
   },
   title: {
     fontSize: FontSize.lg,
-    fontWeight: '800',
+    fontWeight: FontWeight.heavy,
     color: Colors.text,
     flex: 1,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   subtitle: {
     fontSize: FontSize.sm,
     color: Colors.textMuted,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
     fontStyle: 'italic',
   },
   label: {
     fontSize: FontSize.sm,
-    fontWeight: '700',
+    fontWeight: FontWeight.bold,
     color: Colors.textSecondary,
-    marginBottom: 12,
+    marginBottom: Spacing.sm,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    minHeight: 48,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     borderRadius: Radius.md,
-    marginBottom: 4,
-    gap: 12,
+    marginBottom: Spacing.xs,
+    gap: Spacing.sm,
   },
   optionSelected: {
-    backgroundColor: Colors.error + '15',
+    backgroundColor: Colors.primaryDim,
   },
   radio: {
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: Radius.full,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioSelected: {
-    borderColor: Colors.error,
+    borderColor: Colors.primary,
   },
   radioDot: {
     width: 10,
     height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.error,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
   },
   optionText: {
     fontSize: FontSize.md,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: FontWeight.medium,
   },
   optionTextSelected: {
     color: Colors.text,
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
   },
   submitBtn: {
-    marginTop: 16,
-    backgroundColor: Colors.error,
+    marginTop: Spacing.md,
+    backgroundColor: Colors.primary,
     paddingVertical: 14,
     borderRadius: Radius.full,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   submitBtnDisabled: {
     opacity: 0.4,
   },
   submitText: {
-    color: Colors.text,
-    fontWeight: '700',
+    color: Colors.background,
+    fontWeight: FontWeight.bold,
     fontSize: FontSize.md,
   },
 });

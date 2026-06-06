@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -11,14 +11,18 @@ const getNotifications = () => require('expo-notifications') as typeof import('e
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import AnimatedButton from './AnimatedButton';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-const DURATION_OPTIONS = [
-  { label: '1h', ms: 60 * 60 * 1000 },
-  { label: '2h', ms: 2 * 60 * 60 * 1000 },
-  { label: '3h', ms: 3 * 60 * 60 * 1000 },
-  { label: '4h', ms: 4 * 60 * 60 * 1000 },
+type DurationOption = { label: string; ms: number };
+
+const HOUR_MS = 60 * 60 * 1000;
+
+const DURATION_OPTIONS: DurationOption[] = [
+  { label: '1h', ms: HOUR_MS },
+  { label: '2h', ms: 2 * HOUR_MS },
+  { label: '3h', ms: 3 * HOUR_MS },
+  { label: '4h', ms: 4 * HOUR_MS },
 ];
 
 type Props = {
@@ -29,14 +33,45 @@ type Props = {
   planId: string;
 };
 
-export default function SafetyTimerModal({ visible, onClose, onStarted, planTitle, planId }: Props) {
-  const [selectedDuration, setSelectedDuration] = useState(DURATION_OPTIONS[1]);
+interface DurationPillProps {
+  option: DurationOption;
+  active: boolean;
+  onSelect: (option: DurationOption) => void;
+}
+
+const DurationPill = React.memo(function DurationPill({
+  option,
+  active,
+  onSelect,
+}: DurationPillProps) {
+  const handlePress = useCallback(() => onSelect(option), [onSelect, option]);
+  return (
+    <TouchableOpacity
+      style={[styles.pill, active && styles.pillActive]}
+      onPress={handlePress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={`${option.label} timer`}
+    >
+      <Text style={[styles.pillText, active && styles.pillTextActive]}>{option.label}</Text>
+    </TouchableOpacity>
+  );
+});
+
+export default function SafetyTimerModal({
+  visible,
+  onClose,
+  onStarted,
+  planTitle,
+  planId,
+}: Props) {
+  const [selectedDuration, setSelectedDuration] = useState<DurationOption>(DURATION_OPTIONS[1]);
   const [starting, setStarting] = useState(false);
 
-  const uid = auth.currentUser?.uid || '';
-
-  const handleStart = async () => {
+  const handleStart = useCallback(async () => {
     if (starting) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
     setStarting(true);
     try {
       const endsAt = Date.now() + selectedDuration.ms;
@@ -52,8 +87,7 @@ export default function SafetyTimerModal({ visible, onClose, onStarted, planTitl
           date: new Date(endsAt),
         },
       });
-      const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, {
+      await updateDoc(doc(db, 'users', uid), {
         safetyTimer: { notificationId, endsAt },
       });
       onStarted(notificationId, endsAt);
@@ -63,7 +97,7 @@ export default function SafetyTimerModal({ visible, onClose, onStarted, planTitl
     } finally {
       setStarting(false);
     }
-  };
+  }, [starting, selectedDuration, planTitle, planId, onStarted, onClose]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -71,24 +105,26 @@ export default function SafetyTimerModal({ visible, onClose, onStarted, planTitl
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.titleRow}>
-            <Ionicons name="shield-outline" size={22} color={Colors.success} style={{ marginRight: 8 }} />
+            <Ionicons
+              name="shield-outline"
+              size={22}
+              color={Colors.text}
+              style={styles.titleIcon}
+            />
             <Text style={styles.title}>Safety Check-In Timer</Text>
           </View>
           <Text style={styles.subtitle}>
-            We'll send you a notification when the timer ends to confirm you're safe.
+            We&apos;ll send you a notification when the timer ends to confirm you&apos;re safe.
           </Text>
           <Text style={styles.label}>Timer duration</Text>
           <View style={styles.pillRow}>
             {DURATION_OPTIONS.map((opt) => (
-              <TouchableOpacity
+              <DurationPill
                 key={opt.label}
-                style={[styles.pill, selectedDuration.label === opt.label && styles.pillActive]}
-                onPress={() => setSelectedDuration(opt)}
-              >
-                <Text style={[styles.pillText, selectedDuration.label === opt.label && styles.pillTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
+                option={opt}
+                active={selectedDuration.label === opt.label}
+                onSelect={setSelectedDuration}
+              />
             ))}
           </View>
           <AnimatedButton
@@ -98,7 +134,12 @@ export default function SafetyTimerModal({ visible, onClose, onStarted, planTitl
             loading={starting}
             disabled={starting}
           />
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+          >
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -118,7 +159,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.lg,
-    paddingBottom: 40,
+    paddingBottom: Spacing.xl,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -126,18 +167,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.borderStrong,
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.xs,
+  },
+  titleIcon: {
+    marginRight: 8,
   },
   title: {
     fontSize: FontSize.xl,
-    fontWeight: '800',
+    fontWeight: FontWeight.heavy,
     color: Colors.text,
   },
   subtitle: {
@@ -148,9 +192,9 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FontSize.sm,
-    fontWeight: '700',
+    fontWeight: FontWeight.bold,
     color: Colors.textSecondary,
-    marginBottom: 10,
+    marginBottom: Spacing.sm,
   },
   pillRow: {
     flexDirection: 'row',
@@ -159,29 +203,32 @@ const styles = StyleSheet.create({
   },
   pill: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 10,
     borderRadius: Radius.full,
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   pillActive: {
-    backgroundColor: Colors.success + '22',
-    borderColor: Colors.success,
+    backgroundColor: Colors.primaryDim,
+    borderColor: Colors.primary,
   },
   pillText: {
     fontSize: FontSize.md,
-    fontWeight: '700',
+    fontWeight: FontWeight.bold,
     color: Colors.textSecondary,
   },
   pillTextActive: {
-    color: Colors.success,
+    color: Colors.text,
   },
   cancelBtn: {
     alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 4,
+    justifyContent: 'center',
+    minHeight: 44,
+    marginTop: Spacing.xs,
   },
   cancelText: {
     fontSize: FontSize.md,

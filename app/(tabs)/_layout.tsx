@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Tabs, useRouter, usePathname } from 'expo-router';
+import { Tabs, useRouter, usePathname, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -54,7 +54,7 @@ function CustomTabBar() {
             tab={tab}
             isActive={activeRoute(tab.name)}
             badge={0}
-            onPress={() => router.push(tab.name === 'index' ? '/' : `/${tab.name}`)}
+            onPress={() => router.push((tab.name === 'index' ? '/' : `/${tab.name}`) as Href)}
           />
         ))}
 
@@ -81,7 +81,7 @@ function CustomTabBar() {
             tab={tab}
             isActive={activeRoute(tab.name)}
             badge={tab.name === 'activity' ? badge : 0}
-            onPress={() => router.push(`/${tab.name}`)}
+            onPress={() => router.push(`/${tab.name}` as Href)}
           />
         ))}
       </View>

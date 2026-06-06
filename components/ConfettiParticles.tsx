@@ -1,8 +1,20 @@
-import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { Colors } from '../lib/theme';
 
 const PARTICLE_COUNT = 28;
-const COLORS = ['#f43f5e', '#fb7185', '#FFD700', '#ffffff', '#4ade80', '#fb923c', '#c084fc', '#38bdf8'];
+
+// Monochrome confetti — blacks, greys and white only (no hue).
+const COLORS = [
+  Colors.primary, // #000000
+  Colors.secondary, // dark grey
+  Colors.textSecondary,
+  Colors.textMuted,
+  Colors.gold, // mid grey
+  Colors.goldLight,
+  Colors.surfaceBright,
+  '#ffffff',
+] as const;
 
 type Particle = {
   tx: Animated.Value;
@@ -29,7 +41,14 @@ const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
     }))
   ).current;
 
-  const fire = () => {
+  // Track in-flight animations so we can stop them on unmount.
+  const running = useRef<Animated.CompositeAnimation[]>([]);
+
+  const fire = useCallback(() => {
+    // Cancel anything still animating before re-firing.
+    running.current.forEach((a) => a.stop());
+    running.current = [];
+
     particles.forEach((p) => {
       p.tx.setValue(0);
       p.ty.setValue(0);
@@ -43,7 +62,7 @@ const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
       const finalY = Math.sin(angle) * distance - 80;
       const duration = 600 + Math.random() * 300;
 
-      Animated.parallel([
+      const anim = Animated.parallel([
         Animated.timing(p.tx, { toValue: finalX, duration, useNativeDriver: true }),
         Animated.timing(p.ty, { toValue: finalY, duration, useNativeDriver: true }),
         Animated.timing(p.rotate, {
@@ -55,41 +74,59 @@ const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
           Animated.delay(duration * 0.5),
           Animated.timing(p.opacity, { toValue: 0, duration: duration * 0.5, useNativeDriver: true }),
         ]),
-      ]).start();
+      ]);
+      running.current.push(anim);
+      anim.start();
     });
-  };
+  }, [particles]);
 
-  useImperativeHandle(ref, () => ({ fire }));
+  useImperativeHandle(ref, () => ({ fire }), [fire]);
+
+  // Stop all animations when the component unmounts.
+  useEffect(() => {
+    return () => {
+      running.current.forEach((a) => a.stop());
+      running.current = [];
+    };
+  }, []);
+
+  // Pre-compute the rotate interpolations once per particle.
+  const rotations = useMemo(
+    () =>
+      particles.map((p) =>
+        p.rotate.interpolate({
+          inputRange: [-2, 2],
+          outputRange: ['-720deg', '720deg'],
+        })
+      ),
+    [particles]
+  );
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <View style={styles.center}>
-        {particles.map((p, i) => {
-          const rotate = p.rotate.interpolate({
-            inputRange: [-2, 2],
-            outputRange: ['-720deg', '720deg'],
-          });
-          return (
-            <Animated.View
-              key={i}
-              style={[
-                styles.particle,
-                {
-                  width: p.size,
-                  height: p.size,
-                  borderRadius: p.shape === 'circle' ? p.size / 2 : 2,
-                  backgroundColor: p.color,
-                  opacity: p.opacity,
-                  transform: [{ translateX: p.tx }, { translateY: p.ty }, { rotate }],
-                },
-              ]}
-            />
-          );
-        })}
+        {particles.map((p, i) => (
+          <Animated.View
+            key={i}
+            style={[
+              styles.particle,
+              {
+                width: p.size,
+                height: p.size,
+                borderRadius: p.shape === 'circle' ? p.size / 2 : 2,
+                backgroundColor: p.color,
+                opacity: p.opacity,
+                transform: [{ translateX: p.tx }, { translateY: p.ty }, { rotate: rotations[i] }],
+              },
+            ]}
+          />
+        ))}
       </View>
     </View>
   );
 });
+
+ConfettiParticles.displayName = 'ConfettiParticles';
 
 export default ConfettiParticles;
 
