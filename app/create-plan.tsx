@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -21,26 +21,64 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, query, where, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
-import { isAtPlanLimit, isAtTemplatesLimit } from '../lib/subscription';
+import { isAtPlanLimit } from '../lib/subscription';
 import { useSubscription } from '../hooks/useSubscription';
 import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'];
+const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'] as const;
+const VOTE_OPTIONS = ['2', '3', '5', '7', '10'] as const;
+const MAX_PARTICIPANT_OPTIONS: { label: string; value: number | null }[] = [
+  { label: 'No Limit', value: null },
+  { label: '5', value: 5 },
+  { label: '10', value: 10 },
+  { label: '15', value: 15 },
+  { label: '20', value: 20 },
+  { label: '30', value: 30 },
+  { label: '50', value: 50 },
+];
+const MAX_POLL_OPTIONS = 4;
+const MIN_POLL_OPTIONS = 2;
+const COOLDOWN_DAYS = 7;
+const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const DATE_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
 
-const CATEGORY_EMOJI: Record<string, string> = {};
+type Template = {
+  id: string;
+  name?: string;
+  description?: string;
+  location?: string;
+  category?: string;
+  requiredVotes?: number;
+  isPublic?: boolean;
+  maxParticipants?: number | null;
+};
+
+function formatDate(d: Date | null): string | null {
+  return d ? d.toLocaleDateString('en-US', DATE_FMT) : null;
+}
+
+function makeInviteCode(): string {
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += INVITE_ALPHABET[Math.floor(Math.random() * INVITE_ALPHABET.length)];
+  }
+  return code;
+}
 
 export default function CreatePlanScreen() {
   const router = useRouter();
+  const { isPro } = useSubscription();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [date, setDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [time, setTime] = useState<Date>(new Date());
+  const [time, setTime] = useState<Date>(() => new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [requiredVotes, setRequiredVotes] = useState('3');
   const [isPublic, setIsPublic] = useState(false);
@@ -49,110 +87,146 @@ export default function CreatePlanScreen() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [usingCustomCategory, setUsingCustomCategory] = useState(false);
   const [voteDeadline, setVoteDeadline] = useState<Date | null>(null);
   const [showVoteDeadlinePicker, setShowVoteDeadlinePicker] = useState(false);
   const [maxParticipants, setMaxParticipants] = useState<number | null>(null);
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [pollSubmitted, setPollSubmitted] = useState(false);
   const [accountAgeDays, setAccountAgeDays] = useState<number | null>(null);
-  const COOLDOWN_DAYS = 7;
   const [showPaywall, setShowPaywall] = useState(false);
 
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
-  const { isPro } = useSubscription();
 
-  useEffect(() => {
-    return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
-  }, []);
+  useEffect(() => onAuthStateChanged(auth, (u) => setUid(u?.uid || '')), []);
 
+  // Single user-doc read covers both templates and account age (was two reads).
   useEffect(() => {
     if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      setTemplates(snap.data()?.templates || []);
-    });
-  }, [uid]);
-
-  useEffect(() => {
-    if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      const createdAt = snap.data()?.createdAt?.toDate?.();
-      if (createdAt) {
-        const days = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
-        setAccountAgeDays(days);
-      }
-    });
+    let active = true;
+    getDoc(doc(db, 'users', uid))
+      .then((snap) => {
+        if (!active) return;
+        const data = snap.data();
+        setTemplates(Array.isArray(data?.templates) ? data.templates : []);
+        const createdAt = data?.createdAt?.toDate?.();
+        if (createdAt instanceof Date) {
+          const days = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+          setAccountAgeDays(days);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [uid]);
 
   useEffect(() => {
     if (!auth.currentUser) router.replace('/(auth)/login');
-  }, []);
+  }, [router]);
 
-  const applyTemplate = (t: any) => {
+  const applyTemplate = useCallback((t: Template) => {
     setTitle(t.name || '');
     setDescription(t.description || '');
     setLocation(t.location || '');
-    if (t.category && CATEGORIES.includes(t.category)) {
+    if (t.category) {
       setCategory(t.category);
+      setUsingCustomCategory(!(CATEGORIES as readonly string[]).includes(t.category));
+    } else {
+      setCategory('');
       setUsingCustomCategory(false);
-    } else if (t.category) {
-      setCategory(t.category);
-      setUsingCustomCategory(true);
     }
     setRequiredVotes(String(t.requiredVotes || 3));
     setIsPublic(t.isPublic ?? false);
-    setMaxParticipants(t.maxParticipants || null);
+    setMaxParticipants(t.maxParticipants ?? null);
     setShowTemplates(false);
-  };
+  }, []);
 
-  const deleteTemplate = async (templateId: string) => {
-    if (!uid) return;
-    const userRef = doc(db, 'users', uid);
-    const snap = await getDoc(userRef);
-    const current: any[] = snap.data()?.templates || [];
-    await updateDoc(userRef, { templates: current.filter((t) => t.id !== templateId) });
-    setTemplates((prev) => prev.filter((t) => t.id !== templateId));
-  };
+  const deleteTemplate = useCallback(
+    async (templateId: string) => {
+      if (!uid) return;
+      const userRef = doc(db, 'users', uid);
+      try {
+        const snap = await getDoc(userRef);
+        const current: Template[] = Array.isArray(snap.data()?.templates) ? snap.data()!.templates : [];
+        await updateDoc(userRef, { templates: current.filter((t) => t.id !== templateId) });
+        setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+      } catch (e: any) {
+        setError(e?.message || 'Failed to delete template');
+      }
+    },
+    [uid]
+  );
 
-  const handlePickCover = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images' as ImagePicker.MediaType],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setCoverUri(result.assets[0].uri);
+  const handlePickCover = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        setError('Photo library permission is required to add a cover.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images' as ImagePicker.MediaType],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        setCoverUri(result.assets[0].uri);
+      }
+    } catch {
+      setError('Could not open the photo library.');
     }
-  };
+  }, []);
 
-  const handleCreate = async () => {
+  const handleCreate = useCallback(async () => {
+    if (loading) return;
+    setError('');
+
+    if (!uid) {
+      setError('You must be signed in to create a plan');
+      return;
+    }
+
     if (!isPro) {
-      const q = query(
-        collection(db, 'plans'),
-        where('createdBy', '==', uid),
-        where('status', 'in', ['pending', 'confirmed'])
-      );
-      const snap = await getDocs(q);
-      if (isAtPlanLimit(snap.size, 'free')) {
-        setShowPaywall(true);
+      try {
+        const q = query(
+          collection(db, 'plans'),
+          where('createdBy', '==', uid),
+          where('status', 'in', ['pending', 'confirmed'])
+        );
+        const snap = await getDocs(q);
+        if (isAtPlanLimit(snap.size, 'free')) {
+          setShowPaywall(true);
+          return;
+        }
+      } catch (e: any) {
+        setError(e?.message || 'Could not verify your plan limit. Try again.');
         return;
       }
     }
-    if (!title.trim()) { setError('Title is required'); return; }
-    if (showPoll && !pollQuestion.trim()) { setError('Poll question is required'); return; }
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError('Title is required');
+      return;
+    }
     if (showPoll) {
       setPollSubmitted(true);
-      if (pollOptions.filter((o) => o.trim()).length < 2) { setError('Add at least 2 poll options'); return; }
+      if (!pollQuestion.trim()) {
+        setError('Poll question is required');
+        return;
+      }
+      if (pollOptions.filter((o) => o.trim()).length < MIN_POLL_OPTIONS) {
+        setError(`Add at least ${MIN_POLL_OPTIONS} poll options`);
+        return;
+      }
     }
-    setError('');
-    if (!uid) { setError('You must be signed in to create a plan'); return; }
+
     setLoading(true);
     try {
       const planRef = doc(collection(db, 'plans'));
@@ -167,18 +241,19 @@ export default function CreatePlanScreen() {
           await uploadBytes(storageRef, blob);
           coverUrl = await getDownloadURL(storageRef);
         } catch {
-          // Cover upload failed — create plan without it
+          // Cover upload failed — create plan without it.
         } finally {
           setUploadingCover(false);
         }
       }
 
-      // Geocode location to lat/lng so Discover can show distance
+      // Geocode location to lat/lng so Discover can show distance.
       let lat: number | null = null;
       let lng: number | null = null;
-      if (location.trim()) {
+      const trimmedLocation = location.trim();
+      if (trimmedLocation) {
         try {
-          const results = await Location.geocodeAsync(location.trim());
+          const results = await Location.geocodeAsync(trimmedLocation);
           if (results.length > 0) {
             lat = results[0].latitude;
             lng = results[0].longitude;
@@ -186,26 +261,33 @@ export default function CreatePlanScreen() {
         } catch {}
       }
 
-      const poll = showPoll && pollQuestion.trim()
-        ? {
-            question: pollQuestion.trim(),
-            options: pollOptions.filter((o) => o.trim()),
-            votes: {},
-          }
+      const poll =
+        showPoll && pollQuestion.trim()
+          ? {
+              question: pollQuestion.trim(),
+              options: pollOptions.filter((o) => o.trim()),
+              votes: {},
+            }
+          : null;
+
+      const dateTimestamp = date
+        ? new Date(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate(),
+            time.getHours(),
+            time.getMinutes()
+          ).toISOString()
         : null;
 
-      const inviteCode = Array.from({ length: 8 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
-
       await setDoc(planRef, {
-        title: title.trim().slice(0, 80),
+        title: trimmedTitle.slice(0, 80),
         description: description.trim().slice(0, 500),
-        location: location.trim().slice(0, 150),
-        date: date ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '',
-        dateTimestamp: date
-          ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), time.getHours(), time.getMinutes()).toISOString()
-          : null,
-        category: category || null,
-        requiredVotes: parseInt(requiredVotes) || 3,
+        location: trimmedLocation.slice(0, 150),
+        date: formatDate(date) || '',
+        dateTimestamp,
+        category: category.trim() || null,
+        requiredVotes: parseInt(requiredVotes, 10) || 3,
         votes: [uid],
         participants: [uid],
         createdBy: uid,
@@ -215,70 +297,135 @@ export default function CreatePlanScreen() {
         coverUrl,
         poll,
         voteDeadline: voteDeadline ? voteDeadline.toISOString() : null,
-        maxParticipants: maxParticipants || null,
-        inviteCode,
+        maxParticipants: maxParticipants ?? null,
+        inviteCode: makeInviteCode(),
         lat,
         lng,
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       router.push({ pathname: '/plan-detail', params: { id: planRef.id } });
     } catch (e: any) {
-      setError(e.message || 'Failed to create plan');
+      setError(e?.message || 'Failed to create plan');
     } finally {
       setLoading(false);
       setUploadingCover(false);
     }
-  };
+  }, [
+    loading,
+    uid,
+    isPro,
+    title,
+    showPoll,
+    pollQuestion,
+    pollOptions,
+    coverUri,
+    location,
+    date,
+    time,
+    category,
+    requiredVotes,
+    isPublic,
+    voteDeadline,
+    maxParticipants,
+    router,
+  ]);
 
-  const formattedDate = date
-    ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-    : null;
+  const togglePoll = useCallback(() => {
+    setShowPoll((prev) => {
+      if (prev) setPollSubmitted(false);
+      return !prev;
+    });
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
 
-  const formattedTime = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const setPollOption = useCallback((index: number, value: string) => {
+    setPollOptions((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }, []);
 
-  const formattedVoteDeadline = voteDeadline
-    ? voteDeadline.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-    : null;
+  const removePollOption = useCallback((index: number) => {
+    setPollOptions((prev) => prev.filter((_, j) => j !== index));
+  }, []);
+
+  const addPollOption = useCallback(() => {
+    setPollOptions((prev) => (prev.length < MAX_POLL_OPTIONS ? [...prev, ''] : prev));
+  }, []);
+
+  const formattedDate = useMemo(() => formatDate(date), [date]);
+  const formattedVoteDeadline = useMemo(() => formatDate(voteDeadline), [voteDeadline]);
+  const formattedTime = useMemo(
+    () => time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+    [time]
+  );
+
+  const inCooldown = accountAgeDays !== null && accountAgeDays < COOLDOWN_DAYS;
+  const cooldownDaysLeft = accountAgeDays !== null ? COOLDOWN_DAYS - accountAgeDays : 0;
+
+  const submitLabel = uploadingCover ? 'Uploading photo...' : loading ? 'Creating...' : 'Create Plan';
+
+  const renderTemplate = useCallback(
+    ({ item }: { item: Template }) => (
+      <TemplateRow item={item} onApply={applyTemplate} onDelete={deleteTemplate} />
+    ),
+    [applyTemplate, deleteTemplate]
+  );
 
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={HIT_SLOP}
+        >
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>NEW PLAN</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Templates */}
           {templates.length > 0 && (
-            <TouchableOpacity style={styles.templateBtn} onPress={() => setShowTemplates(true)}>
-              <Ionicons name="bookmark-outline" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
+            <TouchableOpacity
+              style={styles.templateBtn}
+              onPress={() => setShowTemplates(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Use a template, ${templates.length} available`}
+            >
+              <Ionicons name="bookmark-outline" size={16} color={Colors.primary} style={styles.mr6} />
               <Text style={styles.templateBtnText}>Use a Template ({templates.length})</Text>
-              <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} style={{ marginLeft: 'auto' }} />
+              <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} style={styles.mlAuto} />
             </TouchableOpacity>
           )}
 
-          {/* Cover Photo */}
-          <Label text="Cover Photo (optional)" />
-          <TouchableOpacity style={styles.coverPicker} onPress={handlePickCover}>
+          <Label text="Cover Photo (optional)" first />
+          <TouchableOpacity
+            style={styles.coverPicker}
+            onPress={handlePickCover}
+            accessibilityRole="button"
+            accessibilityLabel={coverUri ? 'Change cover photo' : 'Add cover photo'}
+          >
             {coverUri ? (
               <Image source={{ uri: coverUri }} style={styles.coverPreview} resizeMode="cover" />
             ) : (
               <View style={styles.coverPlaceholder}>
-                <Ionicons name="image-outline" size={28} color={Colors.textMuted} style={{ marginBottom: 6 }} />
+                <Ionicons name="image-outline" size={28} color={Colors.textMuted} style={styles.mb6} />
                 <Text style={styles.coverPlaceholderText}>ADD COVER PHOTO</Text>
               </View>
             )}
           </TouchableOpacity>
           {coverUri && (
-            <TouchableOpacity onPress={() => setCoverUri(null)}>
+            <TouchableOpacity onPress={() => setCoverUri(null)} hitSlop={HIT_SLOP}>
               <Text style={styles.clearDate}>Remove cover photo</Text>
             </TouchableOpacity>
           )}
@@ -291,6 +438,7 @@ export default function CreatePlanScreen() {
             value={title}
             onChangeText={setTitle}
             maxLength={80}
+            returnKeyType="next"
           />
           <Text style={styles.charCount}>{title.length}/80</Text>
 
@@ -317,13 +465,18 @@ export default function CreatePlanScreen() {
           />
 
           <Label text="Date" />
-          <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
-            <Text style={{ color: date ? Colors.text : Colors.textMuted }}>
+          <TouchableOpacity
+            style={styles.input}
+            onPress={() => setShowDatePicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel={formattedDate ? `Date: ${formattedDate}` : 'Pick a date'}
+          >
+            <Text style={formattedDate ? styles.valueText : styles.placeholderText}>
               {formattedDate || 'Pick a date'}
             </Text>
           </TouchableOpacity>
           {date && (
-            <TouchableOpacity onPress={() => setDate(null)}>
+            <TouchableOpacity onPress={() => setDate(null)} hitSlop={HIT_SLOP}>
               <Text style={styles.clearDate}>Clear date</Text>
             </TouchableOpacity>
           )}
@@ -333,38 +486,36 @@ export default function CreatePlanScreen() {
               value={date || new Date()}
               mode="date"
               minimumDate={new Date()}
-              onChange={(_, selected) => { setShowDatePicker(false); if (selected) setDate(selected); }}
+              onChange={(_, selected) => {
+                setShowDatePicker(false);
+                if (selected) setDate(selected);
+              }}
             />
           )}
-          {Platform.OS === 'ios' && (
-            <Modal visible={showDatePicker} transparent animationType="slide">
-              <View style={styles.dateModalOverlay}>
-                <View style={styles.dateModalContent}>
-                  <View style={styles.dateModalHeader}>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                      <Text style={styles.dateModalCancel}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                      <Text style={styles.dateModalDone}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={date || new Date()}
-                    mode="date"
-                    minimumDate={new Date()}
-                    display="spinner"
-                    onChange={(_, selected) => { if (selected) setDate(selected); }}
-                    style={{ backgroundColor: Colors.card }}
-                  />
-                </View>
-              </View>
-            </Modal>
+          {Platform.OS === 'ios' && showDatePicker && (
+            <PickerModal visible onCancel={() => setShowDatePicker(false)} onDone={() => setShowDatePicker(false)}>
+              <DateTimePicker
+                value={date || new Date()}
+                mode="date"
+                minimumDate={new Date()}
+                display="spinner"
+                onChange={(_, selected) => {
+                  if (selected) setDate(selected);
+                }}
+                style={styles.pickerSpinner}
+              />
+            </PickerModal>
           )}
 
           <Label text="Time" />
-          <TouchableOpacity style={[styles.input, styles.timeRow]} onPress={() => setShowTimePicker(true)}>
-            <Ionicons name="time-outline" size={16} color={Colors.textMuted} style={{ marginRight: 8 }} />
-            <Text style={{ color: Colors.text }}>{formattedTime}</Text>
+          <TouchableOpacity
+            style={[styles.input, styles.timeRow]}
+            onPress={() => setShowTimePicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Time: ${formattedTime}`}
+          >
+            <Ionicons name="time-outline" size={16} color={Colors.textMuted} style={styles.mr8} />
+            <Text style={styles.valueText}>{formattedTime}</Text>
           </TouchableOpacity>
 
           {Platform.OS === 'android' && showTimePicker && (
@@ -372,41 +523,39 @@ export default function CreatePlanScreen() {
               value={time}
               mode="time"
               is24Hour={false}
-              onChange={(_, selected) => { setShowTimePicker(false); if (selected) setTime(selected); }}
+              onChange={(_, selected) => {
+                setShowTimePicker(false);
+                if (selected) setTime(selected);
+              }}
             />
           )}
-          {Platform.OS === 'ios' && (
-            <Modal visible={showTimePicker} transparent animationType="slide">
-              <View style={styles.dateModalOverlay}>
-                <View style={styles.dateModalContent}>
-                  <View style={styles.dateModalHeader}>
-                    <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                      <Text style={styles.dateModalCancel}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                      <Text style={styles.dateModalDone}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={time}
-                    mode="time"
-                    display="spinner"
-                    onChange={(_, selected) => { if (selected) setTime(selected); }}
-                    style={{ backgroundColor: Colors.card }}
-                  />
-                </View>
-              </View>
-            </Modal>
+          {Platform.OS === 'ios' && showTimePicker && (
+            <PickerModal visible onCancel={() => setShowTimePicker(false)} onDone={() => setShowTimePicker(false)}>
+              <DateTimePicker
+                value={time}
+                mode="time"
+                display="spinner"
+                onChange={(_, selected) => {
+                  if (selected) setTime(selected);
+                }}
+                style={styles.pickerSpinner}
+              />
+            </PickerModal>
           )}
 
           <Label text="Vote Deadline (optional)" />
-          <TouchableOpacity style={styles.input} onPress={() => setShowVoteDeadlinePicker(true)}>
-            <Text style={{ color: voteDeadline ? Colors.text : Colors.textMuted }}>
+          <TouchableOpacity
+            style={styles.input}
+            onPress={() => setShowVoteDeadlinePicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel={formattedVoteDeadline ? `Vote deadline: ${formattedVoteDeadline}` : 'Pick a vote deadline'}
+          >
+            <Text style={formattedVoteDeadline ? styles.valueText : styles.placeholderText}>
               {formattedVoteDeadline || 'Pick a deadline (optional)'}
             </Text>
           </TouchableOpacity>
           {voteDeadline && (
-            <TouchableOpacity onPress={() => setVoteDeadline(null)}>
+            <TouchableOpacity onPress={() => setVoteDeadline(null)} hitSlop={HIT_SLOP}>
               <Text style={styles.clearDate}>Clear deadline</Text>
             </TouchableOpacity>
           )}
@@ -416,50 +565,62 @@ export default function CreatePlanScreen() {
               value={voteDeadline || new Date()}
               mode="date"
               minimumDate={new Date()}
-              onChange={(_, selected) => { setShowVoteDeadlinePicker(false); if (selected) setVoteDeadline(selected); }}
+              onChange={(_, selected) => {
+                setShowVoteDeadlinePicker(false);
+                if (selected) setVoteDeadline(selected);
+              }}
             />
           )}
-          {Platform.OS === 'ios' && (
-            <Modal visible={showVoteDeadlinePicker} transparent animationType="slide">
-              <View style={styles.dateModalOverlay}>
-                <View style={styles.dateModalContent}>
-                  <View style={styles.dateModalHeader}>
-                    <TouchableOpacity onPress={() => setShowVoteDeadlinePicker(false)}>
-                      <Text style={styles.dateModalCancel}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowVoteDeadlinePicker(false)}>
-                      <Text style={styles.dateModalDone}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={voteDeadline || new Date()}
-                    mode="date"
-                    minimumDate={new Date()}
-                    display="spinner"
-                    onChange={(_, selected) => { if (selected) setVoteDeadline(selected); }}
-                    style={{ backgroundColor: Colors.card }}
-                  />
-                </View>
-              </View>
-            </Modal>
+          {Platform.OS === 'ios' && showVoteDeadlinePicker && (
+            <PickerModal
+              visible
+              onCancel={() => setShowVoteDeadlinePicker(false)}
+              onDone={() => setShowVoteDeadlinePicker(false)}
+            >
+              <DateTimePicker
+                value={voteDeadline || new Date()}
+                mode="date"
+                minimumDate={new Date()}
+                display="spinner"
+                onChange={(_, selected) => {
+                  if (selected) setVoteDeadline(selected);
+                }}
+                style={styles.pickerSpinner}
+              />
+            </PickerModal>
           )}
 
           <Label text="Category" />
           <View style={styles.categoryRow}>
-            {CATEGORIES.map((c) => (
-              <TouchableOpacity
-                key={c}
-                style={[styles.categoryChip, category === c && !usingCustomCategory && styles.categoryChipActive]}
-                onPress={() => { setUsingCustomCategory(false); setCategory(category === c ? '' : c); }}
-              >
-                <Text style={[styles.categoryChipText, category === c && !usingCustomCategory && styles.categoryChipTextActive]}>{c}</Text>
-              </TouchableOpacity>
-            ))}
+            {CATEGORIES.map((c) => {
+              const active = category === c && !usingCustomCategory;
+              return (
+                <TouchableOpacity
+                  key={c}
+                  style={[styles.categoryChip, active && styles.categoryChipActive]}
+                  onPress={() => {
+                    setUsingCustomCategory(false);
+                    setCategory(category === c ? '' : c);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{c}</Text>
+                </TouchableOpacity>
+              );
+            })}
             <TouchableOpacity
               style={[styles.categoryChip, usingCustomCategory && styles.categoryChipActive]}
-              onPress={() => { setUsingCustomCategory(true); setCategory(''); }}
+              onPress={() => {
+                setUsingCustomCategory(true);
+                setCategory('');
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: usingCustomCategory }}
             >
-              <Text style={[styles.categoryChipText, usingCustomCategory && styles.categoryChipTextActive]}>Custom</Text>
+              <Text style={[styles.categoryChipText, usingCustomCategory && styles.categoryChipTextActive]}>
+                Custom
+              </Text>
             </TouchableOpacity>
           </View>
           {usingCustomCategory && (
@@ -476,46 +637,49 @@ export default function CreatePlanScreen() {
 
           <Label text="Required Votes (Quorum)" />
           <View style={styles.voteRow}>
-            {['2', '3', '5', '7', '10'].map((n) => (
-              <TouchableOpacity
-                key={n}
-                style={[styles.voteChip, requiredVotes === n && styles.voteChipActive]}
-                onPress={() => setRequiredVotes(n)}
-              >
-                <Text style={[styles.voteChipText, requiredVotes === n && styles.voteChipTextActive]}>{n}</Text>
-              </TouchableOpacity>
-            ))}
+            {VOTE_OPTIONS.map((n) => {
+              const active = requiredVotes === n;
+              return (
+                <TouchableOpacity
+                  key={n}
+                  style={[styles.voteChip, active && styles.voteChipActive]}
+                  onPress={() => setRequiredVotes(n)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.voteChipText, active && styles.voteChipTextActive]}>{n}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <Label text="Max Participants (optional)" />
-          <View style={styles.voteRow}>
-            {[
-              { label: 'No Limit', value: null },
-              { label: '5', value: 5 },
-              { label: '10', value: 10 },
-              { label: '15', value: 15 },
-              { label: '20', value: 20 },
-              { label: '30', value: 30 },
-              { label: '50', value: 50 },
-            ].map((opt) => (
-              <TouchableOpacity
-                key={String(opt.value)}
-                style={[styles.voteChip, maxParticipants === opt.value && styles.voteChipActive]}
-                onPress={() => setMaxParticipants(opt.value)}
-              >
-                <Text style={[styles.voteChipText, maxParticipants === opt.value && styles.voteChipTextActive]}>{opt.label}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.voteRowWrap}>
+            {MAX_PARTICIPANT_OPTIONS.map((opt) => {
+              const active = maxParticipants === opt.value;
+              return (
+                <TouchableOpacity
+                  key={String(opt.value)}
+                  style={[styles.voteChip, active && styles.voteChipActive]}
+                  onPress={() => setMaxParticipants(opt.value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.voteChipText, active && styles.voteChipTextActive]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <Label text="Visibility" />
-          {accountAgeDays !== null && accountAgeDays < COOLDOWN_DAYS ? (
+          {inCooldown ? (
             <View style={styles.cooldownBanner}>
-              <Ionicons name="time-outline" size={18} color={Colors.gold} style={{ marginRight: 8 }} />
-              <View style={{ flex: 1 }}>
+              <Ionicons name="time-outline" size={18} color={Colors.gold} style={styles.mr8} />
+              <View style={styles.flex}>
                 <Text style={styles.cooldownTitle}>New Account Cooldown</Text>
                 <Text style={styles.cooldownText}>
-                  Public events unlock in {COOLDOWN_DAYS - accountAgeDays} day{COOLDOWN_DAYS - accountAgeDays !== 1 ? 's' : ''}. This helps keep the community safe.
+                  Public events unlock in {cooldownDaysLeft} day{cooldownDaysLeft !== 1 ? 's' : ''}. This helps keep
+                  the community safe.
                 </Text>
               </View>
             </View>
@@ -524,25 +688,34 @@ export default function CreatePlanScreen() {
               <TouchableOpacity
                 style={[styles.toggleBtn, !isPublic && styles.toggleBtnActive]}
                 onPress={() => setIsPublic(false)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !isPublic }}
               >
                 <Text style={[styles.toggleText, !isPublic && styles.toggleTextActive]}>Private</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.toggleBtn, isPublic && styles.toggleBtnActive]}
                 onPress={() => setIsPublic(true)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isPublic }}
               >
                 <Text style={[styles.toggleText, isPublic && styles.toggleTextActive]}>Public</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Optional Poll */}
           <TouchableOpacity
             style={styles.pollToggleBtn}
-            onPress={() => { if (showPoll) setPollSubmitted(false); setShowPoll(!showPoll); Haptics.selectionAsync(); }}
+            onPress={togglePoll}
+            accessibilityRole="button"
+            accessibilityLabel={showPoll ? 'Remove poll' : 'Add a poll'}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name={showPoll ? 'remove-circle-outline' : 'add-circle-outline'} size={18} color={Colors.primary} />
+            <View style={styles.pollToggleInner}>
+              <Ionicons
+                name={showPoll ? 'remove-circle-outline' : 'add-circle-outline'}
+                size={18}
+                color={Colors.primary}
+              />
               <Text style={styles.pollToggleText}>{showPoll ? 'Remove Poll' : 'Add a Poll'}</Text>
             </View>
           </TouchableOpacity>
@@ -551,7 +724,7 @@ export default function CreatePlanScreen() {
             <View style={styles.pollSection}>
               <Text style={styles.pollSectionLabel}>Poll Question</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, pollSubmitted && !pollQuestion.trim() && styles.inputError]}
                 placeholder="e.g. Which restaurant should we go to?"
                 placeholderTextColor={Colors.textMuted}
                 value={pollQuestion}
@@ -562,33 +735,33 @@ export default function CreatePlanScreen() {
               {pollOptions.map((opt, i) => (
                 <View key={i} style={styles.pollOptionRow}>
                   <TextInput
-                    style={[styles.input, { flex: 1 }, pollSubmitted && !opt.trim() && styles.inputError]}
+                    style={[styles.input, styles.flex, pollSubmitted && !opt.trim() && styles.inputError]}
                     placeholder={`Option ${i + 1}`}
                     placeholderTextColor={Colors.textMuted}
                     value={opt}
-                    onChangeText={(t) => {
-                      const next = [...pollOptions];
-                      next[i] = t;
-                      setPollOptions(next);
-                    }}
+                    onChangeText={(t) => setPollOption(i, t)}
                     maxLength={100}
                   />
-                  {pollOptions.length > 2 && (
+                  {pollOptions.length > MIN_POLL_OPTIONS && (
                     <TouchableOpacity
                       style={styles.removeOptionBtn}
-                      onPress={() => setPollOptions(pollOptions.filter((_, j) => j !== i))}
+                      onPress={() => removePollOption(i)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove option ${i + 1}`}
                     >
                       <Ionicons name="close-circle" size={22} color={Colors.error} />
                     </TouchableOpacity>
                   )}
                 </View>
               ))}
-              {pollOptions.length < 4 && (
+              {pollOptions.length < MAX_POLL_OPTIONS && (
                 <TouchableOpacity
                   style={styles.addOptionBtn}
-                  onPress={() => setPollOptions([...pollOptions, ''])}
+                  onPress={addPollOption}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add poll option"
                 >
-                  <Ionicons name="add-circle-outline" size={15} color={Colors.primary} style={{ marginRight: 4 }} />
+                  <Ionicons name="add-circle-outline" size={15} color={Colors.primary} style={styles.mr4} />
                   <Text style={styles.addOptionText}>Add option</Text>
                 </TouchableOpacity>
               )}
@@ -598,56 +771,42 @@ export default function CreatePlanScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <AnimatedButton
-            label={uploadingCover ? 'Uploading photo...' : loading ? 'Creating...' : 'Create Plan'}
+            label={submitLabel}
             onPress={handleCreate}
             variant="primary"
             disabled={loading}
             loading={loading}
-            style={{ marginTop: 8, paddingVertical: 16 }}
-            textStyle={{ fontWeight: '800', letterSpacing: 1 }}
+            style={styles.submitBtn}
+            textStyle={styles.submitText}
           />
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Templates Modal */}
-      <Modal visible={showTemplates} transparent animationType="slide">
+      <Modal visible={showTemplates} transparent animationType="slide" onRequestClose={() => setShowTemplates(false)}>
         <View style={styles.templateModalOverlay}>
           <View style={styles.templateModalContent}>
             <View style={styles.templateModalHeader}>
               <Text style={styles.templateModalTitle}>My Templates</Text>
-              <TouchableOpacity onPress={() => setShowTemplates(false)}>
+              <TouchableOpacity
+                onPress={() => setShowTemplates(false)}
+                hitSlop={HIT_SLOP}
+                accessibilityRole="button"
+                accessibilityLabel="Close templates"
+              >
                 <Ionicons name="close" size={22} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={templates}
-              keyExtractor={(t) => t.id}
-              contentContainerStyle={{ gap: 8, paddingBottom: 20 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.templateItem} onPress={() => applyTemplate(item)}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.templateItemTitle}>{item.name}</Text>
-                    {item.description ? (
-                      <Text style={styles.templateItemDesc} numberOfLines={1}>{item.description}</Text>
-                    ) : null}
-                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                      {item.category ? (
-                        <Text style={styles.templateTag}>{item.category}</Text>
-                      ) : null}
-                      <Text style={styles.templateTag}>{item.requiredVotes} votes</Text>
-                      {item.isPublic ? <Text style={styles.templateTag}>Public</Text> : null}
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => deleteTemplate(item.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ paddingLeft: 8 }}
-                  >
-                    <Ionicons name="trash-outline" size={16} color={Colors.error} />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              )}
-            />
+            {templates.length === 0 ? (
+              <Text style={styles.templateEmpty}>You have no saved templates yet.</Text>
+            ) : (
+              <FlatList
+                data={templates}
+                keyExtractor={(t) => t.id}
+                contentContainerStyle={styles.templateList}
+                renderItem={renderTemplate}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -661,11 +820,91 @@ export default function CreatePlanScreen() {
   );
 }
 
-function Label({ text }: { text: string }) {
-  return <Text style={styles.label}>{text}</Text>;
-}
+const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
+
+const Label = React.memo(function Label({ text, first }: { text: string; first?: boolean }) {
+  return <Text style={[styles.label, first && styles.labelFirst]}>{text}</Text>;
+});
+
+const PickerModal = React.memo(function PickerModal({
+  visible,
+  onCancel,
+  onDone,
+  children,
+}: {
+  visible: boolean;
+  onCancel: () => void;
+  onDone: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <View style={styles.dateModalOverlay}>
+        <View style={styles.dateModalContent}>
+          <View style={styles.dateModalHeader}>
+            <TouchableOpacity onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel">
+              <Text style={styles.dateModalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onDone} accessibilityRole="button" accessibilityLabel="Done">
+              <Text style={styles.dateModalDone}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          {children}
+        </View>
+      </View>
+    </Modal>
+  );
+});
+
+const TemplateRow = React.memo(function TemplateRow({
+  item,
+  onApply,
+  onDelete,
+}: {
+  item: Template;
+  onApply: (t: Template) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.templateItem}
+      onPress={() => onApply(item)}
+      accessibilityRole="button"
+      accessibilityLabel={`Use template ${item.name || 'Untitled'}`}
+    >
+      <View style={styles.flex}>
+        <Text style={styles.templateItemTitle}>{item.name || 'Untitled'}</Text>
+        {item.description ? (
+          <Text style={styles.templateItemDesc} numberOfLines={1}>
+            {item.description}
+          </Text>
+        ) : null}
+        <View style={styles.templateTagRow}>
+          {item.category ? <Text style={styles.templateTag}>{item.category}</Text> : null}
+          <Text style={styles.templateTag}>{item.requiredVotes ?? 3} votes</Text>
+          {item.isPublic ? <Text style={styles.templateTag}>Public</Text> : null}
+        </View>
+      </View>
+      <TouchableOpacity
+        onPress={() => onDelete(item.id)}
+        hitSlop={HIT_SLOP}
+        style={styles.templateDeleteBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Delete template ${item.name || 'Untitled'}`}
+      >
+        <Ionicons name="trash-outline" size={16} color={Colors.error} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+});
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  mr4: { marginRight: 4 },
+  mr6: { marginRight: 6 },
+  mr8: { marginRight: 8 },
+  mb6: { marginBottom: 6 },
+  mlAuto: { marginLeft: 'auto' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -675,109 +914,184 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerSpacer: { width: 36 },
-  title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '900', color: Colors.text, letterSpacing: 3 },
-  form: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 },
-  label: { fontSize: 11, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8, marginTop: 24 },
-  input: {
-    backgroundColor: Colors.backgroundAlt, borderWidth: 1.5, borderColor: Colors.border,
-    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 12,
-    color: Colors.text, fontSize: FontSize.md, justifyContent: 'center',
+  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  headerSpacer: { width: 44 },
+  title: { flex: 1, textAlign: 'center', fontSize: FontSize.md, fontWeight: FontWeight.black, color: Colors.text, letterSpacing: 3 },
+  form: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xl },
+  label: {
+    fontSize: 11,
+    fontWeight: FontWeight.heavy,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 8,
+    marginTop: Spacing.md,
   },
+  labelFirst: { marginTop: 0 },
+  input: {
+    backgroundColor: Colors.backgroundAlt,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    justifyContent: 'center',
+  },
+  valueText: { color: Colors.text, fontSize: FontSize.md },
+  placeholderText: { color: Colors.textMuted, fontSize: FontSize.md },
   multiline: { height: 90, textAlignVertical: 'top' },
   timeRow: { flexDirection: 'row', alignItems: 'center' },
-  clearDate: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: -4 },
+  clearDate: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: -4, paddingVertical: 4 },
   charCount: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'right', marginTop: -4 },
-  coverPicker: {
-    borderRadius: 0, overflow: 'hidden', borderWidth: 1.5,
-    borderColor: Colors.border,
-  },
+  coverPicker: { borderRadius: Radius.md, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.border },
   coverPreview: { width: '100%', height: 160 },
-  coverPlaceholder: {
-    height: 160, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center',
+  coverPlaceholder: { height: 160, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
+  coverPlaceholderText: { fontSize: 11, fontWeight: FontWeight.heavy, color: Colors.textMuted, letterSpacing: 1.5 },
+  dateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
+  dateModalContent: {
+    backgroundColor: Colors.surfaceRaised,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingBottom: 30,
   },
-  coverPlaceholderText: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1.5 },
-  dateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  dateModalContent: { backgroundColor: Colors.surfaceRaised, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, paddingBottom: 30 },
   dateModalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', padding: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  dateModalCancel: { color: Colors.textSecondary, fontSize: FontSize.md },
-  dateModalDone: { color: Colors.primary, fontSize: FontSize.md, fontWeight: '700' },
+  dateModalCancel: { color: Colors.textSecondary, fontSize: FontSize.md, paddingVertical: 4 },
+  dateModalDone: { color: Colors.primary, fontSize: FontSize.md, fontWeight: FontWeight.bold, paddingVertical: 4 },
+  pickerSpinner: { backgroundColor: Colors.surfaceRaised },
   categoryRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   categoryChip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.md,
-    backgroundColor: Colors.backgroundAlt, borderWidth: 1.5, borderColor: Colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.backgroundAlt,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
   },
   categoryChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  categoryChipText: { color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm },
-  categoryChipTextActive: { color: '#ffffff' },
+  categoryChipText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  categoryChipTextActive: { color: Colors.background },
   voteRow: { flexDirection: 'row', gap: 8 },
+  voteRowWrap: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   voteChip: {
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   voteChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  voteChipText: { color: Colors.textSecondary, fontWeight: '700' },
-  voteChipTextActive: { color: Colors.text },
+  voteChipText: { color: Colors.textSecondary, fontWeight: FontWeight.bold },
+  voteChipTextActive: { color: Colors.background },
   toggleRow: { flexDirection: 'row', gap: 10 },
   toggleBtn: {
-    flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  toggleBtnActive: { backgroundColor: Colors.primary + '33', borderColor: Colors.primary },
-  toggleText: { color: Colors.textSecondary, fontWeight: '600' },
+  toggleBtnActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primary },
+  toggleText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   toggleTextActive: { color: Colors.primary },
   pollToggleBtn: {
-    paddingVertical: 12, paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
   },
-  pollToggleText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.md },
-  pollSection: { gap: Spacing.sm, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border },
-  pollSectionLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
+  pollToggleInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pollToggleText: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
+  pollSection: {
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pollSectionLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   pollOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  removeOptionBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  removeOptionBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   addOptionBtn: { paddingVertical: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  addOptionText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
+  addOptionText: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   cooldownBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: Colors.gold + '15',
+    backgroundColor: Colors.goldDim,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.gold + '44',
+    borderColor: Colors.goldBorder,
     padding: Spacing.md,
   },
-  cooldownTitle: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.gold, marginBottom: 2 },
+  cooldownTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gold, marginBottom: 2 },
   cooldownText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 18 },
-  error: { color: Colors.error, fontSize: FontSize.sm },
+  error: { color: Colors.error, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
   inputError: { borderColor: Colors.error, borderWidth: 1.5 },
+  submitBtn: { marginTop: 8, paddingVertical: 16 },
+  submitText: { fontWeight: FontWeight.heavy, letterSpacing: 1 },
   templateBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.primary + '11', borderWidth: 1, borderColor: Colors.primary + '44',
-    borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryDim,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
   },
-  templateBtnText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
-  templateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
+  templateBtnText: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  templateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   templateModalContent: {
-    backgroundColor: Colors.surfaceRaised, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
-    padding: Spacing.lg, paddingBottom: 40, maxHeight: '70%',
+    backgroundColor: Colors.surfaceRaised,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    maxHeight: '70%',
   },
-  templateModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
-  templateModalTitle: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.text },
+  templateModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  templateModalTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text },
+  templateEmpty: { fontSize: FontSize.sm, color: Colors.textMuted, paddingVertical: Spacing.md },
+  templateList: { gap: 8, paddingBottom: Spacing.md },
   templateItem: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.background, borderRadius: Radius.md,
-    padding: Spacing.md, borderWidth: 1, borderColor: Colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  templateItemTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
+  templateItemTitle: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text },
   templateItemDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  templateTagRow: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   templateTag: {
-    fontSize: FontSize.xs, color: Colors.primary, fontWeight: '600',
-    backgroundColor: Colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 99,
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+    fontWeight: FontWeight.semibold,
+    backgroundColor: Colors.primaryDim,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
   },
+  templateDeleteBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
 });

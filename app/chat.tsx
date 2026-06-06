@@ -1,10 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   Animated,
   FlatList,
   Image,
   KeyboardAvoidingView,
+  ListRenderItemInfo,
   Modal,
   Platform,
   StyleSheet,
@@ -44,10 +52,17 @@ import { useSubscription } from '../hooks/useSubscription';
 import { useToast } from '../components/Toast';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { SkeletonChatBubble } from '../components/SkeletonLoader';
-import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-const REACTION_EMOJIS = ['+1', 'love', 'haha', 'wow', 'sad', 'fire'];
+const REACTION_EMOJIS = ['+1', 'love', 'haha', 'wow', 'sad', 'fire'] as const;
+
+// How long a typing signal is considered "active" before it is ignored.
+const TYPING_ACTIVE_MS = 4000;
+// Debounce before the local user's typing signal is cleared from the room doc.
+const TYPING_CLEAR_MS = 3500;
+
+type Reactions = { [emoji: string]: string[] };
 
 type Message = {
   id: string;
@@ -56,11 +71,15 @@ type Message = {
   imageUrl?: string;
   senderId: string;
   senderName: string;
-  timestamp: any;
-  reactions?: { [emoji: string]: string[] };
+  timestamp?: Timestamp | null;
+  reactions?: Reactions;
 };
 
 type Participant = { id: string; displayName: string; username?: string };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 function renderTextWithMentions(text: string, isOwn: boolean) {
   const parts = text.split(/(@\w+)/g);
@@ -68,7 +87,9 @@ function renderTextWithMentions(text: string, isOwn: boolean) {
     <>
       {parts.map((part, i) =>
         part.startsWith('@') ? (
-          <Text key={i} style={[styles.mentionText, isOwn && styles.mentionTextOwn]}>{part}</Text>
+          <Text key={i} style={[styles.mentionText, isOwn && styles.mentionTextOwn]}>
+            {part}
+          </Text>
         ) : (
           <Text key={i}>{part}</Text>
         )
@@ -76,6 +97,21 @@ function renderTextWithMentions(text: string, isOwn: boolean) {
     </>
   );
 }
+
+function formatTime(ts?: Timestamp | null): string {
+  const date = ts?.toDate?.() ?? null;
+  if (!date) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function initialOf(name?: string): string {
+  const trimmed = (name || '').trim();
+  return trimmed ? trimmed[0].toUpperCase() : '?';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Typing indicator
+// ─────────────────────────────────────────────────────────────────────────────
 
 function TypingDots() {
   const dot1 = useRef(new Animated.Value(0)).current;
@@ -92,54 +128,81 @@ function TypingDots() {
           Animated.delay(420),
         ])
       );
-    const a1 = bounce(dot1, 0);
-    const a2 = bounce(dot2, 150);
-    const a3 = bounce(dot3, 300);
-    a1.start(); a2.start(); a3.start();
-    return () => { a1.stop(); a2.stop(); a3.stop(); };
-  }, []);
+    const animations = [bounce(dot1, 0), bounce(dot2, 150), bounce(dot3, 300)];
+    animations.forEach((a) => a.start());
+    return () => animations.forEach((a) => a.stop());
+  }, [dot1, dot2, dot3]);
 
   return (
-    <View style={{ flexDirection: 'row', gap: 4, marginRight: 6, alignItems: 'center' }}>
+    <View style={styles.typingDots}>
       {[dot1, dot2, dot3].map((dot, i) => (
-        <Animated.View
-          key={i}
-          style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.textMuted, transform: [{ translateY: dot }] }}
-        />
+        <Animated.View key={i} style={[styles.typingDot, { transform: [{ translateY: dot }] }]} />
       ))}
     </View>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Chat bubble (memoized so the inverted list only re-renders changed rows)
+// ─────────────────────────────────────────────────────────────────────────────
+
 type ChatBubbleProps = {
   message: Message;
   isOwn: boolean;
   index: number;
+  myUid: string;
   roomId: string;
   onLongPress: (msg: Message) => void;
 };
 
-function ChatBubble({ message, isOwn, index, roomId, onLongPress }: ChatBubbleProps) {
+const ChatBubble = memo(function ChatBubble({
+  message,
+  isOwn,
+  index,
+  myUid,
+  roomId,
+  onLongPress,
+}: ChatBubbleProps) {
   const slideX = useRef(new Animated.Value(isOwn ? 40 : -40)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const myUid = auth.currentUser?.uid ?? '';
 
   useEffect(() => {
+    const delay = Math.min(index * 30, 300);
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 250, delay: Math.min(index * 30, 300), useNativeDriver: true }),
-      Animated.spring(slideX, { toValue: 0, tension: 80, friction: 10, delay: Math.min(index * 30, 300), useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 250, delay, useNativeDriver: true }),
+      Animated.spring(slideX, { toValue: 0, tension: 80, friction: 10, delay, useNativeDriver: true }),
     ]).start();
+    // Run once on mount only — re-animating on prop changes would be jarring.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleReaction = async (emoji: string) => {
-    const reactionRef = doc(db, 'chats', roomId, 'messages', message.id);
-    const alreadyReacted = message.reactions?.[emoji]?.includes(myUid);
-    try {
-      await updateDoc(reactionRef, {
-        [`reactions.${emoji}`]: alreadyReacted ? arrayRemove(myUid) : arrayUnion(myUid),
-      });
-    } catch {}
-  };
+  const toggleReaction = useCallback(
+    async (emoji: string) => {
+      if (!myUid) return;
+      const reactionRef = doc(db, 'chats', roomId, 'messages', message.id);
+      const alreadyReacted = message.reactions?.[emoji]?.includes(myUid);
+      try {
+        await updateDoc(reactionRef, {
+          [`reactions.${emoji}`]: alreadyReacted ? arrayRemove(myUid) : arrayUnion(myUid),
+        });
+      } catch {
+        // Reaction is best-effort; ignore transient write failures.
+      }
+    },
+    [message.id, message.reactions, myUid, roomId]
+  );
+
+  const handleLongPress = useCallback(() => onLongPress(message), [message, onLongPress]);
+
+  const activeReactions = useMemo(
+    () =>
+      message.reactions
+        ? Object.entries(message.reactions).filter(([, uids]) => uids.length > 0)
+        : [],
+    [message.reactions]
+  );
+
+  const timeLabel = formatTime(message.timestamp);
 
   return (
     <Animated.View
@@ -151,15 +214,11 @@ function ChatBubble({ message, isOwn, index, roomId, onLongPress }: ChatBubblePr
     >
       {!isOwn && (
         <View style={styles.senderAvatar}>
-          <Text style={styles.senderAvatarText}>{(message.senderName || '?')[0].toUpperCase()}</Text>
+          <Text style={styles.senderAvatarText}>{initialOf(message.senderName)}</Text>
         </View>
       )}
-      <View style={{ maxWidth: '75%' }}>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onLongPress={() => onLongPress(message)}
-          delayLongPress={350}
-        >
+      <View style={styles.bubbleColumn}>
+        <TouchableOpacity activeOpacity={0.85} onLongPress={handleLongPress} delayLongPress={350}>
           <View style={[styles.bubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
             {!isOwn && <Text style={styles.senderName}>{message.senderName}</Text>}
             {message.type === 'image' && message.imageUrl ? (
@@ -169,37 +228,41 @@ function ChatBubble({ message, isOwn, index, roomId, onLongPress }: ChatBubblePr
                 {renderTextWithMentions(message.text ?? '', isOwn)}
               </Text>
             )}
-            {message.timestamp && (
-              <Text style={[styles.timestamp, isOwn && styles.ownTimestamp]}>
-                {new Date(message.timestamp?.toDate?.() || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
+            {!!timeLabel && (
+              <Text style={[styles.timestamp, isOwn && styles.ownTimestamp]}>{timeLabel}</Text>
             )}
           </View>
         </TouchableOpacity>
 
-        {message.reactions && Object.keys(message.reactions).length > 0 && (
+        {activeReactions.length > 0 && (
           <View style={[styles.reactionsRow, isOwn && styles.reactionsRowOwn]}>
-            {Object.entries(message.reactions)
-              .filter(([, uids]) => (uids as string[]).length > 0)
-              .map(([emoji, uids]) => (
+            {activeReactions.map(([emoji, uids]) => {
+              const mine = uids.includes(myUid);
+              return (
                 <TouchableOpacity
                   key={emoji}
                   onPress={() => toggleReaction(emoji)}
-                  style={[
-                    styles.reactionPill,
-                    (uids as string[]).includes(myUid) && styles.reactionPillActive,
-                  ]}
+                  style={[styles.reactionPill, mine && styles.reactionPillActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${emoji} reaction, ${uids.length}${
+                    mine ? ', selected' : ''
+                  }`}
                 >
                   <Text style={styles.reactionEmoji}>{emoji}</Text>
-                  <Text style={styles.reactionCount}>{(uids as string[]).length}</Text>
+                  <Text style={styles.reactionCount}>{uids.length}</Text>
                 </TouchableOpacity>
-              ))}
+              );
+            })}
           </View>
         )}
       </View>
     </Animated.View>
   );
-}
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -215,7 +278,7 @@ export default function ChatScreen() {
   const [reactionPickerMsg, setReactionPickerMsg] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [typingNames, setTypingNames] = useState<Record<string, string>>({});
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlatList<Message>>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showToast } = useToast();
   const uid = auth.currentUser?.uid || '';
@@ -224,10 +287,13 @@ export default function ChatScreen() {
   const ROOM_ID = planId || 'global';
   const headerTitle = planTitle ? `${planTitle}` : 'Global Chat';
 
+  // ── Messages + typing subscriptions ───────────────────────────────────────
   useEffect(() => {
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      setSenderName(snap.data()?.displayName || 'Anonymous');
-    });
+    if (uid) {
+      getDoc(doc(db, 'users', uid))
+        .then((snap) => setSenderName(snap.data()?.displayName || 'Anonymous'))
+        .catch(() => setSenderName('Anonymous'));
+    }
 
     const cutoff = getChatHistoryCutoff(isPro ? 'pro' : 'free');
     const q = cutoff
@@ -242,103 +308,155 @@ export default function ChatScreen() {
           orderBy('timestamp', 'asc'),
           limit(200)
         );
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)));
-      setLoadingMessages(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)));
+        setLoadingMessages(false);
+      },
+      () => setLoadingMessages(false)
+    );
 
-    // Listen to typing indicators on the room doc
+    // Listen to typing indicators on the room doc.
     const roomRef = doc(db, 'chats', ROOM_ID);
     const unsubRoom = onSnapshot(roomRef, (snap) => {
       const typing = snap.data()?.typing as Record<string, number> | undefined;
-      if (!typing) { setTypingUsers([]); return; }
+      if (!typing) {
+        setTypingUsers([]);
+        return;
+      }
       const now = Date.now();
       const activeTypers = Object.entries(typing)
-        .filter(([id, ts]) => id !== uid && now - ts < 4000)
+        .filter(([id, ts]) => id !== uid && now - ts < TYPING_ACTIVE_MS)
         .map(([id]) => id);
-      setTypingUsers(activeTypers);
+      setTypingUsers((prev) =>
+        prev.length === activeTypers.length && prev.every((id, i) => id === activeTypers[i])
+          ? prev
+          : activeTypers
+      );
     });
 
     return () => {
       unsub();
       unsubRoom();
-      // Clear own typing on unmount
-      updateDoc(doc(db, 'chats', ROOM_ID), { [`typing.${uid}`]: deleteField() }).catch(() => {});
+      // Clear own typing on unmount.
+      if (uid) {
+        updateDoc(doc(db, 'chats', ROOM_ID), { [`typing.${uid}`]: deleteField() }).catch(() => {});
+      }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, []);
+    // ROOM_ID derives from planId; isPro/uid changes should rebuild the query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ROOM_ID, isPro, uid]);
 
-  // Resolve display names for typing users
+  // ── Resolve display names for typing users ─────────────────────────────────
   useEffect(() => {
     const unknown = typingUsers.filter((id) => !typingNames[id]);
     if (unknown.length === 0) return;
-    Promise.all(unknown.map((id) => getDoc(doc(db, 'users', id)))).then((docs) => {
-      const newNames: Record<string, string> = {};
-      docs.forEach((d) => {
-        if (d.exists()) newNames[d.id] = d.data()?.displayName || 'Someone';
-      });
-      setTypingNames((prev) => ({ ...prev, ...newNames }));
-    });
-  }, [typingUsers]);
+    let cancelled = false;
+    Promise.all(unknown.map((id) => getDoc(doc(db, 'users', id))))
+      .then((docs) => {
+        if (cancelled) return;
+        const newNames: Record<string, string> = {};
+        docs.forEach((d) => {
+          if (d.exists()) newNames[d.id] = d.data()?.displayName || 'Someone';
+        });
+        if (Object.keys(newNames).length) {
+          setTypingNames((prev) => ({ ...prev, ...newNames }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [typingUsers, typingNames]);
 
-  // Fetch plan participants for @mention
+  // ── Fetch plan participants for @mention ───────────────────────────────────
   useEffect(() => {
     if (!planId) return;
-    getDoc(doc(db, 'plans', planId)).then(async (snap) => {
-      const participantIds: string[] = snap.data()?.participants || [];
-      const others = participantIds.filter((id) => id !== uid);
-      const docs = await Promise.all(others.map((id) => getDoc(doc(db, 'users', id))));
-      setParticipants(docs.filter((d) => d.exists()).map((d) => ({ id: d.id, ...d.data() } as Participant)));
-    });
-  }, [planId]);
+    let cancelled = false;
+    getDoc(doc(db, 'plans', planId))
+      .then(async (snap) => {
+        const participantIds: string[] = snap.data()?.participants || [];
+        const others = participantIds.filter((id) => id !== uid);
+        const docs = await Promise.all(others.map((id) => getDoc(doc(db, 'users', id))));
+        if (cancelled) return;
+        setParticipants(
+          docs.filter((d) => d.exists()).map((d) => ({ id: d.id, ...d.data() } as Participant))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [planId, uid]);
 
-  const broadcastTyping = () => {
+  // ── Typing broadcast ───────────────────────────────────────────────────────
+  const broadcastTyping = useCallback(() => {
     if (!uid) return;
-    setDoc(doc(db, 'chats', ROOM_ID), { typing: { [uid]: Date.now() } }, { merge: true }).catch(() => {});
+    setDoc(doc(db, 'chats', ROOM_ID), { typing: { [uid]: Date.now() } }, { merge: true }).catch(
+      () => {}
+    );
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       updateDoc(doc(db, 'chats', ROOM_ID), { [`typing.${uid}`]: deleteField() }).catch(() => {});
-    }, 3500);
-  };
+    }, TYPING_CLEAR_MS);
+  }, [ROOM_ID, uid]);
 
-  const clearTyping = () => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    updateDoc(doc(db, 'chats', ROOM_ID), { [`typing.${uid}`]: deleteField() }).catch(() => {});
-  };
-
-  const handleInputChange = (text: string) => {
-    setInput(text);
-    if (text.trim()) broadcastTyping();
-    else clearTyping();
-    const lastAt = text.lastIndexOf('@');
-    if (lastAt !== -1) {
-      const afterAt = text.slice(lastAt + 1);
-      if (/^\w*$/.test(afterAt)) {
-        setMentionQuery(afterAt);
-        return;
-      }
+  const clearTyping = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
-    setMentionQuery(null);
-  };
+    if (!uid) return;
+    updateDoc(doc(db, 'chats', ROOM_ID), { [`typing.${uid}`]: deleteField() }).catch(() => {});
+  }, [ROOM_ID, uid]);
 
-  const selectMention = (p: Participant) => {
-    const name = p.username || p.displayName.replace(/\s+/g, '');
-    const lastAt = input.lastIndexOf('@');
-    setInput(input.slice(0, lastAt) + '@' + name + ' ');
-    setMentionQuery(null);
-    Haptics.selectionAsync();
-  };
+  const handleInputChange = useCallback(
+    (text: string) => {
+      setInput(text);
+      if (text.trim()) broadcastTyping();
+      else clearTyping();
+      const lastAt = text.lastIndexOf('@');
+      if (lastAt !== -1) {
+        const afterAt = text.slice(lastAt + 1);
+        if (/^\w*$/.test(afterAt)) {
+          setMentionQuery(afterAt);
+          return;
+        }
+      }
+      setMentionQuery(null);
+    },
+    [broadcastTyping, clearTyping]
+  );
 
-  const filteredMentions = mentionQuery !== null
-    ? participants.filter((p) =>
-        (p.displayName || '').toLowerCase().startsWith(mentionQuery.toLowerCase()) ||
-        (p.username || '').toLowerCase().startsWith(mentionQuery.toLowerCase())
-      )
-    : [];
+  const selectMention = useCallback(
+    (p: Participant) => {
+      const name = p.username || p.displayName.replace(/\s+/g, '');
+      setInput((prev) => {
+        const lastAt = prev.lastIndexOf('@');
+        if (lastAt === -1) return prev;
+        return prev.slice(0, lastAt) + '@' + name + ' ';
+      });
+      setMentionQuery(null);
+      Haptics.selectionAsync();
+    },
+    []
+  );
 
-  const sendMessage = async () => {
+  const filteredMentions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    return participants.filter(
+      (p) =>
+        (p.displayName || '').toLowerCase().startsWith(q) ||
+        (p.username || '').toLowerCase().startsWith(q)
+    );
+  }, [mentionQuery, participants]);
+
+  const sendMessage = useCallback(async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || !uid) return;
 
     const actualSend = async () => {
       setInput('');
@@ -371,15 +489,15 @@ export default function ChatScreen() {
     } else {
       await actualSend();
     }
-  };
+  }, [ROOM_ID, clearTyping, input, senderName, showToast, uid]);
 
-  const handleImageSend = async () => {
+  const handleImageSend = useCallback(async () => {
+    if (!uid || uploading) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.7,
     });
     if (result.canceled || !result.assets[0]) return;
-    if (!uid) return;
     setUploading(true);
     try {
       const uri = result.assets[0].uri;
@@ -393,77 +511,113 @@ export default function ChatScreen() {
         type: 'image',
         imageUrl,
         senderId: uid,
-        senderName: senderName || (auth.currentUser?.displayName ?? 'User'),
+        senderName: senderName || auth.currentUser?.displayName || 'User',
         timestamp: serverTimestamp(),
       });
     } catch {
       showToast('Failed to send image', 'error');
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
-  };
+  }, [ROOM_ID, senderName, showToast, uid, uploading]);
 
-  const handleLongPress = (msg: Message) => {
+  const handleLongPress = useCallback((msg: Message) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setReactionPickerMsg(msg);
-  };
+  }, []);
 
-  const handleReactionSelect = async (emoji: string) => {
-    if (!reactionPickerMsg) return;
-    const myUid = auth.currentUser?.uid;
-    if (!myUid) return;
-    const alreadyReacted = reactionPickerMsg.reactions?.[emoji]?.includes(myUid);
-    const reactionRef = doc(db, 'chats', ROOM_ID, 'messages', reactionPickerMsg.id);
-    try {
-      await updateDoc(reactionRef, {
-        [`reactions.${emoji}`]: alreadyReacted ? arrayRemove(myUid) : arrayUnion(myUid),
-      });
-    } catch {}
-
-    // If own message, also offer delete after closing picker
-    if (reactionPickerMsg.senderId === myUid) {
-      setReactionPickerMsg(null);
-    } else {
-      setReactionPickerMsg(null);
-    }
-  };
-
-  const handlePickerClose = () => {
-    // If long-pressing own message, show delete option too
-    if (reactionPickerMsg && reactionPickerMsg.senderId === auth.currentUser?.uid) {
+  const handleReactionSelect = useCallback(
+    async (emoji: string) => {
       const msg = reactionPickerMsg;
+      if (!msg || !uid) return;
       setReactionPickerMsg(null);
+      const alreadyReacted = msg.reactions?.[emoji]?.includes(uid);
+      const reactionRef = doc(db, 'chats', ROOM_ID, 'messages', msg.id);
+      try {
+        await updateDoc(reactionRef, {
+          [`reactions.${emoji}`]: alreadyReacted ? arrayRemove(uid) : arrayUnion(uid),
+        });
+      } catch {
+        // Best-effort reaction write.
+      }
+    },
+    [ROOM_ID, reactionPickerMsg, uid]
+  );
+
+  const deleteMessage = useCallback(
+    async (id: string) => {
+      try {
+        await deleteDoc(doc(db, 'chats', ROOM_ID, 'messages', id));
+      } catch {
+        showToast('Failed to delete message', 'error');
+      }
+    },
+    [ROOM_ID, showToast]
+  );
+
+  const handlePickerClose = useCallback(() => {
+    const msg = reactionPickerMsg;
+    setReactionPickerMsg(null);
+    // If dismissing the picker on own message, offer delete.
+    if (msg && msg.senderId === uid) {
       setTimeout(() => {
         Alert.alert('Delete message', 'Remove this message for everyone?', [
           { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await deleteDoc(doc(db, 'chats', ROOM_ID, 'messages', msg.id));
-              } catch {}
-            },
-          },
+          { text: 'Delete', style: 'destructive', onPress: () => deleteMessage(msg.id) },
         ]);
       }, 100);
-    } else {
-      setReactionPickerMsg(null);
     }
-  };
+  }, [deleteMessage, reactionPickerMsg, uid]);
+
+  // ── List data + renderer ───────────────────────────────────────────────────
+  // Inverted list expects newest-first; messages arrive oldest-first.
+  const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
+  const keyExtractor = useCallback((m: Message) => m.id, []);
+
+  const renderItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<Message>) => (
+      <ChatBubble
+        message={item}
+        isOwn={item.senderId === uid}
+        index={index}
+        myUid={uid}
+        roomId={ROOM_ID}
+        onLongPress={handleLongPress}
+      />
+    ),
+    [ROOM_ID, handleLongPress, uid]
+  );
+
+  const isOwnPickerMsg = !!reactionPickerMsg && reactionPickerMsg.senderId === uid;
+  const inputDisabled = !input.trim();
 
   return (
-    <ScreenWrapper noSafeArea>
+    <ScreenWrapper edges={['left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={8}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.title} numberOfLines={1}>{headerTitle}</Text>
-          <Text style={styles.msgCount}>{messages.length} msg{messages.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {headerTitle}
+          </Text>
+          <Text style={styles.msgCount}>
+            {messages.length} msg{messages.length !== 1 ? 's' : ''}
+          </Text>
         </View>
         <TouchableOpacity
           style={styles.participantsBtn}
-          onPress={() => setShowParticipants(!showParticipants)}
+          onPress={() => setShowParticipants((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle participants list"
+          hitSlop={8}
         >
           <Ionicons name="people-outline" size={22} color={Colors.text} />
           {participants.length > 0 && (
@@ -486,12 +640,12 @@ export default function ChatScreen() {
       )}
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
         {loadingMessages ? (
-          <View style={[styles.messageList, { gap: 16 }]}>
+          <View style={[styles.messageList, styles.skeletonList]}>
             <SkeletonChatBubble own={false} />
             <SkeletonChatBubble own={true} />
             <SkeletonChatBubble own={false} />
@@ -500,20 +654,19 @@ export default function ChatScreen() {
         ) : (
           <FlatList
             ref={flatListRef}
-            data={[...messages].reverse()}
-            keyExtractor={(m) => m.id}
+            data={reversedMessages}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
             inverted
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.messageList}
-            renderItem={({ item, index }) => (
-              <ChatBubble
-                message={item}
-                isOwn={item.senderId === uid}
-                index={index}
-                roomId={ROOM_ID}
-                onLongPress={handleLongPress}
-              />
-            )}
+            keyboardDismissMode="interactive"
+            contentContainerStyle={
+              reversedMessages.length === 0 ? styles.messageListEmpty : styles.messageList
+            }
+            initialNumToRender={15}
+            maxToRenderPerBatch={12}
+            windowSize={11}
+            removeClippedSubviews={Platform.OS === 'android'}
             ListEmptyComponent={
               <View style={styles.emptyChat}>
                 <Ionicons name="chatbubbles-outline" size={48} color={Colors.border} />
@@ -528,9 +681,15 @@ export default function ChatScreen() {
         {filteredMentions.length > 0 && (
           <View style={styles.mentionList}>
             {filteredMentions.map((p) => (
-              <TouchableOpacity key={p.id} style={styles.mentionItem} onPress={() => selectMention(p)}>
+              <TouchableOpacity
+                key={p.id}
+                style={styles.mentionItem}
+                onPress={() => selectMention(p)}
+                accessibilityRole="button"
+                accessibilityLabel={`Mention ${p.displayName}`}
+              >
                 <View style={styles.mentionAvatar}>
-                  <Text style={styles.mentionAvatarText}>{p.displayName[0]?.toUpperCase()}</Text>
+                  <Text style={styles.mentionAvatarText}>{initialOf(p.displayName)}</Text>
                 </View>
                 <View>
                   <Text style={styles.mentionName}>{p.displayName}</Text>
@@ -557,6 +716,9 @@ export default function ChatScreen() {
             onPress={handleImageSend}
             style={styles.attachBtn}
             disabled={uploading}
+            accessibilityRole="button"
+            accessibilityLabel="Attach image"
+            accessibilityState={{ disabled: uploading }}
           >
             <Ionicons
               name="image-outline"
@@ -572,14 +734,22 @@ export default function ChatScreen() {
             placeholderTextColor={Colors.textMuted}
             returnKeyType="send"
             onSubmitEditing={sendMessage}
+            blurOnSubmit={false}
             multiline
           />
           <TouchableOpacity
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, inputDisabled && styles.sendBtnDisabled]}
             onPress={sendMessage}
-            disabled={!input.trim()}
+            disabled={inputDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: inputDisabled }}
           >
-            <Ionicons name="send" size={18} color={Colors.text} />
+            <Ionicons
+              name="send"
+              size={18}
+              color={inputDisabled ? Colors.textDisabled : '#ffffff'}
+            />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -596,34 +766,34 @@ export default function ChatScreen() {
             <TouchableWithoutFeedback>
               <View style={styles.pickerCard}>
                 <Text style={styles.pickerHint}>
-                  {reactionPickerMsg?.senderId === auth.currentUser?.uid
-                    ? 'React or dismiss to delete'
-                    : 'Add a reaction'}
+                  {isOwnPickerMsg ? 'React or dismiss to delete' : 'Add a reaction'}
                 </Text>
                 <View style={styles.pickerRow}>
                   {REACTION_EMOJIS.map((emoji) => {
-                    const active = reactionPickerMsg?.reactions?.[emoji]?.includes(auth.currentUser?.uid ?? '');
+                    const active = reactionPickerMsg?.reactions?.[emoji]?.includes(uid);
                     return (
                       <TouchableOpacity
                         key={emoji}
                         style={[styles.pickerEmoji, active && styles.pickerEmojiActive]}
                         onPress={() => handleReactionSelect(emoji)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`React with ${emoji}`}
                       >
                         <Text style={styles.pickerEmojiText}>{emoji}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
-                {reactionPickerMsg?.senderId === auth.currentUser?.uid && (
+                {isOwnPickerMsg && (
                   <TouchableOpacity
                     style={styles.deleteBtn}
-                    onPress={async () => {
+                    onPress={() => {
                       const msg = reactionPickerMsg;
                       setReactionPickerMsg(null);
-                      try {
-                        await deleteDoc(doc(db, 'chats', ROOM_ID, 'messages', msg!.id));
-                      } catch {}
+                      if (msg) deleteMessage(msg.id);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete message"
                   >
                     <Ionicons name="trash-outline" size={16} color={Colors.error} />
                     <Text style={styles.deleteBtnText}>Delete message</Text>
@@ -639,6 +809,7 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -650,68 +821,155 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
     backgroundColor: Colors.background,
   },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: Spacing.sm },
-  title: { fontSize: FontSize.lg, fontWeight: '800', color: Colors.text, flex: 1, letterSpacing: -0.3 },
+  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+  },
+  title: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.heavy,
+    color: Colors.text,
+    flex: 1,
+    letterSpacing: -0.3,
+  },
   msgCount: { fontSize: FontSize.xs, color: Colors.textMuted },
-  participantsBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  participantsBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
   participantsBadge: {
-    position: 'absolute', top: 4, right: 4,
-    backgroundColor: Colors.primary, borderRadius: Radius.md,
-    minWidth: 16, height: 16,
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
   },
-  participantsBadgeText: { color: '#ffffff', fontSize: 9, fontWeight: '800' },
+  participantsBadgeText: { color: '#ffffff', fontSize: 9, fontWeight: FontWeight.heavy },
   participantsList: {
-    backgroundColor: Colors.surfaceRaised, borderBottomWidth: 1, borderBottomColor: Colors.border,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 4,
+    backgroundColor: Colors.surfaceRaised,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
   },
-  participantsLabel: { fontSize: FontSize.xs, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  participantsLabel: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.xs,
+  },
   participantItem: { fontSize: FontSize.sm, color: Colors.text },
-  messageList: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: 8, flexGrow: 1 },
-  bubbleContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  messageList: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    gap: Spacing.xs + 4,
+  },
+  messageListEmpty: {
+    flexGrow: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  skeletonList: { flex: 1, gap: Spacing.gutter },
+  bubbleContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.xs + 4 },
   ownBubbleContainer: { justifyContent: 'flex-end' },
   otherBubbleContainer: { justifyContent: 'flex-start' },
+  bubbleColumn: { maxWidth: '75%' },
   senderAvatar: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: Colors.primary + '44', alignItems: 'center', justifyContent: 'center',
+    width: 30,
+    height: 30,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  senderAvatarText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
+  senderAvatarText: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.md },
   otherBubble: {
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 0,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderBottomLeftRadius: 0,
   },
   ownBubble: { backgroundColor: Colors.primary, borderBottomRightRadius: 0 },
-  senderName: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: '700', marginBottom: 2 },
+  senderName: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: FontWeight.bold,
+    marginBottom: 2,
+  },
   bubbleText: { fontSize: FontSize.md, color: Colors.textSecondary, lineHeight: 22 },
   ownBubbleText: { color: '#ffffff' },
-  mentionText: { color: Colors.primary, fontWeight: '700' },
-  mentionTextOwn: { color: Colors.text, fontWeight: '700', textDecorationLine: 'underline' },
+  mentionText: { color: Colors.text, fontWeight: FontWeight.bold },
+  mentionTextOwn: { color: '#ffffff', fontWeight: FontWeight.bold, textDecorationLine: 'underline' },
   timestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 4, alignSelf: 'flex-end' },
-  ownTimestamp: { color: Colors.text + '88' },
+  ownTimestamp: { color: 'rgba(255,255,255,0.7)' },
   chatImage: { width: 200, height: 200, borderRadius: Radius.md, marginVertical: 2 },
-  reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4, marginHorizontal: 8 },
+  reactionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: 4,
+    marginHorizontal: 8,
+  },
   reactionsRowOwn: { justifyContent: 'flex-end' },
   reactionPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   reactionPillActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryBorder },
-  reactionEmoji: { fontSize: 13 },
-  reactionCount: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
+  reactionEmoji: { fontSize: 13, color: Colors.text },
+  reactionCount: { fontSize: 11, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   mentionList: {
-    backgroundColor: Colors.surfaceRaised, borderTopWidth: 1, borderTopColor: Colors.border,
+    backgroundColor: Colors.surfaceRaised,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
     maxHeight: 160,
   },
-  mentionItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  mentionAvatar: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Colors.primary + '44', alignItems: 'center', justifyContent: 'center',
+  mentionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  mentionAvatarText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
-  mentionName: { color: Colors.text, fontWeight: '600', fontSize: FontSize.sm },
-  mentionHandle: { color: Colors.primary, fontSize: FontSize.xs },
+  mentionAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mentionAvatarText: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  mentionName: { color: Colors.text, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  mentionHandle: { color: Colors.textMuted, fontSize: FontSize.xs },
   typingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -719,10 +977,12 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     backgroundColor: Colors.background,
   },
+  typingDots: { flexDirection: 'row', gap: 4, marginRight: 6, alignItems: 'center' },
+  typingDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.textMuted },
   typingText: { fontSize: FontSize.xs, color: Colors.textMuted, fontStyle: 'italic' },
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     paddingBottom: Platform.OS === 'ios' ? 28 : Spacing.md,
@@ -731,48 +991,78 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
   },
-  attachBtn: { padding: 6 },
+  attachBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   input: {
-    flex: 1, backgroundColor: Colors.backgroundAlt, borderWidth: 1.5, borderColor: Colors.border,
-    borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 10,
-    color: Colors.text, fontSize: FontSize.md, maxHeight: 100,
+    flex: 1,
+    backgroundColor: Colors.backgroundAlt,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    maxHeight: 100,
   },
   sendBtn: {
-    width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: Colors.border },
-  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 8 },
-  emptyChatText: { color: Colors.textSecondary, fontSize: FontSize.md, fontWeight: '600' },
+  sendBtnDisabled: { backgroundColor: Colors.surfaceRaised },
+  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: Spacing.xs + 4 },
+  emptyChatText: { color: Colors.textSecondary, fontSize: FontSize.md, fontWeight: FontWeight.semibold },
   emptyChatSub: { color: Colors.textMuted, fontSize: FontSize.sm },
   // Reaction picker modal
   pickerOverlay: {
-    flex: 1, backgroundColor: Colors.overlay,
-    alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pickerCard: {
     backgroundColor: Colors.backgroundAlt,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderRadius: Radius.md,
     padding: Spacing.md,
     alignItems: 'center',
     gap: 12,
     minWidth: 280,
   },
-  pickerHint: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  pickerRow: { flexDirection: 'row', gap: 8 },
+  pickerHint: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: FontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pickerRow: { flexDirection: 'row', gap: Spacing.xs + 4 },
   pickerEmoji: {
-    width: 44, height: 44, borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pickerEmojiActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryBorder },
-  pickerEmojiText: { fontSize: 22 },
+  pickerEmojiText: { fontSize: 22, color: Colors.text },
   deleteBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: Spacing.md, paddingVertical: 8,
-    borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.errorDim,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.errorDim,
     backgroundColor: Colors.errorDim,
   },
-  deleteBtnText: { color: Colors.error, fontSize: FontSize.sm, fontWeight: '600' },
+  deleteBtnText: { color: Colors.error, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
 });

@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
+  KeyboardTypeOptions,
   Platform,
   ScrollView,
   StyleSheet,
@@ -21,11 +22,33 @@ import {
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { getCities } from '../../lib/cities';
-import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '../../lib/theme';
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 import AnimatedButton from '../../components/AnimatedButton';
 
+type AutoCapitalize = 'none' | 'sentences' | 'words' | 'characters';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_RE = /^[a-zA-Z0-9_]+$/;
+const MIN_PASSWORD_LENGTH = 6;
+
 // ── GlassInput ──────────────────────────────────────────────────────────────
-function GlassInput({
+interface GlassInputProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  placeholder: string;
+  value: string;
+  onChangeText: (t: string) => void;
+  secureTextEntry?: boolean;
+  keyboardType?: KeyboardTypeOptions;
+  autoCapitalize?: AutoCapitalize;
+  editable?: boolean;
+  rightElement?: React.ReactNode;
+  maxLength?: number;
+  textContentType?: React.ComponentProps<typeof TextInput>['textContentType'];
+  onSubmitEditing?: () => void;
+  returnKeyType?: React.ComponentProps<typeof TextInput>['returnKeyType'];
+}
+
+const GlassInput = React.memo(function GlassInput({
   icon,
   placeholder,
   value,
@@ -36,19 +59,13 @@ function GlassInput({
   editable,
   rightElement,
   maxLength,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  placeholder: string;
-  value: string;
-  onChangeText: (t: string) => void;
-  secureTextEntry?: boolean;
-  keyboardType?: any;
-  autoCapitalize?: any;
-  editable?: boolean;
-  rightElement?: React.ReactNode;
-  maxLength?: number;
-}) {
+  textContentType,
+  onSubmitEditing,
+  returnKeyType,
+}: GlassInputProps) {
   const [focused, setFocused] = useState(false);
+  const handleFocus = useCallback(() => setFocused(true), []);
+  const handleBlur = useCallback(() => setFocused(false), []);
   return (
     <View
       style={[
@@ -70,16 +87,20 @@ function GlassInput({
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize ?? 'none'}
+        autoCorrect={false}
         editable={editable !== false}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         maxLength={maxLength}
+        textContentType={textContentType}
+        onSubmitEditing={onSubmitEditing}
+        returnKeyType={returnKeyType}
         style={inputStyles.input}
       />
       {rightElement}
     </View>
   );
-}
+});
 
 const inputStyles = StyleSheet.create({
   wrap: {
@@ -92,6 +113,7 @@ const inputStyles = StyleSheet.create({
     paddingVertical: 14,
     borderWidth: 1.5,
     borderColor: Colors.borderStrong,
+    minHeight: 52,
   },
   wrapFocused: {
     borderColor: Colors.primary,
@@ -104,42 +126,56 @@ const inputStyles = StyleSheet.create({
     color: Colors.text,
     fontSize: FontSize.md,
     lineHeight: 22,
+    paddingVertical: 0,
+  },
+  inputAsButton: {
+    flex: 1,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    lineHeight: 22,
+    paddingVertical: 0,
   },
 });
 
 // ── Password Strength Bar ─────────────────────────────────────────────────────
-function getPasswordStrength(pw: string): { label: string; color: string; segments: number } {
-  if (pw.length < 6) return { label: 'Too short', color: '#ef4444', segments: 1 };
+// Monochrome: meaning is carried by how many segments fill and the label text,
+// never by hue. All segments use a single neutral fill color.
+function getPasswordStrength(pw: string): { label: string; segments: number } {
+  if (pw.length < MIN_PASSWORD_LENGTH) return { label: 'Too short', segments: 1 };
   const hasUpper = /[A-Z]/.test(pw);
   const hasLower = /[a-z]/.test(pw);
   const hasNumber = /[0-9]/.test(pw);
   const hasSymbol = /[^A-Za-z0-9]/.test(pw);
   const score = [pw.length >= 8, hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
-  if (score <= 2) return { label: 'Weak', color: '#f97316', segments: 2 };
-  if (score === 3) return { label: 'Fair', color: '#eab308', segments: 3 };
-  if (score === 4) return { label: 'Strong', color: '#22c55e', segments: 4 };
-  return { label: 'Very strong', color: '#10b981', segments: 5 };
+  if (score <= 2) return { label: 'Weak', segments: 2 };
+  if (score === 3) return { label: 'Fair', segments: 3 };
+  if (score === 4) return { label: 'Strong', segments: 4 };
+  return { label: 'Very strong', segments: 5 };
 }
 
-function PasswordStrengthBar({ password }: { password: string }) {
-  const { label, color, segments } = getPasswordStrength(password);
+const PasswordStrengthBar = React.memo(function PasswordStrengthBar({
+  password,
+}: {
+  password: string;
+}) {
+  const { label, segments } = useMemo(() => getPasswordStrength(password), [password]);
   return (
-    <View style={{ gap: 4, marginTop: -4 }}>
-      <View style={{ flexDirection: 'row', gap: 3 }}>
+    <View style={styles.strengthWrap}>
+      <View style={styles.strengthBarRow}>
         {[1, 2, 3, 4, 5].map((i) => (
           <View
             key={i}
-            style={{
-              flex: 1, height: 3, borderRadius: 2,
-              backgroundColor: i <= segments ? color : Colors.border,
-            }}
+            style={[
+              styles.strengthSegment,
+              { backgroundColor: i <= segments ? Colors.text : Colors.border },
+            ]}
           />
         ))}
       </View>
-      <Text style={{ fontSize: 11, color, fontWeight: '600' }}>{label}</Text>
+      <Text style={styles.strengthLabel}>{label}</Text>
     </View>
   );
-}
+});
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 export default function LoginScreen() {
@@ -163,6 +199,7 @@ export default function LoginScreen() {
 
   // State
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState('');
   const [resetSent, setResetSent] = useState(false);
 
@@ -171,9 +208,12 @@ export default function LoginScreen() {
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const formOpacity = useRef(new Animated.Value(0)).current;
   const formTranslateY = useRef(new Animated.Value(32)).current;
+  // Guards against state updates after unmount (timeout / async).
+  const isMounted = useRef(true);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    Animated.sequence([
+    const animation = Animated.sequence([
       Animated.parallel([
         Animated.spring(logoScale, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
         Animated.timing(logoOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
@@ -182,54 +222,90 @@ export default function LoginScreen() {
         Animated.timing(formOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
         Animated.spring(formTranslateY, { toValue: 0, tension: 70, friction: 10, useNativeDriver: true }),
       ]),
-    ]).start();
-  }, []);
+    ]);
+    animation.start();
+    return () => {
+      isMounted.current = false;
+      animation.stop();
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    };
+  }, [logoScale, logoOpacity, formOpacity, formTranslateY]);
 
-  const allCities = getCities(countryCode);
-  const filteredCities = citySearch.trim()
-    ? allCities.filter((c) => c.toLowerCase().includes(citySearch.toLowerCase()))
-    : allCities;
+  const allCities = useMemo(() => getCities(countryCode), [countryCode]);
+  const filteredCities = useMemo(() => {
+    const term = citySearch.trim().toLowerCase();
+    if (!term) return allCities;
+    return allCities.filter((c) => c.toLowerCase().includes(term));
+  }, [allCities, citySearch]);
 
   // ── Auth handlers ───────────────────────────────────────────────────────
-  const handleAuth = async () => {
+  const handleAuth = useCallback(async () => {
+    if (loading) return;
     setError('');
+
+    const trimmedEmail = email.trim();
+    const trimmedUsername = username.trim();
+    const trimmedDisplayName = displayName.trim();
+
+    // ── Shared client-side validation ──
+    if (!trimmedEmail) {
+      setError('Please enter your email address');
+      return;
+    }
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
+
+    // ── Register-only validation ──
+    if (mode === 'register') {
+      if (!trimmedDisplayName) {
+        setError('Please enter a display name');
+        return;
+      }
+      if (!trimmedUsername) {
+        setError('Username is required');
+        return;
+      }
+      if (!USERNAME_RE.test(trimmedUsername)) {
+        setError('Username can only contain letters, numbers, and underscores');
+        return;
+      }
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+        return;
+      }
+      if (!country) {
+        setError('Please select your country');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (mode === 'login') {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, trimmedEmail, password);
       } else {
-        if (!username.trim()) {
-          setError('Username is required');
-          setLoading(false);
-          return;
-        }
-        if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
-          setError('Username can only contain letters, numbers, and underscores');
-          setLoading(false);
-          return;
-        }
-        if (!country) {
-          setError('Please select your country');
-          setLoading(false);
-          return;
-        }
         const taken = await getDocs(
-          query(collection(db, 'users'), where('usernameLower', '==', username.trim().toLowerCase()))
+          query(collection(db, 'users'), where('usernameLower', '==', trimmedUsername.toLowerCase()))
         );
         if (!taken.empty) {
-          const base = username.trim().replace(/\d+$/, '');
+          const base = trimmedUsername.replace(/\d+$/, '');
           const suggestions = [base + '1', base + '2', base + '_' + Math.floor(Math.random() * 99 + 1)];
           setError(`Username taken. Try: ${suggestions.join(', ')}`);
-          setLoading(false);
           return;
         }
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
         await setDoc(doc(db, 'users', cred.user.uid), {
-          displayName,
-          username: username.trim(),
-          usernameLower: username.trim().toLowerCase(),
-          email,
-          country: country.name || countryCode,
+          displayName: trimmedDisplayName,
+          username: trimmedUsername,
+          usernameLower: trimmedUsername.toLowerCase(),
+          email: trimmedEmail,
+          country: country?.name || countryCode,
           countryCode,
           city,
           createdAt: serverTimestamp(),
@@ -242,39 +318,106 @@ export default function LoginScreen() {
       if (
         code === 'auth/user-not-found' ||
         code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential' ||
-        code === 'auth/invalid-email'
+        code === 'auth/invalid-credential'
       ) {
         setError('Incorrect email or password');
+      } else if (code === 'auth/invalid-email') {
+        setError('Please enter a valid email address');
       } else if (code === 'auth/email-already-in-use') {
         setError('An account with this email already exists');
       } else if (code === 'auth/too-many-requests') {
         setError('Too many attempts. Please try again later');
       } else if (code === 'auth/weak-password') {
-        setError('Password must be at least 6 characters');
+        setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      } else if (code === 'auth/network-request-failed') {
+        setError('Network error. Check your connection and try again');
       } else {
         setError('Something went wrong. Please try again');
       }
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
-  };
+  }, [loading, email, username, displayName, password, mode, country, countryCode, city, router]);
 
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      setError('Enter your email above first, then tap Forgot Password');
+  const handleForgotPassword = useCallback(async () => {
+    if (resetting) return;
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Enter your email above first, then tap Forgot password');
       return;
     }
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    setResetting(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendPasswordResetEmail(auth, trimmedEmail);
+      if (!isMounted.current) return;
       setResetSent(true);
       setError('');
+      if (resetTimer.current) clearTimeout(resetTimer.current);
       // Auto-dismiss the confirmation after 4 seconds
-      setTimeout(() => setResetSent(false), 4000);
-    } catch {
-      setError('Something went wrong. Please try again');
+      resetTimer.current = setTimeout(() => {
+        if (isMounted.current) setResetSent(false);
+      }, 4000);
+    } catch (e: any) {
+      const code = e?.code || '';
+      if (code === 'auth/user-not-found') {
+        // Don't reveal whether an account exists; show the same success state.
+        if (isMounted.current) {
+          setResetSent(true);
+          setError('');
+        }
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many attempts. Please try again later');
+      } else if (code === 'auth/network-request-failed') {
+        setError('Network error. Check your connection and try again');
+      } else {
+        setError('Something went wrong. Please try again');
+      }
+    } finally {
+      if (isMounted.current) setResetting(false);
     }
-  };
+  }, [resetting, email]);
+
+  const handleSelectMode = useCallback((m: 'login' | 'register') => {
+    setMode(m);
+    setError('');
+    setResetSent(false);
+    // Clear all fields so register data doesn't bleed into login and vice versa.
+    setPassword('');
+    setDisplayName('');
+    setUsername('');
+    setCity('');
+    setCitySearch('');
+    setShowCities(false);
+    setShowPassword(false);
+  }, []);
+
+  const toggleShowPassword = useCallback(() => setShowPassword((v) => !v), []);
+  const handleUsernameChange = useCallback(
+    (t: string) => setUsername(t.replace(/[^a-zA-Z0-9_]/g, '')),
+    []
+  );
+  const openCountryPicker = useCallback(() => setCountryPickerVisible(true), []);
+  const closeCountryPicker = useCallback(() => setCountryPickerVisible(false), []);
+  const toggleCities = useCallback(() => setShowCities((v) => !v), []);
+  const handleSelectCountry = useCallback((c: Country) => {
+    setCountryCode(c.cca2);
+    setCountry(c);
+    setCity('');
+    setCitySearch('');
+    setShowCities(false);
+    setCountryPickerVisible(false);
+  }, []);
+  const handleSelectCity = useCallback((c: string) => {
+    setCity(c);
+    setShowCities(false);
+    setCitySearch('');
+  }, []);
+
+  const submitLabel = mode === 'login' ? 'Sign In' : 'Create Account';
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -285,6 +428,7 @@ export default function LoginScreen() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
       >
         {/* ── Logo Section ── */}
@@ -300,7 +444,9 @@ export default function LoginScreen() {
             <View style={styles.logoRing}>
               {/* Inner circle */}
               <View style={styles.logoCircle}>
-                <Text style={styles.logoLetter}>Q</Text>
+                <Text style={styles.logoLetter} allowFontScaling={false}>
+                  Q
+                </Text>
               </View>
             </View>
           </View>
@@ -315,46 +461,41 @@ export default function LoginScreen() {
 
         {/* ── Form Section ── */}
         <Animated.View
-          style={{
-            opacity: formOpacity,
-            transform: [{ translateY: formTranslateY }],
-          }}
+          style={[
+            styles.formSection,
+            { opacity: formOpacity, transform: [{ translateY: formTranslateY }] },
+          ]}
         >
           {/* ── Tab Switcher ── */}
           <View style={styles.tabContainer}>
-            {(['login', 'register'] as const).map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.tab, mode === m && styles.tabActive]}
-                onPress={() => {
-                  setMode(m);
-                  setError('');
-                  setResetSent(false);
-                  // Clear all fields so register data doesn't bleed into login and vice versa
-                  setPassword('');
-                  setDisplayName('');
-                  setUsername('');
-                  setCity('');
-                  setCitySearch('');
-                  setShowPassword(false);
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={
-                    m === 'login'
-                      ? mode === m ? 'log-in' : 'log-in-outline'
-                      : mode === m ? 'person-add' : 'person-add-outline'
-                  }
-                  size={15}
-                  color={mode === m ? Colors.text : Colors.textSecondary}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={[styles.tabText, mode === m && styles.tabTextActive]}>
-                  {m === 'login' ? 'Log In' : 'Register'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {(['login', 'register'] as const).map((m) => {
+              const isActive = mode === m;
+              const label = m === 'login' ? 'Log In' : 'Register';
+              return (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.tab, isActive && styles.tabActive]}
+                  onPress={() => handleSelectMode(m)}
+                  activeOpacity={0.8}
+                  disabled={loading}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isActive }}
+                  accessibilityLabel={label}
+                >
+                  <Ionicons
+                    name={
+                      m === 'login'
+                        ? isActive ? 'log-in' : 'log-in-outline'
+                        : isActive ? 'person-add' : 'person-add-outline'
+                    }
+                    size={15}
+                    color={isActive ? '#ffffff' : Colors.textSecondary}
+                    style={styles.tabIcon}
+                  />
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* ── Form Card ── */}
@@ -368,13 +509,16 @@ export default function LoginScreen() {
                   onChangeText={setDisplayName}
                   autoCapitalize="words"
                   maxLength={50}
+                  textContentType="name"
                 />
                 <GlassInput
                   icon="at-outline"
                   placeholder="username"
                   value={username}
-                  onChangeText={(t) => setUsername(t.replace(/[^a-zA-Z0-9_]/g, ''))}
+                  onChangeText={handleUsernameChange}
                   autoCapitalize="none"
+                  maxLength={30}
+                  textContentType="username"
                 />
               </>
             )}
@@ -386,6 +530,7 @@ export default function LoginScreen() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              textContentType="emailAddress"
             />
 
             <GlassInput
@@ -395,11 +540,16 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
+              textContentType={mode === 'register' ? 'newPassword' : 'password'}
+              returnKeyType="go"
+              onSubmitEditing={mode === 'login' ? handleAuth : undefined}
               rightElement={
                 <TouchableOpacity
-                  onPress={() => setShowPassword((v) => !v)}
+                  onPress={toggleShowPassword}
                   style={styles.eyeBtn}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={styles.eyeHitSlop}
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -422,9 +572,9 @@ export default function LoginScreen() {
                       name="checkmark-circle"
                       size={14}
                       color={Colors.success}
-                      style={{ marginRight: 4 }}
+                      style={styles.resetSentIcon}
                     />
-                    <Text style={styles.resetSentText}>Reset email sent! Check your inbox.</Text>
+                    <Text style={styles.resetSentText}>Reset email sent. Check your inbox.</Text>
                   </View>
                 ) : (
                   <AnimatedButton
@@ -432,6 +582,8 @@ export default function LoginScreen() {
                     onPress={handleForgotPassword}
                     variant="ghost"
                     size="sm"
+                    loading={resetting}
+                    disabled={resetting || loading}
                   />
                 )}
               </View>
@@ -440,21 +592,24 @@ export default function LoginScreen() {
             {mode === 'register' && (
               <>
                 {/* Country picker */}
-                <Text style={styles.sectionLabel}>
+                <View style={styles.sectionLabelRow}>
                   <Ionicons name="earth-outline" size={13} color={Colors.textSecondary} />
-                  {'  '}Where are you located?
-                </Text>
+                  <Text style={styles.sectionLabel}>Where are you located?</Text>
+                </View>
 
                 <TouchableOpacity
                   style={inputStyles.wrap}
-                  onPress={() => setCountryPickerVisible(true)}
+                  onPress={openCountryPicker}
                   activeOpacity={0.8}
+                  disabled={loading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Select your country"
                 >
                   <Ionicons name="globe-outline" size={18} color={Colors.textMuted} />
                   <Text
                     style={[
-                      inputStyles.input,
-                      { paddingVertical: 0, color: country ? Colors.text : Colors.textMuted },
+                      inputStyles.inputAsButton,
+                      country ? styles.pickerValue : styles.pickerPlaceholder,
                     ]}
                   >
                     {country ? (country.name as string) : 'Select your country'}
@@ -463,7 +618,7 @@ export default function LoginScreen() {
                 </TouchableOpacity>
 
                 {/* Hidden CountryPicker trigger */}
-                <View style={{ height: 0, overflow: 'hidden' }}>
+                <View style={styles.hiddenPicker}>
                   <CountryPicker
                     countryCode={countryCode}
                     withFilter
@@ -471,46 +626,33 @@ export default function LoginScreen() {
                     withCountryNameButton
                     withAlphaFilter
                     visible={countryPickerVisible}
-                    onClose={() => setCountryPickerVisible(false)}
-                    onSelect={(c: Country) => {
-                      setCountryCode(c.cca2);
-                      setCountry(c);
-                      setCity('');
-                      setCitySearch('');
-                      setShowCities(false);
-                      setCountryPickerVisible(false);
-                    }}
-                    theme={{
-                      backgroundColor: Colors.surfaceRaised,
-                      onBackgroundTextColor: Colors.text,
-                      fontSize: FontSize.md,
-                      filterPlaceholderTextColor: Colors.textMuted,
-                      activeOpacity: 0.7,
-                      itemHeight: 44,
-                      flagSizeButton: 24,
-                      flagSize: 24,
-                    }}
+                    onClose={closeCountryPicker}
+                    onSelect={handleSelectCountry}
+                    theme={countryPickerTheme}
                   />
                 </View>
 
                 {/* City picker */}
                 {country && (
                   <>
-                    <Text style={styles.sectionLabel}>
+                    <View style={styles.sectionLabelRow}>
                       <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
-                      {'  '}City
-                    </Text>
+                      <Text style={styles.sectionLabel}>City</Text>
+                    </View>
 
                     <TouchableOpacity
                       style={inputStyles.wrap}
-                      onPress={() => setShowCities(!showCities)}
+                      onPress={toggleCities}
                       activeOpacity={0.8}
+                      disabled={loading}
+                      accessibilityRole="button"
+                      accessibilityLabel="Select your city"
                     >
                       <Ionicons name="location-outline" size={18} color={Colors.textMuted} />
                       <Text
                         style={[
-                          inputStyles.input,
-                          { paddingVertical: 0, color: city ? Colors.text : Colors.textMuted },
+                          inputStyles.inputAsButton,
+                          city ? styles.pickerValue : styles.pickerPlaceholder,
                         ]}
                       >
                         {city || 'Select your city'}
@@ -529,7 +671,7 @@ export default function LoginScreen() {
                             name="search-outline"
                             size={16}
                             color={Colors.textMuted}
-                            style={{ marginRight: 8 }}
+                            style={styles.citySearchIcon}
                           />
                           <TextInput
                             style={styles.citySearchInput}
@@ -537,33 +679,38 @@ export default function LoginScreen() {
                             placeholderTextColor={Colors.textMuted}
                             value={citySearch}
                             onChangeText={setCitySearch}
+                            autoCorrect={false}
                             autoFocus
                           />
                         </View>
                         <ScrollView
-                          style={{ maxHeight: 220 }}
+                          style={styles.cityList}
                           keyboardShouldPersistTaps="handled"
                           nestedScrollEnabled
                         >
-                          {(filteredCities.length > 0 ? filteredCities : ['Other']).map((c) => (
-                            <TouchableOpacity
-                              key={c}
-                              style={styles.cityItem}
-                              onPress={() => {
-                                setCity(c);
-                                setShowCities(false);
-                                setCitySearch('');
-                              }}
-                            >
-                              <Ionicons
-                                name="location-outline"
-                                size={14}
-                                color={Colors.textMuted}
-                                style={{ marginRight: 10 }}
-                              />
-                              <Text style={styles.cityItemText}>{c}</Text>
-                            </TouchableOpacity>
-                          ))}
+                          {filteredCities.length > 0 ? (
+                            filteredCities.map((c) => (
+                              <TouchableOpacity
+                                key={c}
+                                style={styles.cityItem}
+                                onPress={() => handleSelectCity(c)}
+                                accessibilityRole="button"
+                                accessibilityLabel={c}
+                              >
+                                <Ionicons
+                                  name="location-outline"
+                                  size={14}
+                                  color={Colors.textMuted}
+                                  style={styles.cityItemIcon}
+                                />
+                                <Text style={styles.cityItemText}>{c}</Text>
+                              </TouchableOpacity>
+                            ))
+                          ) : (
+                            <View style={styles.cityEmpty}>
+                              <Text style={styles.cityEmptyText}>No matching cities</Text>
+                            </View>
+                          )}
                         </ScrollView>
                       </View>
                     )}
@@ -574,24 +721,25 @@ export default function LoginScreen() {
 
             {/* Error display */}
             {error ? (
-              <View style={styles.errorRow}>
+              <View style={styles.errorRow} accessibilityLiveRegion="polite">
                 <Ionicons
                   name="alert-circle-outline"
                   size={16}
                   color={Colors.error}
-                  style={{ marginRight: 6 }}
+                  style={styles.errorIcon}
                 />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
             <AnimatedButton
-              label={loading ? '...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+              label={submitLabel}
               onPress={handleAuth}
               variant="primary"
               size="lg"
+              loading={loading}
               disabled={loading}
-              style={{ marginTop: 4 }}
+              style={styles.submitBtn}
             />
           </View>
         </Animated.View>
@@ -599,6 +747,18 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+// CountryPicker theme — hoisted so it isn't re-created every render.
+const countryPickerTheme = {
+  backgroundColor: Colors.surfaceRaised,
+  onBackgroundTextColor: Colors.text,
+  fontSize: FontSize.md,
+  filterPlaceholderTextColor: Colors.textMuted,
+  activeOpacity: 0.7,
+  itemHeight: 44,
+  flagSizeButton: 24,
+  flagSize: 24,
+};
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -612,11 +772,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: 60,
   },
+  formSection: {
+    width: '100%',
+  },
 
   // ── Logo section ──
   logoSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: Spacing.xl,
   },
   logoOuterGlow: {
     width: 130,
@@ -632,7 +795,7 @@ const styles = StyleSheet.create({
     height: 104,
     borderRadius: 52,
     borderWidth: 1.5,
-    borderColor: Colors.primary + '90',
+    borderColor: Colors.primaryBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -647,7 +810,7 @@ const styles = StyleSheet.create({
   logoLetter: {
     fontSize: 38,
     fontWeight: FontWeight.heavy,
-    color: '#fff',
+    color: '#ffffff',
     lineHeight: 44,
   },
   appName: {
@@ -689,13 +852,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 12,
     borderRadius: Radius.md,
     gap: 6,
+    minHeight: 44,
   },
   tabActive: {
     backgroundColor: Colors.primary,
+  },
+  tabIcon: {
+    marginRight: 6,
   },
   tabText: {
     fontSize: FontSize.sm,
@@ -721,15 +888,9 @@ const styles = StyleSheet.create({
   eyeBtn: {
     paddingLeft: 6,
   },
-  hintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: -2,
-  },
-  hintText: {
-    color: Colors.textMuted,
-    fontSize: FontSize.xs,
-    flex: 1,
+  eyeHitSlop: { top: 8, bottom: 8, left: 8, right: 8 },
+  submitBtn: {
+    marginTop: Spacing.xs,
   },
   forgotRow: {
     alignItems: 'flex-end',
@@ -738,6 +899,10 @@ const styles = StyleSheet.create({
   resetSentRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 6,
+  },
+  resetSentIcon: {
+    marginRight: 4,
   },
   resetSentText: {
     color: Colors.success,
@@ -745,13 +910,50 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semibold,
   },
 
+  // ── Password strength ──
+  strengthWrap: {
+    gap: 4,
+    marginTop: -4,
+  },
+  strengthBarRow: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  strengthSegment: {
+    flex: 1,
+    height: 3,
+    borderRadius: 2,
+  },
+  strengthLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.semibold,
+  },
+
+  // ── Pickers (country / city) ──
+  pickerValue: {
+    color: Colors.text,
+  },
+  pickerPlaceholder: {
+    color: Colors.textMuted,
+  },
+  hiddenPicker: {
+    height: 0,
+    overflow: 'hidden',
+  },
+
   // ── Location section ──
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+    marginBottom: -2,
+  },
   sectionLabel: {
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
-    marginBottom: -2,
-    marginTop: 2,
   },
 
   // ── City dropdown ──
@@ -770,11 +972,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     backgroundColor: Colors.background,
   },
+  citySearchIcon: {
+    marginRight: 8,
+  },
   citySearchInput: {
     flex: 1,
     paddingVertical: 11,
     color: Colors.text,
     fontSize: FontSize.md,
+  },
+  cityList: {
+    maxHeight: 220,
   },
   cityItem: {
     flexDirection: 'row',
@@ -783,26 +991,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    minHeight: 44,
+  },
+  cityItemIcon: {
+    marginRight: 10,
   },
   cityItemText: {
     color: Colors.text,
     fontSize: FontSize.md,
+  },
+  cityEmpty: {
+    paddingVertical: 16,
+    paddingHorizontal: Spacing.md,
+    alignItems: 'center',
+  },
+  cityEmptyText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
   },
 
   // ── Error ──
   errorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.error + '15',
+    backgroundColor: Colors.errorDim,
     borderRadius: Radius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: Colors.error + '40',
+    borderColor: Colors.borderStrong,
+  },
+  errorIcon: {
+    marginRight: 6,
   },
   errorText: {
     color: Colors.error,
     fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
     flex: 1,
   },
 });

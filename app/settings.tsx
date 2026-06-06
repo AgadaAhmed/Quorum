@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useToast } from '../components/Toast';
 import { signOut, deleteUser, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { auth, db } from '../lib/firebase';
 import { useSubscription } from '../hooks/useSubscription';
@@ -22,22 +22,37 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
+type IconName = keyof typeof Ionicons.glyphMap;
+
+const APP_VERSION = 'Quorum v1.0.0';
+const SUPPORT_EMAIL = 'support@quorum.app';
+
+// Shared inline-style replacements (declared once, not per-render).
+const FLEX_1 = { flex: 1 } as const;
+const HEADER_SPACER = { width: 36 } as const;
+
 export default function SettingsScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
+  const { isPro } = useSubscription();
+
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showInSearch, setShowInSearch] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
   const [privateProfile, setPrivateProfile] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  const { showToast } = useToast();
-  const { isPro } = useSubscription();
-  const uid = auth.currentUser?.uid || '';
 
+  const user = auth.currentUser;
+  const uid = user?.uid ?? '';
+  const email = user?.email ?? '';
+
+  // Redirect unauthenticated users to login.
   useEffect(() => {
     if (!auth.currentUser) router.replace('/(auth)/login');
-  }, []);
+  }, [router]);
 
+  // Live-sync preference toggles from Firestore.
   useEffect(() => {
     if (!uid) return;
     const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
@@ -50,31 +65,60 @@ export default function SettingsScreen() {
     return unsub;
   }, [uid]);
 
-  const toggleShowLocation = async (val: boolean) => {
-    setShowLocation(val);
-    if (!uid) return;
-    await updateDoc(doc(db, 'users', uid), { showLocation: val });
-  };
+  // Single optimistic-update helper for all boolean prefs. Applies local state
+  // immediately, persists, and reverts + toasts on failure.
+  const updatePref = useCallback(
+    async (
+      key: 'notificationsEnabled' | 'showInSearch' | 'showLocation' | 'privateProfile',
+      value: boolean,
+      setLocal: (v: boolean) => void,
+    ) => {
+      if (!uid) return;
+      Haptics.selectionAsync();
+      setLocal(value);
+      try {
+        await updateDoc(doc(db, 'users', uid), { [key]: value });
+      } catch {
+        setLocal(!value);
+        showToast('Failed to save setting', 'error');
+      }
+    },
+    [uid, showToast],
+  );
 
-  const togglePrivateProfile = async (val: boolean) => {
-    setPrivateProfile(val);
-    if (!uid) return;
-    await updateDoc(doc(db, 'users', uid), { privateProfile: val });
-  };
+  const onToggleNotifications = useCallback(
+    (v: boolean) => updatePref('notificationsEnabled', v, setNotificationsEnabled),
+    [updatePref],
+  );
+  const onToggleSearch = useCallback(
+    (v: boolean) => updatePref('showInSearch', v, setShowInSearch),
+    [updatePref],
+  );
+  const onToggleLocation = useCallback(
+    (v: boolean) => updatePref('showLocation', v, setShowLocation),
+    [updatePref],
+  );
+  const onTogglePrivate = useCallback(
+    (v: boolean) => updatePref('privateProfile', v, setPrivateProfile),
+    [updatePref],
+  );
 
-  const updatePref = async (key: string, value: boolean) => {
-    Haptics.selectionAsync();
-    try {
-      await updateDoc(doc(db, 'users', uid), { [key]: value });
-    } catch {
-      // Revert local state on failure
-      if (key === 'notificationsEnabled') setNotificationsEnabled(!value);
-      if (key === 'showInSearch') setShowInSearch(!value);
-      showToast('Failed to save setting', 'error');
-    }
-  };
+  const handleManageSubscription = useCallback(() => {
+    const url =
+      Platform.OS === 'ios'
+        ? 'https://apps.apple.com/account/subscriptions'
+        : 'https://play.google.com/store/account/subscriptions';
+    Linking.openURL(url).catch(() => showToast('Could not open subscriptions', 'error'));
+  }, [showToast]);
 
-  const handleSignOut = () => {
+  const openUrl = useCallback(
+    (url: string) => {
+      Linking.openURL(url).catch(() => showToast('Could not open link', 'error'));
+    },
+    [showToast],
+  );
+
+  const handleSignOut = useCallback(() => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -91,20 +135,22 @@ export default function SettingsScreen() {
         },
       },
     ]);
-  };
+  }, [router, showToast]);
 
-  const handleChangePassword = async () => {
-    const email = auth.currentUser?.email;
-    if (!email) return;
+  const handleChangePassword = useCallback(async () => {
+    if (!email) {
+      showToast('No email on file', 'error');
+      return;
+    }
     try {
       await sendPasswordResetEmail(auth, email);
       Alert.alert('Email Sent', `A password reset link has been sent to ${email}.`);
     } catch {
       Alert.alert('Error', 'Failed to send reset email. Please try again.');
     }
-  };
+  }, [email, showToast]);
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = useCallback(() => {
     Alert.alert(
       'Delete Account',
       'This will permanently delete your account and all your data. This cannot be undone.',
@@ -123,35 +169,56 @@ export default function SettingsScreen() {
                   text: 'Yes, Delete',
                   style: 'destructive',
                   onPress: async () => {
-                    setLoading(true);
+                    const current = auth.currentUser;
+                    if (!current || !uid) return;
+                    setDeleting(true);
                     try {
                       await deleteDoc(doc(db, 'users', uid));
-                      const user = auth.currentUser;
-                      if (user) await deleteUser(user);
+                      await deleteUser(current);
                       router.replace('/(auth)/login');
-                    } catch (e: any) {
-                      Alert.alert('Error', e.message || 'Failed to delete account. You may need to sign in again.');
+                    } catch (e) {
+                      const msg =
+                        e instanceof Error
+                          ? e.message
+                          : 'Failed to delete account. You may need to sign in again.';
+                      Alert.alert('Error', msg);
                     } finally {
-                      setLoading(false);
+                      setDeleting(false);
                     }
                   },
                 },
-              ]
+              ],
             );
           },
         },
-      ]
+      ],
     );
-  };
+  }, [router, uid]);
+
+  const handleBack = useCallback(() => router.back(), [router]);
+  const openPaywall = useCallback(() => setShowPaywall(true), []);
+  const closePaywall = useCallback(() => setShowPaywall(false), []);
+  const contactSupport = useCallback(() => openUrl(`mailto:${SUPPORT_EMAIL}`), [openUrl]);
+  const openPrivacy = useCallback(() => openUrl('https://quorum.app/privacy'), [openUrl]);
+  const openTerms = useCallback(() => openUrl('https://quorum.app/terms'), [openUrl]);
+
+  const shortUid = useMemo(() => (uid ? `${uid.slice(0, 16)}…` : '—'), [uid]);
 
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backBtn}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={HIT_SLOP}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Settings</Text>
-        <View style={{ width: 36 }} />
+        <View style={HEADER_SPACER} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -159,15 +226,26 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>Subscription</Text>
         <View style={styles.section}>
           <View style={styles.settingRow}>
-            <Ionicons name="star-outline" size={20} color={isPro ? Colors.primary : Colors.textSecondary} style={{ marginRight: 4 }} />
-            <View style={{ flex: 1 }}>
+            <Ionicons
+              name="star-outline"
+              size={20}
+              color={isPro ? Colors.primary : Colors.textSecondary}
+              style={styles.rowIcon}
+            />
+            <View style={FLEX_1}>
               <Text style={styles.settingLabel}>Current plan</Text>
-              <Text style={[styles.planValue, isPro && { color: Colors.primary }]}>
+              <Text style={[styles.planValue, isPro && styles.planValuePro]}>
                 {isPro ? 'Quorum Pro' : 'Free'}
               </Text>
             </View>
             {!isPro && (
-              <TouchableOpacity style={styles.upgradeBadge} onPress={() => setShowPaywall(true)}>
+              <TouchableOpacity
+                style={styles.upgradeBadge}
+                onPress={openPaywall}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Upgrade to Quorum Pro"
+              >
                 <Text style={styles.upgradeBadgeText}>Upgrade</Text>
               </TouchableOpacity>
             )}
@@ -175,18 +253,11 @@ export default function SettingsScreen() {
           {isPro && (
             <>
               <View style={styles.divider} />
-              <TouchableOpacity
-                style={styles.actionRow}
-                onPress={() => Linking.openURL(
-                  Platform.OS === 'ios'
-                    ? 'https://apps.apple.com/account/subscriptions'
-                    : 'https://play.google.com/store/account/subscriptions'
-                )}
-              >
-                <Ionicons name="open-outline" size={22} color={Colors.textSecondary} />
-                <Text style={styles.actionLabel}>Manage subscription</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-              </TouchableOpacity>
+              <ActionRow
+                icon="open-outline"
+                label="Manage subscription"
+                onPress={handleManageSubscription}
+              />
             </>
           )}
         </View>
@@ -198,10 +269,7 @@ export default function SettingsScreen() {
             label="Push Notifications"
             description="Get notified about plan updates and friend requests"
             value={notificationsEnabled}
-            onValueChange={(v) => {
-              setNotificationsEnabled(v);
-              updatePref('notificationsEnabled', v);
-            }}
+            onValueChange={onToggleNotifications}
             icon="notifications-outline"
           />
           <View style={styles.divider} />
@@ -209,10 +277,7 @@ export default function SettingsScreen() {
             label="Appear in Search"
             description="Allow other users to find you by name or username"
             value={showInSearch}
-            onValueChange={(v) => {
-              setShowInSearch(v);
-              updatePref('showInSearch', v);
-            }}
+            onValueChange={onToggleSearch}
             icon="eye-outline"
           />
         </View>
@@ -220,138 +285,176 @@ export default function SettingsScreen() {
         {/* Privacy */}
         <Text style={styles.sectionLabel}>Privacy</Text>
         <View style={styles.section}>
-          <View style={styles.settingRow}>
-            <Ionicons name="location-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 4 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingLabel}>Show location on profile</Text>
-              <Text style={styles.settingDesc}>Display your city publicly</Text>
-            </View>
-            <Switch
-              value={showLocation}
-              onValueChange={toggleShowLocation}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor={Colors.text}
-            />
-          </View>
+          <SettingRow
+            label="Show location on profile"
+            description="Display your city publicly"
+            value={showLocation}
+            onValueChange={onToggleLocation}
+            icon="location-outline"
+          />
           <View style={styles.divider} />
-          <View style={styles.settingRow}>
-            <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 4 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingLabel}>Private profile</Text>
-              <Text style={styles.settingDesc}>Only friends can see your plans</Text>
-            </View>
-            <Switch
-              value={privateProfile}
-              onValueChange={togglePrivateProfile}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor={Colors.text}
-            />
-          </View>
+          <SettingRow
+            label="Private profile"
+            description="Only friends can see your plans"
+            value={privateProfile}
+            onValueChange={onTogglePrivate}
+            icon="lock-closed-outline"
+          />
         </View>
 
         {/* Help & About */}
         <Text style={styles.sectionLabel}>Help & About</Text>
         <View style={styles.section}>
-          <TouchableOpacity style={styles.actionRow} onPress={() => Linking.openURL('mailto:support@quorum.app')}>
-            <Ionicons name="mail-outline" size={22} color={Colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.actionLabel, { color: Colors.primary }]}>Contact Support</Text>
-              <Text style={styles.actionDesc}>support@quorum.app</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <ActionRow
+            icon="mail-outline"
+            label="Contact Support"
+            description={SUPPORT_EMAIL}
+            onPress={contactSupport}
+            emphasize
+          />
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.actionRow} onPress={() => Linking.openURL('https://quorum.app/privacy')}>
-            <Ionicons name="document-text-outline" size={22} color={Colors.textSecondary} />
-            <Text style={styles.actionLabel}>Privacy Policy</Text>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <ActionRow icon="document-text-outline" label="Privacy Policy" onPress={openPrivacy} />
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.actionRow} onPress={() => Linking.openURL('https://quorum.app/terms')}>
-            <Ionicons name="shield-checkmark-outline" size={22} color={Colors.textSecondary} />
-            <Text style={styles.actionLabel}>Terms of Service</Text>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <ActionRow icon="shield-checkmark-outline" label="Terms of Service" onPress={openTerms} />
         </View>
 
         {/* Account */}
         <Text style={styles.sectionLabel}>Account</Text>
         <View style={styles.section}>
           <View style={styles.infoRow}>
-            <Ionicons name="mail-outline" size={18} color={Colors.textMuted} style={{ marginRight: 8 }} />
+            <Ionicons name="mail-outline" size={18} color={Colors.textMuted} style={styles.infoIcon} />
             <Text style={styles.infoLabel}>Email</Text>
-            <Text style={styles.infoValue}>{auth.currentUser?.email || '—'}</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {email || '—'}
+            </Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.infoRow}>
-            <Ionicons name="finger-print-outline" size={18} color={Colors.textMuted} style={{ marginRight: 8 }} />
+            <Ionicons
+              name="finger-print-outline"
+              size={18}
+              color={Colors.textMuted}
+              style={styles.infoIcon}
+            />
             <Text style={styles.infoLabel}>User ID</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>{uid.slice(0, 16)}…</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {shortUid}
+            </Text>
           </View>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.actionRow} onPress={handleChangePassword}>
-            <Ionicons name="key-outline" size={22} color={Colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.actionLabel, { color: Colors.primary }]}>Change Password</Text>
-              <Text style={styles.actionDesc}>Send a reset link to your email</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <ActionRow
+            icon="key-outline"
+            label="Change Password"
+            description="Send a reset link to your email"
+            onPress={handleChangePassword}
+            emphasize
+          />
         </View>
 
         {/* Actions */}
         <Text style={styles.sectionLabel}>Actions</Text>
         <View style={styles.section}>
-          <TouchableOpacity style={styles.actionRow} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={22} color={Colors.error} />
-            <Text style={styles.actionLabel}>Sign Out</Text>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <ActionRow icon="log-out-outline" label="Sign Out" onPress={handleSignOut} />
         </View>
 
         {/* Danger Zone */}
-        <Text style={[styles.sectionLabel, { color: Colors.error }]}>Danger Zone</Text>
+        <Text style={[styles.sectionLabel, styles.dangerLabel]}>Danger Zone</Text>
         <View style={[styles.section, styles.dangerSection]}>
-          <TouchableOpacity style={styles.actionRow} onPress={handleDeleteAccount} disabled={loading}>
-            <Ionicons name="warning-outline" size={22} color={Colors.error} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.actionLabel, { color: Colors.error }]}>Delete Account</Text>
-              <Text style={styles.actionDesc}>Permanently delete all your data</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <ActionRow
+            icon="warning-outline"
+            label="Delete Account"
+            description="Permanently delete all your data"
+            onPress={handleDeleteAccount}
+            disabled={deleting}
+            danger
+          />
         </View>
 
-        <Text style={styles.version}>Quorum v1.0.0</Text>
+        <Text style={styles.version}>{APP_VERSION}</Text>
       </ScrollView>
 
-      <PaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-      />
+      <PaywallModal visible={showPaywall} onClose={closePaywall} />
     </ScreenWrapper>
   );
 }
 
-function SettingRow({ label, description, value, onValueChange, icon }: {
-  label: string; description: string; value: boolean; onValueChange: (v: boolean) => void; icon?: keyof typeof Ionicons.glyphMap;
+const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
+
+const SettingRow = React.memo(function SettingRow({
+  label,
+  description,
+  value,
+  onValueChange,
+  icon,
+}: {
+  label: string;
+  description: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  icon?: IconName;
 }) {
   return (
     <View style={styles.settingRow}>
-      {icon && <Ionicons name={icon} size={20} color={Colors.textSecondary} style={{ marginRight: 4 }} />}
-      <View style={{ flex: 1 }}>
+      {icon && <Ionicons name={icon} size={20} color={Colors.textSecondary} style={styles.rowIcon} />}
+      <View style={FLEX_1}>
         <Text style={styles.settingLabel}>{label}</Text>
         <Text style={styles.settingDesc}>{description}</Text>
       </View>
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: Colors.border, true: Colors.primary }}
+        trackColor={SWITCH_TRACK}
         thumbColor={Colors.text}
+        accessibilityLabel={label}
       />
     </View>
   );
-}
+});
+
+const SWITCH_TRACK = { false: Colors.border, true: Colors.primary } as const;
+
+const ActionRow = React.memo(function ActionRow({
+  icon,
+  label,
+  description,
+  onPress,
+  disabled,
+  emphasize,
+  danger,
+}: {
+  icon: IconName;
+  label: string;
+  description?: string;
+  onPress: () => void;
+  disabled?: boolean;
+  emphasize?: boolean;
+  danger?: boolean;
+}) {
+  const tint = danger ? Colors.error : emphasize ? Colors.primary : Colors.textSecondary;
+  const labelStyle = danger || emphasize ? [styles.actionLabel, { color: tint }] : styles.actionLabel;
+  return (
+    <TouchableOpacity
+      style={styles.actionRow}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+    >
+      <Ionicons name={icon} size={22} color={tint} />
+      {description ? (
+        <View style={FLEX_1}>
+          <Text style={labelStyle}>{label}</Text>
+          <Text style={styles.actionDesc}>{description}</Text>
+        </View>
+      ) : (
+        <Text style={labelStyle}>{label}</Text>
+      )}
+      <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+    </TouchableOpacity>
+  );
+});
 
 const styles = StyleSheet.create({
   header: {
@@ -364,55 +467,100 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '900', color: Colors.text, letterSpacing: 2, textTransform: 'uppercase' },
-  content: { paddingBottom: 60 },
+  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  title: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.black,
+    color: Colors.text,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  content: { paddingBottom: Spacing.xxl },
   sectionLabel: {
-    fontSize: 11, fontWeight: '800', color: Colors.textSecondary,
-    textTransform: 'uppercase', letterSpacing: 1.5,
-    marginTop: Spacing.lg, marginBottom: Spacing.sm,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.heavy,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
     paddingHorizontal: Spacing.container,
   },
+  dangerLabel: { color: Colors.error },
   section: {
     backgroundColor: Colors.backgroundAlt,
-    borderRadius: 0,
+    borderRadius: Radius.xs,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: Colors.border,
     overflow: 'hidden',
   },
-  dangerSection: { borderColor: Colors.error + '55' },
+  dangerSection: { borderColor: Colors.borderStrong },
   divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.container },
+  rowIcon: { marginRight: Spacing.xs },
+  infoIcon: { marginRight: Spacing.sm },
   settingRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingHorizontal: Spacing.container, paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.container,
+    paddingVertical: Spacing.gutter,
+    minHeight: 56,
   },
-  settingLabel: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
-  settingDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2, lineHeight: 18 },
+  settingLabel: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text },
+  settingDesc: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 18,
+  },
   infoRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.container, paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.container,
+    paddingVertical: Spacing.sm,
+    minHeight: 48,
   },
-  infoLabel: { fontSize: FontSize.md, color: Colors.text, fontWeight: '600' },
-  infoValue: { fontSize: FontSize.sm, color: Colors.textSecondary, maxWidth: '55%', textAlign: 'right' },
+  infoLabel: { fontSize: FontSize.md, color: Colors.text, fontWeight: FontWeight.semibold },
+  infoValue: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    maxWidth: '55%',
+    textAlign: 'right',
+  },
   actionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingHorizontal: Spacing.container, paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.container,
+    paddingVertical: Spacing.gutter,
+    minHeight: 56,
   },
-  actionLabel: { flex: 1, fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
+  actionLabel: { flex: 1, fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text },
   actionDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   version: {
-    textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.xs,
-    marginTop: Spacing.xl, letterSpacing: 1, textTransform: 'uppercase',
+    textAlign: 'center',
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    marginTop: Spacing.xl,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  planValue: {
-    fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2,
-  },
+  planValue: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
+  planValuePro: { color: Colors.primary, fontWeight: FontWeight.bold },
   upgradeBadge: {
-    backgroundColor: Colors.primary, borderRadius: Radius.md,
-    paddingHorizontal: 14, paddingVertical: 7,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.gutter,
+    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   upgradeBadgeText: {
-    color: '#ffffff', fontSize: FontSize.sm, fontWeight: '800', letterSpacing: 0.5,
+    color: Colors.background,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.heavy,
+    letterSpacing: 0.5,
   },
 });

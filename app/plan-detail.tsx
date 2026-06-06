@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -66,15 +66,99 @@ import { hasScamKeywords } from '../lib/scamDetection';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-const REACTIONS = ['Love', 'Fire', 'Haha', 'Wow', 'No'];
-const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'];
-const CATEGORY_EMOJI: Record<string, string> = {};
+const REACTIONS = ['Love', 'Fire', 'Haha', 'Wow', 'No'] as const;
+const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'] as const;
 
 const DETAIL_TABS = ['Overview', 'Poll', 'Chat', 'Moments'] as const;
 type DetailTab = typeof DETAIL_TABS[number];
-type VisibleTab = { key: string; label: string };
+type VisibleTab = { key: DetailTab; label: string };
 
 type Friend = { id: string; displayName: string; username?: string };
+
+// Time constants (ms)
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+const ONE_WEEK_MS = 7 * ONE_DAY_MS;
+
+// Avatar overlap stack: first avatar flush-left, rest overlap by 8px.
+const AVATAR_OVERLAP = -8;
+const MAX_VISIBLE_AVATARS = 10;
+
+type ChecklistItem = { text: string; completedBy: string | null; addedBy: string };
+type CommentEntry = { text: string; authorId: string; authorName: string; timestamp: number };
+
+// Format a "time ago" label from a timestamp (ms).
+function formatTimeAgo(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  if (diff < 60000) return 'just now';
+  if (diff < ONE_HOUR_MS) return `${Math.floor(diff / 60000)}m`;
+  if (diff < ONE_DAY_MS) return `${Math.floor(diff / ONE_HOUR_MS)}h`;
+  return `${Math.floor(diff / ONE_DAY_MS)}d`;
+}
+
+// ─── Local sub-components (memoized) ──────────────────────────────────────────
+
+const ReactionButton = React.memo(function ReactionButton({
+  emoji, count, reacted, onPress,
+}: {
+  emoji: string; count: number; reacted: boolean; onPress: (emoji: string) => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.reactionBtn, reacted && styles.reactionBtnActive]}
+      onPress={() => onPress(emoji)}
+      accessibilityRole="button"
+      accessibilityLabel={`React ${emoji}${count > 0 ? `, ${count}` : ''}`}
+      accessibilityState={{ selected: reacted }}
+    >
+      <Text style={styles.reactionEmoji}>{emoji}</Text>
+      {count > 0 && <Text style={[styles.reactionCount, reacted && styles.reactionCountActive]}>{count}</Text>}
+    </TouchableOpacity>
+  );
+});
+
+const ChecklistRow = React.memo(function ChecklistRow({
+  item, isLast, completerName, canDelete, onToggle, onDelete,
+}: {
+  item: ChecklistItem & { id: string };
+  isLast: boolean;
+  completerName: string | null;
+  canDelete: boolean;
+  onToggle: (id: string, completedBy: string | null) => void;
+  onDelete: (id: string) => void;
+}) {
+  const isDone = !!item.completedBy;
+  return (
+    <TouchableOpacity
+      style={[styles.checklistItem, isLast && styles.noBorderBottom]}
+      onPress={() => onToggle(item.id, item.completedBy)}
+      activeOpacity={0.7}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: isDone }}
+      accessibilityLabel={item.text}
+    >
+      <View style={[styles.checklistCircle, isDone && styles.checklistCircleDone]}>
+        {isDone && <Ionicons name="checkmark" size={12} color={Colors.background} />}
+      </View>
+      <View style={styles.flex1}>
+        <Text style={[styles.checklistItemText, isDone && styles.checklistItemTextDone]}>{item.text}</Text>
+        {isDone && completerName && <Text style={styles.checklistCompletedBy}>Done by {completerName}</Text>}
+      </View>
+      {canDelete && (
+        <TouchableOpacity
+          onPress={() => onDelete(item.id)}
+          hitSlop={HIT_SLOP}
+          accessibilityRole="button"
+          accessibilityLabel="Delete checklist item"
+        >
+          <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
 
 export default function PlanDetailScreen() {
   const router = useRouter();
@@ -115,10 +199,10 @@ export default function PlanDetailScreen() {
   }, [plan?.poll?.question, plan?.status]);
 
   useEffect(() => {
-    if (visibleTabs.length > 0 && !visibleTabs.find(t => t.key === activeTab)) {
-      setActiveTab('Overview' as any);
+    if (!visibleTabs.some((t) => t.key === activeTab)) {
+      setActiveTab('Overview');
     }
-  }, [visibleTabs]);
+  }, [visibleTabs, activeTab]);
 
   // Safety features
   const [timerActive, setTimerActive] = useState(false);
@@ -141,16 +225,42 @@ export default function PlanDetailScreen() {
     return onAuthStateChanged(auth, (u) => setUid(u?.uid || ''));
   }, []);
 
+  const fetchParticipantNames = useCallback(async (participantIds: string[]) => {
+    if (!participantIds.length) return;
+    const names: Record<string, string> = {};
+    await Promise.all(
+      participantIds.map(async (pid) => {
+        try {
+          const snap = await getDoc(doc(db, 'users', pid));
+          const data = snap.data();
+          names[pid] = data?.displayName || data?.username || 'Unknown';
+        } catch {
+          names[pid] = 'Unknown';
+        }
+      })
+    );
+    setParticipantNames((prev) => ({ ...prev, ...names }));
+  }, []);
+
   useEffect(() => {
     if (!id) return;
-    const unsub = onSnapshot(doc(db, 'plans', id), (snap) => {
-      const data = { id: snap.id, ...snap.data() };
-      setPlan(data);
-      setLoading(false);
-      fetchParticipantNames((data as any).participants || []);
-    });
+    const unsub = onSnapshot(
+      doc(db, 'plans', id),
+      (snap) => {
+        if (!snap.exists()) {
+          setPlan(null);
+          setLoading(false);
+          return;
+        }
+        const data = { id: snap.id, ...snap.data() };
+        setPlan(data);
+        setLoading(false);
+        fetchParticipantNames((data as any).participants || []);
+      },
+      () => setLoading(false)
+    );
     return unsub;
-  }, [id]);
+  }, [id, fetchParticipantNames]);
 
   useEffect(() => {
     if (!uid) return;
@@ -223,7 +333,7 @@ export default function PlanDetailScreen() {
     const schedulePreEventNotif = async () => {
       const eventDate = new Date(plan.date);
       if (isNaN(eventDate.getTime())) return;
-      const notifAt = eventDate.getTime() - 24 * 60 * 60 * 1000;
+      const notifAt = eventDate.getTime() - ONE_DAY_MS;
       if (notifAt <= Date.now()) return;
 
       const userRef = doc(db, 'users', uid);
@@ -247,19 +357,6 @@ export default function PlanDetailScreen() {
 
     schedulePreEventNotif().catch(() => {});
   }, [plan?.status, plan?.isPublic, plan?.participants, id, uid]);
-
-  const fetchParticipantNames = async (participantIds: string[]) => {
-    if (!participantIds.length) return;
-    const names: Record<string, string> = {};
-    await Promise.all(
-      participantIds.map(async (pid) => {
-        const snap = await getDoc(doc(db, 'users', pid));
-        const data = snap.data();
-        names[pid] = data?.displayName || data?.username || 'Unknown';
-      })
-    );
-    setParticipantNames(names);
-  };
 
   const handleVote = async () => {
     if (!plan || voting) return;
@@ -289,8 +386,8 @@ export default function PlanDetailScreen() {
         if (plan.dateTimestamp) {
           const planDate = new Date(plan.dateTimestamp);
           const now = Date.now();
-          const oneDayBefore = planDate.getTime() - 24 * 60 * 60 * 1000;
-          const oneHourBefore = planDate.getTime() - 60 * 60 * 1000;
+          const oneDayBefore = planDate.getTime() - ONE_DAY_MS;
+          const oneHourBefore = planDate.getTime() - ONE_HOUR_MS;
           if (oneDayBefore > now) {
             await Notifications.scheduleNotificationAsync({
               content: {
@@ -320,16 +417,20 @@ export default function PlanDetailScreen() {
     }
   };
 
-  const handleReact = async (emoji: string) => {
+  const handleReact = useCallback(async (emoji: string) => {
     if (!plan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const reactionKey = `reactions.${emoji}`;
     const currentReactions: string[] = plan.reactions?.[emoji] || [];
     const hasReacted = currentReactions.includes(uid);
-    await updateDoc(doc(db, 'plans', plan.id), {
-      [reactionKey]: hasReacted ? arrayRemove(uid) : arrayUnion(uid),
-    });
-  };
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), {
+        [reactionKey]: hasReacted ? arrayRemove(uid) : arrayUnion(uid),
+      });
+    } catch {
+      showToast('Failed to react', 'error');
+    }
+  }, [plan, uid, showToast]);
 
   const handlePollVote = async (option: string) => {
     if (!plan?.poll) return;
@@ -344,7 +445,11 @@ export default function PlanDetailScreen() {
       }
     });
     if (Object.keys(updates).length > 0) {
-      await updateDoc(doc(db, 'plans', plan.id), updates);
+      try {
+        await updateDoc(doc(db, 'plans', plan.id), updates);
+      } catch {
+        showToast('Failed to record poll vote', 'error');
+      }
     }
   };
 
@@ -354,8 +459,12 @@ export default function PlanDetailScreen() {
     if (plan.createdBy !== uid) { showToast('Only the creator can invite', 'error'); return; }
     if (!friends.find((f) => f.id === friendId)) { showToast('You can only invite your friends', 'error'); return; }
     Haptics.selectionAsync();
-    await updateDoc(doc(db, 'plans', plan.id), { participants: arrayUnion(friendId) });
-    showToast('Friend invited!');
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), { participants: arrayUnion(friendId) });
+      showToast('Friend invited!');
+    } catch {
+      showToast('Failed to invite friend', 'error');
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -365,17 +474,22 @@ export default function PlanDetailScreen() {
     const dateStr = editDate
       ? editDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
       : plan.date || '';
-    await updateDoc(doc(db, 'plans', plan.id), {
-      title: editTitle.trim().slice(0, 80),
-      description: editDesc.trim().slice(0, 500),
-      location: editLocation.trim().slice(0, 150),
-      date: dateStr,
-      category: editCategory || null,
-      isPublic: editIsPublic,
-    });
-    setSaving(false);
-    setShowEdit(false);
-    showToast('Plan updated!');
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), {
+        title: editTitle.trim().slice(0, 80),
+        description: editDesc.trim().slice(0, 500),
+        location: editLocation.trim().slice(0, 150),
+        date: dateStr,
+        category: editCategory.trim() || null,
+        isPublic: editIsPublic,
+      });
+      setShowEdit(false);
+      showToast('Plan updated!');
+    } catch {
+      showToast('Failed to update plan', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
@@ -468,7 +582,7 @@ export default function PlanDetailScreen() {
       return;
     }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
+    if (status !== 'granted') { showToast('Photo library access denied', 'error'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
@@ -511,22 +625,33 @@ export default function PlanDetailScreen() {
       isPublic: plan.isPublic ?? false,
       maxParticipants: plan.maxParticipants || null,
     };
-    const userRef = doc(db, 'users', uid);
-    const snap = await getDoc(userRef);
-    const existing: any[] = snap.data()?.templates || [];
-    if (isAtTemplatesLimit(existing.length, isPro ? 'pro' : 'free')) {
-      setShowPaywall(true);
-      return;
+    try {
+      const userRef = doc(db, 'users', uid);
+      const snap = await getDoc(userRef);
+      const existing: any[] = snap.data()?.templates || [];
+      if (isAtTemplatesLimit(existing.length, isPro ? 'pro' : 'free')) {
+        setShowPaywall(true);
+        return;
+      }
+      await updateDoc(userRef, { templates: [...existing, template] });
+      showToast('Saved as template!');
+    } catch {
+      showToast('Failed to save template', 'error');
     }
-    await updateDoc(userRef, { templates: [...existing, template] });
-    showToast('Saved as template!');
+  };
+
+  const handleTellFriend = () => {
+    if (!plan) return;
+    Share.share({
+      message: `I'm going to "${plan.title}"${plan.date ? ` on ${plan.date}` : ''}${plan.location ? ` at ${plan.location}` : ''}. If you don't hear from me after, check on me! (Sent from Quorum)`,
+    }).catch(() => {});
   };
 
   const handleShareCode = () => {
     if (!plan?.inviteCode) return;
     Share.share({
       message: `Join "${plan.title}" on Quorum! Use invite code: ${plan.inviteCode}`,
-    });
+    }).catch(() => {});
   };
 
   const handleRateHost = async () => {
@@ -558,50 +683,74 @@ export default function PlanDetailScreen() {
     if (!newChecklistItem.trim() || !plan) return;
     Haptics.selectionAsync();
     const itemId = `${uid}_${Date.now()}`;
-    await updateDoc(doc(db, 'plans', plan.id), {
-      [`checklist.${itemId}`]: { text: newChecklistItem.trim().slice(0, 200), completedBy: null, addedBy: uid },
-    });
+    const text = newChecklistItem.trim().slice(0, 200);
     setNewChecklistItem('');
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), {
+        [`checklist.${itemId}`]: { text, completedBy: null, addedBy: uid },
+      });
+    } catch {
+      setNewChecklistItem(text);
+      showToast('Failed to add item', 'error');
+    }
   };
 
-  const handleToggleChecklistItem = async (itemId: string, completedBy: string | null) => {
+  const handleToggleChecklistItem = useCallback(async (itemId: string, completedBy: string | null) => {
     if (!plan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await updateDoc(doc(db, 'plans', plan.id), {
-      [`checklist.${itemId}.completedBy`]: completedBy ? null : uid,
-    });
-  };
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), {
+        [`checklist.${itemId}.completedBy`]: completedBy ? null : uid,
+      });
+    } catch {
+      showToast('Failed to update item', 'error');
+    }
+  }, [plan, uid, showToast]);
 
-  const handleDeleteChecklistItem = async (itemId: string) => {
+  const handleDeleteChecklistItem = useCallback(async (itemId: string) => {
     if (!plan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateDoc(doc(db, 'plans', plan.id), {
-      [`checklist.${itemId}`]: deleteField(),
-    });
-  };
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), {
+        [`checklist.${itemId}`]: deleteField(),
+      });
+    } catch {
+      showToast('Failed to delete item', 'error');
+    }
+  }, [plan, showToast]);
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !plan) return;
     Haptics.selectionAsync();
     const commentId = `${uid}_${Date.now()}`;
     const myName = participantNames[uid] || auth.currentUser?.email?.split('@')[0] || 'You';
-    await updateDoc(doc(db, 'plans', plan.id), {
-      [`comments.${commentId}`]: {
-        text: newComment.trim().slice(0, 500),
-        authorId: uid,
-        authorName: myName.slice(0, 50),
-        timestamp: Date.now(),
-      },
-    });
+    const text = newComment.trim().slice(0, 500);
     setNewComment('');
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), {
+        [`comments.${commentId}`]: {
+          text,
+          authorId: uid,
+          authorName: myName.slice(0, 50),
+          timestamp: Date.now(),
+        },
+      });
+    } catch {
+      setNewComment(text);
+      showToast('Failed to add comment', 'error');
+    }
   };
 
   const handleDeleteComment = async (commentId: string) => {
     if (!plan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateDoc(doc(db, 'plans', plan.id), {
-      [`comments.${commentId}`]: deleteField(),
-    });
+    try {
+      await updateDoc(doc(db, 'plans', plan.id), {
+        [`comments.${commentId}`]: deleteField(),
+      });
+    } catch {
+      showToast('Failed to delete comment', 'error');
+    }
   };
 
   const triggerCelebration = () => {
@@ -636,11 +785,33 @@ export default function PlanDetailScreen() {
   const required = plan?.requiredVotes || 3;
   const isCreator = plan?.createdBy === uid;
   const isArchived = plan?.archivedBy?.includes(uid) === true;
-  const nonParticipantFriends = friends.filter((f) => !plan?.participants?.includes(f.id));
+  const nonParticipantFriends = useMemo(
+    () => friends.filter((f) => !plan?.participants?.includes(f.id)),
+    [friends, plan?.participants]
+  );
   const isParticipant = plan?.participants?.includes(uid) === true;
-  const scamFlagged = plan ? hasScamKeywords((plan.title || '') + ' ' + (plan.description || '')) : false;
+  const scamFlagged = useMemo(
+    () => (plan ? hasScamKeywords((plan.title || '') + ' ' + (plan.description || '')) : false),
+    [plan?.title, plan?.description]
+  );
   const planDateMs = plan?.date ? new Date(plan.date).getTime() : NaN;
   const planDateNotPassed = !isNaN(planDateMs) && planDateMs > Date.now();
+
+  const checklistEntries = useMemo(() => {
+    const map: Record<string, ChecklistItem> = plan?.checklist || {};
+    return Object.entries(map).map(([cid, item]) => ({ id: cid, ...item }));
+  }, [plan?.checklist]);
+  const checklistDoneCount = useMemo(
+    () => checklistEntries.filter((i) => !!i.completedBy).length,
+    [checklistEntries]
+  );
+
+  const commentEntries = useMemo(() => {
+    const map: Record<string, CommentEntry> = plan?.comments || {};
+    return Object.entries(map)
+      .map(([cid, c]) => ({ id: cid, ...c }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }, [plan?.comments]);
 
   if (loading || !plan) {
     return (
@@ -731,32 +902,25 @@ export default function PlanDetailScreen() {
         {/* Tell a Friend */}
         <TouchableOpacity
           style={styles.tellFriendBtn}
-          onPress={() =>
-            Share.share({
-              message: `I'm going to "${plan.title}" on ${plan.date} at ${plan.location}. If you don't hear from me after, check on me! (Sent from Quorum)`,
-            })
-          }
+          onPress={handleTellFriend}
+          accessibilityRole="button"
+          accessibilityLabel="Tell a friend you are attending"
         >
-          <Ionicons name="people-outline" size={15} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+          <Ionicons name="people-outline" size={15} color={Colors.textSecondary} style={styles.iconMr6} />
           <Text style={styles.tellFriendText}>Tell a Friend</Text>
         </TouchableOpacity>
 
         {/* Reactions */}
         <View style={styles.reactionsRow}>
-          {REACTIONS.map((emoji) => {
-            const count = plan.reactions?.[emoji]?.length || 0;
-            const reacted = plan.reactions?.[emoji]?.includes(uid);
-            return (
-              <TouchableOpacity
-                key={emoji}
-                style={[styles.reactionBtn, reacted && styles.reactionBtnActive]}
-                onPress={() => handleReact(emoji)}
-              >
-                <Text style={styles.reactionEmoji}>{emoji}</Text>
-                {count > 0 && <Text style={[styles.reactionCount, reacted && styles.reactionCountActive]}>{count}</Text>}
-              </TouchableOpacity>
-            );
-          })}
+          {REACTIONS.map((emoji) => (
+            <ReactionButton
+              key={emoji}
+              emoji={emoji}
+              count={plan.reactions?.[emoji]?.length || 0}
+              reacted={!!plan.reactions?.[emoji]?.includes(uid)}
+              onPress={handleReact}
+            />
+          ))}
         </View>
 
         {/* LAST TIME... */}
@@ -798,10 +962,10 @@ export default function PlanDetailScreen() {
         </View>
 
         {/* Creator actions */}
-        {isCreator && (
+        {isCreator ? (
           <View style={styles.creatorActions}>
             <TouchableOpacity
-              style={[styles.editBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+              style={[styles.editBtn, styles.btnRow]}
               onPress={() => {
                 setEditTitle(plan.title);
                 setEditDesc(plan.description || '');
@@ -812,28 +976,49 @@ export default function PlanDetailScreen() {
                 setEditIsPublic(plan.isPublic ?? true);
                 setShowEdit(true);
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Edit plan"
             >
-              <Ionicons name="create-outline" size={14} color={Colors.text} style={{ marginRight: 4 }} />
+              <Ionicons name="create-outline" size={14} color={Colors.text} style={styles.iconMr4} />
               <Text style={styles.editBtnText}>Edit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.archiveBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={handleArchive}>
-              <Ionicons name="archive-outline" size={14} color={Colors.gold} style={{ marginRight: 4 }} />
+            <TouchableOpacity
+              style={[styles.archiveBtn, styles.btnRow]}
+              onPress={handleArchive}
+              accessibilityRole="button"
+              accessibilityLabel={isArchived ? 'Restore plan' : 'Archive plan'}
+            >
+              <Ionicons name="archive-outline" size={14} color={Colors.gold} style={styles.iconMr4} />
               <Text style={styles.archiveBtnText}>{isArchived ? 'Restore' : 'Archive'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.deleteBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={handleDelete}>
-              <Ionicons name="trash-outline" size={14} color={Colors.error} style={{ marginRight: 4 }} />
+            <TouchableOpacity
+              style={[styles.deleteBtn, styles.btnRow]}
+              onPress={handleDelete}
+              accessibilityRole="button"
+              accessibilityLabel="Delete plan"
+            >
+              <Ionicons name="trash-outline" size={14} color={Colors.error} style={styles.iconMr4} />
               <Text style={styles.deleteBtnText}>Delete</Text>
             </TouchableOpacity>
           </View>
-        )}
-        {!isCreator && (
+        ) : (
           <View style={styles.creatorActions}>
-            <TouchableOpacity style={[styles.archiveBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={handleArchive}>
-              <Ionicons name="archive-outline" size={14} color={Colors.gold} style={{ marginRight: 4 }} />
+            <TouchableOpacity
+              style={[styles.archiveBtn, styles.btnRow]}
+              onPress={handleArchive}
+              accessibilityRole="button"
+              accessibilityLabel={isArchived ? 'Restore plan' : 'Archive plan'}
+            >
+              <Ionicons name="archive-outline" size={14} color={Colors.gold} style={styles.iconMr4} />
               <Text style={styles.archiveBtnText}>{isArchived ? 'Restore' : 'Archive'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.leaveBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={handleLeave}>
-              <Ionicons name="exit-outline" size={14} color={Colors.textMuted} style={{ marginRight: 4 }} />
+            <TouchableOpacity
+              style={[styles.leaveBtn, styles.btnRow]}
+              onPress={handleLeave}
+              accessibilityRole="button"
+              accessibilityLabel="Leave plan"
+            >
+              <Ionicons name="exit-outline" size={14} color={Colors.textMuted} style={styles.iconMr4} />
               <Text style={styles.leaveBtnText}>Leave Plan</Text>
             </TouchableOpacity>
           </View>
@@ -842,11 +1027,13 @@ export default function PlanDetailScreen() {
         {/* Save as Template */}
         {isCreator && (
           <TouchableOpacity
-            style={[styles.calendarBtn, { marginTop: 4, borderColor: Colors.primary + '44', backgroundColor: Colors.primary + '11' }]}
+            style={[styles.calendarBtn, styles.templateBtn]}
             onPress={handleSaveAsTemplate}
+            accessibilityRole="button"
+            accessibilityLabel="Save plan as template"
           >
-            <Ionicons name="bookmark-outline" size={14} color={Colors.primary} style={{ marginRight: 4 }} />
-            <Text style={[styles.calendarBtnText, { color: Colors.primary }]}>Save as Template</Text>
+            <Ionicons name="bookmark-outline" size={14} color={Colors.primary} style={styles.iconMr4} />
+            <Text style={[styles.calendarBtnText, styles.templateBtnText]}>Save as Template</Text>
           </TouchableOpacity>
         )}
 
@@ -856,9 +1043,14 @@ export default function PlanDetailScreen() {
             <View style={styles.inviteCodeRow}>
               <Ionicons name="key-outline" size={14} color={Colors.primary} />
               <Text style={styles.inviteCodeLabel}>Invite Code</Text>
-              <TouchableOpacity onPress={handleShareCode} style={styles.inviteCodeBadge}>
+              <TouchableOpacity
+                onPress={handleShareCode}
+                style={styles.inviteCodeBadge}
+                accessibilityRole="button"
+                accessibilityLabel={`Share invite code ${plan.inviteCode}`}
+              >
                 <Text style={styles.inviteCodeText}>{plan.inviteCode}</Text>
-                <Ionicons name="share-outline" size={12} color={Colors.primary} style={{ marginLeft: 6 }} />
+                <Ionicons name="share-outline" size={12} color={Colors.primary} style={styles.iconMl6} />
               </TouchableOpacity>
             </View>
           </View>
@@ -866,8 +1058,13 @@ export default function PlanDetailScreen() {
 
         {/* Calendar export (confirmed plans only) */}
         {plan.status === 'confirmed' && plan.dateTimestamp && (
-          <TouchableOpacity style={[styles.calendarBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} onPress={handleAddToCalendar}>
-            <Ionicons name="calendar-outline" size={14} color={Colors.success} style={{ marginRight: 4 }} />
+          <TouchableOpacity
+            style={[styles.calendarBtn, styles.btnRow]}
+            onPress={handleAddToCalendar}
+            accessibilityRole="button"
+            accessibilityLabel="Add to calendar"
+          >
+            <Ionicons name="calendar-outline" size={14} color={Colors.success} style={styles.iconMr4} />
             <Text style={styles.calendarBtnText}>Add to Calendar</Text>
           </TouchableOpacity>
         )}
@@ -880,7 +1077,12 @@ export default function PlanDetailScreen() {
                 <Text style={styles.timerActiveTitle}>Timer active — tap when safe</Text>
                 <Text style={styles.timerCountdown}>{timerCountdown} remaining</Text>
               </View>
-              <TouchableOpacity style={styles.imSafeBtn} onPress={handleImSafe}>
+              <TouchableOpacity
+                style={styles.imSafeBtn}
+                onPress={handleImSafe}
+                accessibilityRole="button"
+                accessibilityLabel="Mark yourself safe and stop the check-in timer"
+              >
                 <Text style={styles.imSafeBtnText}>I'm Safe</Text>
               </TouchableOpacity>
             </View>
@@ -947,7 +1149,12 @@ export default function PlanDetailScreen() {
             {plan.maxParticipants && plan.participants?.length >= plan.maxParticipants ? ' · Full' : ''}
           </Text>
           {isCreator && (!plan.maxParticipants || plan.participants?.length < plan.maxParticipants) && (
-            <TouchableOpacity onPress={() => setShowInvite(!showInvite)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity
+              onPress={() => setShowInvite(!showInvite)}
+              style={styles.rowCenter}
+              accessibilityRole="button"
+              accessibilityLabel={showInvite ? 'Done inviting' : 'Invite friends'}
+            >
               <Ionicons name={showInvite ? 'checkmark' : 'person-add-outline'} size={16} color={Colors.primary} />
               <Text style={styles.inviteToggle}>{showInvite ? 'Done' : 'Invite'}</Text>
             </TouchableOpacity>
@@ -981,11 +1188,13 @@ export default function PlanDetailScreen() {
           return (
             <View key={pid} style={styles.participantRow}>
               <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}
+                style={styles.participantTouchable}
                 onPress={() => pid !== uid && router.push({ pathname: '/user-profile', params: { userId: pid } } as any)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${name}'s profile`}
               >
                 <View style={styles.participantAvatar}>
-                  <Text style={{ color: Colors.text, fontWeight: '700' }}>{name[0]?.toUpperCase() || '?'}</Text>
+                  <Text style={styles.avatarInitial}>{name[0]?.toUpperCase() || '?'}</Text>
                 </View>
                 <Text style={styles.participantName}>{name}{pid === uid ? ' (You)' : ''}</Text>
               </TouchableOpacity>
@@ -1002,11 +1211,13 @@ export default function PlanDetailScreen() {
             {nonParticipantFriends.map((f) => (
               <View key={f.id} style={styles.inviteRow}>
                 <View style={styles.participantAvatar}>
-                  <Text style={{ color: Colors.text, fontWeight: '700' }}>{f.displayName?.[0]?.toUpperCase() || '?'}</Text>
+                  <Text style={styles.avatarInitial}>{f.displayName?.[0]?.toUpperCase() || '?'}</Text>
                 </View>
                 <TouchableOpacity
-                  style={{ flex: 1 }}
+                  style={styles.flex1}
                   onPress={() => router.push({ pathname: '/user-profile', params: { userId: f.id } } as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${f.displayName}'s profile`}
                 >
                   <Text style={styles.participantName}>{f.displayName}</Text>
                   {f.username && <Text style={styles.inviteHandle}>@{f.username}</Text>}
@@ -1031,9 +1242,13 @@ export default function PlanDetailScreen() {
             <TouchableOpacity
               onPress={handleAddPhoto}
               disabled={uploadingPhoto}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              style={[styles.rowCenter, uploadingPhoto && styles.dim]}
+              accessibilityRole="button"
+              accessibilityLabel="Add photo"
             >
-              <Ionicons name="camera-outline" size={16} color={Colors.primary} />
+              {uploadingPhoto
+                ? <ActivityIndicator size="small" color={Colors.primary} />
+                : <Ionicons name="camera-outline" size={16} color={Colors.primary} />}
               <Text style={styles.inviteToggle}>{uploadingPhoto ? 'Uploading...' : 'Add Photo'}</Text>
             </TouchableOpacity>
           </View>
@@ -1055,171 +1270,130 @@ export default function PlanDetailScreen() {
       )}
 
       {/* Checklist */}
-      {(() => {
-        const checklistMap: Record<string, { text: string; completedBy: string | null; addedBy: string }> = plan.checklist || {};
-        const checklistEntries = Object.entries(checklistMap).map(([cid, item]) => ({ id: cid, ...item }));
-        const doneCount = checklistEntries.filter((i) => !!i.completedBy).length;
-        return (
-          <AnimatedCard index={4} style={{ marginBottom: Spacing.md }}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Checklist</Text>
-              {checklistEntries.length > 0 && (
-                <Text style={{ color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: '600' }}>
-                  {doneCount}/{checklistEntries.length} done
-                </Text>
-              )}
-            </View>
+      <AnimatedCard index={4} style={{ marginBottom: Spacing.md }}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Checklist</Text>
+          {checklistEntries.length > 0 && (
+            <Text style={styles.countLabel}>
+              {checklistDoneCount}/{checklistEntries.length} done
+            </Text>
+          )}
+        </View>
 
-            <View style={styles.checklistInputRow}>
-              <TextInput
-                style={styles.checklistInput}
-                value={newChecklistItem}
-                onChangeText={setNewChecklistItem}
-                placeholder="Add an item..."
-                placeholderTextColor={Colors.textMuted}
-                onSubmitEditing={handleAddChecklistItem}
-                returnKeyType="done"
-                maxLength={200}
-              />
-              <TouchableOpacity
-                onPress={handleAddChecklistItem}
-                style={[styles.checklistAddBtn, !newChecklistItem.trim() && { opacity: 0.4 }]}
-                disabled={!newChecklistItem.trim()}
-              >
-                <Ionicons name="add" size={22} color={Colors.text} />
-              </TouchableOpacity>
-            </View>
+        <View style={styles.checklistInputRow}>
+          <TextInput
+            style={styles.checklistInput}
+            value={newChecklistItem}
+            onChangeText={setNewChecklistItem}
+            placeholder="Add an item..."
+            placeholderTextColor={Colors.textMuted}
+            onSubmitEditing={handleAddChecklistItem}
+            returnKeyType="done"
+            maxLength={200}
+          />
+          <TouchableOpacity
+            onPress={handleAddChecklistItem}
+            style={[styles.checklistAddBtn, !newChecklistItem.trim() && styles.dim]}
+            disabled={!newChecklistItem.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Add checklist item"
+          >
+            <Ionicons name="add" size={22} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
 
-            {checklistEntries.length === 0 ? (
-              <View style={styles.checklistEmpty}>
-                <Ionicons name="checkbox-outline" size={32} color={Colors.textMuted} style={{ marginBottom: 6 }} />
-                <Text style={styles.checklistEmptyText}>No items yet. Add something above!</Text>
-              </View>
-            ) : (
-              checklistEntries.map((item, idx) => {
-                const isDone = !!item.completedBy;
-                const completerName = item.completedBy ? (participantNames[item.completedBy] || 'Someone') : null;
-                const canDelete = item.addedBy === uid || isCreator;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.checklistItem, idx === checklistEntries.length - 1 && { borderBottomWidth: 0 }]}
-                    onPress={() => handleToggleChecklistItem(item.id, item.completedBy)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.checklistCircle, isDone && styles.checklistCircleDone]}>
-                      {isDone && <Ionicons name="checkmark" size={12} color="#fff" />}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.checklistItemText, isDone && styles.checklistItemTextDone]}>
-                        {item.text}
-                      </Text>
-                      {isDone && completerName && (
-                        <Text style={styles.checklistCompletedBy}>Done by {completerName}</Text>
-                      )}
-                    </View>
-                    {canDelete && (
-                      <TouchableOpacity
-                        onPress={() => handleDeleteChecklistItem(item.id)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </AnimatedCard>
-        );
-      })()}
+        {checklistEntries.length === 0 ? (
+          <View style={styles.checklistEmpty}>
+            <Ionicons name="checkbox-outline" size={32} color={Colors.textMuted} style={styles.mb6} />
+            <Text style={styles.checklistEmptyText}>No items yet. Add something above!</Text>
+          </View>
+        ) : (
+          checklistEntries.map((item, idx) => (
+            <ChecklistRow
+              key={item.id}
+              item={item}
+              isLast={idx === checklistEntries.length - 1}
+              completerName={item.completedBy ? (participantNames[item.completedBy] || 'Someone') : null}
+              canDelete={item.addedBy === uid || isCreator}
+              onToggle={handleToggleChecklistItem}
+              onDelete={handleDeleteChecklistItem}
+            />
+          ))
+        )}
+      </AnimatedCard>
 
       {/* Comments */}
-      {(() => {
-        const commentsMap: Record<string, { text: string; authorId: string; authorName: string; timestamp: number }> = plan.comments || {};
-        const commentEntries = Object.entries(commentsMap)
-          .map(([cid, c]) => ({ id: cid, ...c }))
-          .sort((a, b) => a.timestamp - b.timestamp);
-        return (
-          <AnimatedCard index={5} style={{ marginBottom: Spacing.md }}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Comments</Text>
-              {commentEntries.length > 0 && (
-                <Text style={{ color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: '600' }}>
-                  {commentEntries.length}
+      <AnimatedCard index={5} style={{ marginBottom: Spacing.md }}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Comments</Text>
+          {commentEntries.length > 0 && (
+            <Text style={styles.countLabel}>{commentEntries.length}</Text>
+          )}
+        </View>
+
+        {commentEntries.map((comment, idx) => {
+          const isOwn = comment.authorId === uid;
+          const canDelete = isOwn || isCreator;
+          return (
+            <View
+              key={comment.id}
+              style={[styles.commentItem, idx === commentEntries.length - 1 && styles.noBorderBottom]}
+            >
+              <View style={styles.commentAvatar}>
+                <Text style={styles.commentAvatarText}>
+                  {comment.authorName[0]?.toUpperCase() || '?'}
                 </Text>
+              </View>
+              <View style={styles.flex1}>
+                <View style={styles.commentHeaderRow}>
+                  <Text style={styles.commentAuthor}>{isOwn ? 'You' : comment.authorName}</Text>
+                  <Text style={styles.commentTime}>{formatTimeAgo(comment.timestamp)}</Text>
+                </View>
+                <Text style={styles.commentText}>{comment.text}</Text>
+              </View>
+              {canDelete && (
+                <TouchableOpacity
+                  onPress={() => handleDeleteComment(comment.id)}
+                  hitSlop={HIT_SLOP}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete comment"
+                >
+                  <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
+                </TouchableOpacity>
               )}
             </View>
+          );
+        })}
 
-            {commentEntries.map((comment, idx) => {
-              const isOwn = comment.authorId === uid;
-              const canDelete = isOwn || isCreator;
-              return (
-                <View
-                  key={comment.id}
-                  style={[styles.commentItem, idx === commentEntries.length - 1 && { borderBottomWidth: 0 }]}
-                >
-                  <View style={styles.commentAvatar}>
-                    <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 12 }}>
-                      {comment.authorName[0]?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <Text style={styles.commentAuthor}>{isOwn ? 'You' : comment.authorName}</Text>
-                      <Text style={styles.commentTime}>
-                        {(() => {
-                          const diff = Date.now() - comment.timestamp;
-                          if (diff < 60000) return 'just now';
-                          if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
-                          if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
-                          return `${Math.floor(diff / 86400000)}d`;
-                        })()}
-                      </Text>
-                    </View>
-                    <Text style={styles.commentText}>{comment.text}</Text>
-                  </View>
-                  {canDelete && (
-                    <TouchableOpacity
-                      onPress={() => handleDeleteComment(comment.id)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              );
-            })}
+        {commentEntries.length === 0 && (
+          <View style={styles.commentsEmpty}>
+            <Ionicons name="chatbubble-outline" size={28} color={Colors.textMuted} style={styles.mb6} />
+            <Text style={styles.commentsEmptyText}>No comments yet</Text>
+          </View>
+        )}
 
-            {commentEntries.length === 0 && (
-              <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                <Ionicons name="chatbubble-outline" size={28} color={Colors.textMuted} style={{ marginBottom: 6 }} />
-                <Text style={{ color: Colors.textMuted, fontSize: FontSize.sm }}>No comments yet</Text>
-              </View>
-            )}
-
-            <View style={[styles.checklistInputRow, { marginTop: 12, marginBottom: 0 }]}>
-              <TextInput
-                style={styles.checklistInput}
-                value={newComment}
-                onChangeText={setNewComment}
-                placeholder="Add a comment..."
-                placeholderTextColor={Colors.textMuted}
-                onSubmitEditing={handleAddComment}
-                returnKeyType="send"
-                maxLength={500}
-              />
-              <TouchableOpacity
-                onPress={handleAddComment}
-                style={[styles.checklistAddBtn, !newComment.trim() && { opacity: 0.4 }]}
-                disabled={!newComment.trim()}
-              >
-                <Ionicons name="send" size={18} color={Colors.text} />
-              </TouchableOpacity>
-            </View>
-          </AnimatedCard>
-        );
-      })()}
+        <View style={[styles.checklistInputRow, styles.commentInputRow]}>
+          <TextInput
+            style={styles.checklistInput}
+            value={newComment}
+            onChangeText={setNewComment}
+            placeholder="Add a comment..."
+            placeholderTextColor={Colors.textMuted}
+            onSubmitEditing={handleAddComment}
+            returnKeyType="send"
+            maxLength={500}
+          />
+          <TouchableOpacity
+            onPress={handleAddComment}
+            style={[styles.checklistAddBtn, !newComment.trim() && styles.dim]}
+            disabled={!newComment.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Send comment"
+          >
+            <Ionicons name="send" size={18} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
+      </AnimatedCard>
 
       {/* Safety Tips Card */}
       {plan.status === 'confirmed' && plan.isPublic && isParticipant && planDateNotPassed && (
@@ -1329,20 +1503,40 @@ export default function PlanDetailScreen() {
             <View style={styles.heroCoverPlaceholder} />
           )}
           <View style={styles.floatHeader}>
-            <TouchableOpacity style={styles.floatBtn} onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={22} color="#fff" />
+            <TouchableOpacity
+              style={styles.floatBtn}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Ionicons name="chevron-back" size={22} color={Colors.background} />
             </TouchableOpacity>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={styles.floatBtn} onPress={() => setShowSOS(true)}>
-                <Ionicons name="shield-outline" size={20} color={Colors.error} />
+            <View style={styles.floatActions}>
+              <TouchableOpacity
+                style={styles.floatBtn}
+                onPress={() => setShowSOS(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Emergency SOS"
+              >
+                <Ionicons name="shield-outline" size={20} color={Colors.background} />
               </TouchableOpacity>
               {plan && uid !== plan.createdBy && (
-                <TouchableOpacity style={styles.floatBtn} onPress={() => setShowReport(true)}>
-                  <Ionicons name="flag-outline" size={20} color={Colors.textMuted} />
+                <TouchableOpacity
+                  style={styles.floatBtn}
+                  onPress={() => setShowReport(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report this plan"
+                >
+                  <Ionicons name="flag-outline" size={20} color={Colors.background} />
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.floatBtn} onPress={handleShare}>
-                <Ionicons name="share-outline" size={22} color="#fff" />
+              <TouchableOpacity
+                style={styles.floatBtn}
+                onPress={handleShare}
+                accessibilityRole="button"
+                accessibilityLabel="Share plan"
+              >
+                <Ionicons name="share-outline" size={22} color={Colors.background} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1460,7 +1654,7 @@ export default function PlanDetailScreen() {
                     style={[styles.catChip, editCategory === c && !editUsingCustomCategory && styles.catChipActive]}
                     onPress={() => { setEditUsingCustomCategory(false); setEditCategory(c); }}
                   >
-                    <Text style={[styles.catChipText, editCategory === c && !editUsingCustomCategory && styles.catChipTextActive]}>{CATEGORY_EMOJI[c]} {c}</Text>
+                    <Text style={[styles.catChipText, editCategory === c && !editUsingCustomCategory && styles.catChipTextActive]}>{c}</Text>
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity
@@ -1502,9 +1696,15 @@ export default function PlanDetailScreen() {
                 <TouchableOpacity style={styles.modalCancel} onPress={() => setShowEdit(false)}>
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalSave} onPress={handleSaveEdit} disabled={saving}>
+                <TouchableOpacity
+                  style={[styles.modalSave, (saving || !editTitle.trim()) && styles.dim]}
+                  onPress={handleSaveEdit}
+                  disabled={saving || !editTitle.trim()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save plan changes"
+                >
                   {saving ? (
-                    <ActivityIndicator size="small" color={Colors.text} />
+                    <ActivityIndicator size="small" color={Colors.background} />
                   ) : (
                     <Text style={styles.modalSaveText}>Save</Text>
                   )}
@@ -1581,18 +1781,26 @@ export default function PlanDetailScreen() {
               <Text style={sosStyles.noContact}>No emergency contact set. Add one in your Profile.</Text>
             )}
             <TouchableOpacity
-              style={sosStyles.copyBtn}
-              onPress={() => Share.share({ message: plan?.location || '' })}
+              style={[sosStyles.copyBtn, !plan?.location && styles.dim]}
+              disabled={!plan?.location}
+              onPress={() => {
+                const msg = `I'm at "${plan?.title}"${plan?.location ? ` (${plan.location})` : ''}. Sent via Quorum SOS.`;
+                Share.share({ message: msg }).catch(() => {});
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Share location"
             >
-              <Ionicons name="copy-outline" size={18} color={Colors.text} style={{ marginRight: 8 }} />
+              <Ionicons name="copy-outline" size={18} color={Colors.text} style={styles.iconMr8} />
               <Text style={sosStyles.copyBtnText}>Share Location</Text>
             </TouchableOpacity>
             {emergencyContact?.phone ? (
               <TouchableOpacity
                 style={sosStyles.callBtn}
-                onPress={() => Linking.openURL(`tel:${emergencyContact.phone}`)}
+                onPress={() => Linking.openURL(`tel:${emergencyContact.phone}`).catch(() => showToast('Unable to start call', 'error'))}
+                accessibilityRole="button"
+                accessibilityLabel={`Call ${emergencyContact.name}`}
               >
-                <Ionicons name="call-outline" size={18} color={Colors.text} style={{ marginRight: 8 }} />
+                <Ionicons name="call-outline" size={18} color={Colors.background} style={styles.iconMr8} />
                 <Text style={sosStyles.callBtnText}>Call {emergencyContact.name}</Text>
               </TouchableOpacity>
             ) : null}
@@ -1631,11 +1839,27 @@ const styles = StyleSheet.create({
     padding: 16, zIndex: 10,
   },
   floatBtn: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
+  floatActions: { flexDirection: 'row', gap: 8 },
+  // Shared utility styles (hoisted to avoid inline objects in render)
+  flex1: { flex: 1 },
+  dim: { opacity: 0.4 },
+  mb6: { marginBottom: 6 },
+  noBorderBottom: { borderBottomWidth: 0 },
+  countLabel: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  cardGap: { marginBottom: Spacing.md },
+  iconMr4: { marginRight: 4 },
+  iconMr6: { marginRight: 6 },
+  iconMr8: { marginRight: 8 },
+  iconMl6: { marginLeft: 6 },
+  avatarInitial: { color: Colors.text, fontWeight: FontWeight.bold },
+  rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  participantTouchable: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
+  btnRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   // Tabs
   tabsBar: {
     flexDirection: 'row',
@@ -1719,6 +1943,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center',
   },
   calendarBtnText: { color: Colors.success, fontWeight: '700', fontSize: FontSize.sm },
+  templateBtn: { marginTop: 4, borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryDim },
+  templateBtnText: { color: Colors.primary },
   sectionTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text, marginBottom: 12 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   inviteToggle: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
@@ -1779,7 +2005,7 @@ const styles = StyleSheet.create({
   },
   visibilityBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   visibilityBtnText: { color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm },
-  visibilityBtnTextActive: { color: Colors.text },
+  visibilityBtnTextActive: { color: Colors.background, fontWeight: '700' },
   catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   catChip: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.full,
@@ -1787,7 +2013,7 @@ const styles = StyleSheet.create({
   },
   catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   catChipText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
-  catChipTextActive: { color: Colors.text },
+  catChipTextActive: { color: Colors.background, fontWeight: '700' },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   modalCancel: {
     flex: 1, paddingVertical: 12, alignItems: 'center',
@@ -1795,7 +2021,7 @@ const styles = StyleSheet.create({
   },
   modalCancelText: { color: Colors.textSecondary, fontWeight: '600' },
   modalSave: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.primary },
-  modalSaveText: { color: Colors.text, fontWeight: '700' },
+  modalSaveText: { color: Colors.background, fontWeight: '700' },
   celebration: {
     position: 'absolute', top: '35%', alignSelf: 'center',
     backgroundColor: Colors.gold, paddingHorizontal: 30, paddingVertical: 20,
@@ -1848,9 +2074,14 @@ const styles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.primary + '44',
     alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
   },
+  commentAvatarText: { color: Colors.text, fontWeight: '700', fontSize: 12 },
+  commentHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   commentAuthor: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text },
   commentTime: { fontSize: FontSize.xs, color: Colors.textMuted },
   commentText: { fontSize: FontSize.md, color: Colors.textSecondary, lineHeight: 20 },
+  commentInputRow: { marginTop: 12, marginBottom: 0 },
+  commentsEmpty: { alignItems: 'center', paddingVertical: 16 },
+  commentsEmptyText: { color: Colors.textMuted, fontSize: FontSize.sm },
   ratingCard: {
     backgroundColor: Colors.gold + '12',
     borderRadius: Radius.lg,
@@ -1933,7 +2164,7 @@ const styles = StyleSheet.create({
   imSafeBtnText: {
     fontSize: FontSize.sm,
     fontWeight: '700',
-    color: Colors.text,
+    color: Colors.background,
   },
   safetyTimerBtn: {
     flexDirection: 'row',
@@ -1992,7 +2223,7 @@ const styles = StyleSheet.create({
   autoBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#ffffff',
+    color: Colors.background,
     letterSpacing: 1,
   },
   pendingBadge: {
@@ -2087,7 +2318,7 @@ const styles = StyleSheet.create({
   whoIsInInitial: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#ffffff',
+    color: Colors.background,
   },
   lastTimeSection: {
     paddingTop: Spacing.sm,
@@ -2240,7 +2471,7 @@ const sosStyles = StyleSheet.create({
   callBtnText: {
     fontSize: FontSize.md,
     fontWeight: '700',
-    color: Colors.text,
+    color: Colors.background,
   },
   closeBtn: {
     alignItems: 'center',
