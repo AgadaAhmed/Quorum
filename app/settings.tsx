@@ -19,7 +19,7 @@ import { auth, db } from '../lib/firebase';
 import { useSubscription } from '../hooks/useSubscription';
 import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
-import { Colors, FontSize, FontWeight, Spacing, Radius } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Spacing, Radius, Fonts } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -243,9 +243,11 @@ export default function SettingsScreen() {
                 style={styles.upgradeBadge}
                 onPress={openPaywall}
                 activeOpacity={0.8}
+                hitSlop={HIT_SLOP}
                 accessibilityRole="button"
                 accessibilityLabel="Upgrade to Quorum Pro"
               >
+                <Ionicons name="star" size={13} color={Colors.background} />
                 <Text style={styles.upgradeBadgeText}>Upgrade</Text>
               </TouchableOpacity>
             )}
@@ -337,7 +339,7 @@ export default function SettingsScreen() {
               style={styles.infoIcon}
             />
             <Text style={styles.infoLabel}>User ID</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>
+            <Text style={styles.infoValueMono} numberOfLines={1}>
               {shortUid}
             </Text>
           </View>
@@ -358,7 +360,10 @@ export default function SettingsScreen() {
         </View>
 
         {/* Danger Zone */}
-        <Text style={[styles.sectionLabel, styles.dangerLabel]}>Danger Zone</Text>
+        <View style={styles.dangerLabelRow}>
+          <Ionicons name="alert-circle" size={14} color={Colors.error} />
+          <Text style={[styles.sectionLabel, styles.dangerLabel]}>Danger Zone</Text>
+        </View>
         <View style={[styles.section, styles.dangerSection]}>
           <ActionRow
             icon="warning-outline"
@@ -369,6 +374,7 @@ export default function SettingsScreen() {
             danger
           />
         </View>
+        <Text style={styles.dangerCaption}>This action is permanent and cannot be undone.</Text>
 
         <Text style={styles.version}>{APP_VERSION}</Text>
       </ScrollView>
@@ -404,14 +410,17 @@ const SettingRow = React.memo(function SettingRow({
         value={value}
         onValueChange={onValueChange}
         trackColor={SWITCH_TRACK}
-        thumbColor={Colors.text}
+        thumbColor={value ? Colors.background : Colors.surfaceRaised}
+        ios_backgroundColor={Colors.surfaceBright}
         accessibilityLabel={label}
       />
     </View>
   );
 });
 
-const SWITCH_TRACK = { false: Colors.border, true: Colors.primary } as const;
+// Off = visible grey track with light thumb; On = solid black track with white
+// thumb. Gives a clear, legible two-state read without relying on hue.
+const SWITCH_TRACK = { false: Colors.surfaceBright, true: Colors.primary } as const;
 
 const ActionRow = React.memo(function ActionRow({
   icon,
@@ -434,10 +443,11 @@ const ActionRow = React.memo(function ActionRow({
   const labelStyle = danger || emphasize ? [styles.actionLabel, { color: tint }] : styles.actionLabel;
   return (
     <TouchableOpacity
-      style={styles.actionRow}
+      style={[styles.actionRow, disabled && styles.actionRowDisabled]}
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.6}
+      hitSlop={HIT_SLOP}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled }}
@@ -462,73 +472,135 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.borderStrong,
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
   title: {
-    fontSize: FontSize.md,
+    fontFamily: Fonts.headingBold,
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.black,
     color: Colors.text,
-    letterSpacing: 2,
+    letterSpacing: 2.5,
     textTransform: 'uppercase',
   },
   content: { paddingBottom: Spacing.xxl },
+
+  // ── Section header label ────────────────────────────────────────────────
   sectionLabel: {
+    fontFamily: Fonts.bodyBold,
     fontSize: FontSize.xs,
     fontWeight: FontWeight.heavy,
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
     paddingHorizontal: Spacing.container,
   },
-  dangerLabel: { color: Colors.error },
+
+  // ── Grouped section container ───────────────────────────────────────────
   section: {
     backgroundColor: Colors.backgroundAlt,
     borderRadius: Radius.xs,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     overflow: 'hidden',
   },
-  dangerSection: { borderColor: Colors.borderStrong },
-  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.container },
-  rowIcon: { marginRight: Spacing.xs },
-  infoIcon: { marginRight: Spacing.sm },
+  divider: { height: 1, backgroundColor: Colors.border, marginLeft: Spacing.container + Spacing.md + Spacing.sm },
+
+  // ── Danger zone (carries caution via weight + accent, not hue) ──────────
+  dangerLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.container,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  dangerLabel: {
+    color: Colors.error,
+    fontWeight: FontWeight.black,
+    marginTop: 0,
+    marginBottom: 0,
+    paddingHorizontal: 0,
+  },
+  dangerSection: {
+    borderColor: Colors.borderStrong,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.error,
+  },
+  dangerCaption: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    paddingHorizontal: Spacing.container,
+    marginTop: Spacing.sm,
+    lineHeight: 17,
+  },
+
+  // ── Icons ───────────────────────────────────────────────────────────────
+  rowIcon: { marginRight: Spacing.xs, width: 24, textAlign: 'center' },
+  infoIcon: { marginRight: Spacing.sm, width: 20, textAlign: 'center' },
+
+  // ── Toggle row (label + description + Switch) ───────────────────────────
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.container,
     paddingVertical: Spacing.gutter,
-    minHeight: 56,
+    minHeight: 64,
   },
-  settingLabel: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text },
+  settingLabel: {
+    fontFamily: Fonts.bodySemibold,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+  },
   settingDesc: {
+    fontFamily: Fonts.body,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 18,
+    marginTop: 3,
+    lineHeight: 20,
   },
+
+  // ── Read-only info row (label + value) ──────────────────────────────────
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.container,
-    paddingVertical: Spacing.sm,
-    minHeight: 48,
+    paddingVertical: Spacing.gutter,
+    minHeight: 56,
   },
-  infoLabel: { fontSize: FontSize.md, color: Colors.text, fontWeight: FontWeight.semibold },
+  infoLabel: {
+    fontFamily: Fonts.bodySemibold,
+    fontSize: FontSize.md,
+    color: Colors.text,
+    fontWeight: FontWeight.semibold,
+  },
   infoValue: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     maxWidth: '55%',
     textAlign: 'right',
   },
+  // Identifiers/figures: tabular + mono so they read as data and don't jitter.
+  infoValueMono: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    maxWidth: '55%',
+    textAlign: 'right',
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.3,
+  },
+
+  // ── Action / navigation row ─────────────────────────────────────────────
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -537,30 +609,56 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.gutter,
     minHeight: 56,
   },
-  actionLabel: { flex: 1, fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text },
-  actionDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  actionRowDisabled: { opacity: 0.4 },
+  actionLabel: {
+    flex: 1,
+    fontFamily: Fonts.bodySemibold,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+  },
+  actionDesc: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 3,
+    lineHeight: 18,
+  },
+
   version: {
     textAlign: 'center',
     color: Colors.textMuted,
     fontSize: FontSize.xs,
     marginTop: Spacing.xl,
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
-  planValue: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
+
+  // ── Subscription plan value + upgrade badge (the one accent) ────────────
+  planValue: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    marginTop: 3,
+    letterSpacing: 0.3,
+  },
   planValuePro: { color: Colors.primary, fontWeight: FontWeight.bold },
   upgradeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: Colors.primary,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.gutter,
-    paddingVertical: 8,
-    minHeight: 44,
+    paddingVertical: 9,
+    minHeight: 40,
     justifyContent: 'center',
   },
   upgradeBadgeText: {
     color: Colors.background,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.heavy,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
 });

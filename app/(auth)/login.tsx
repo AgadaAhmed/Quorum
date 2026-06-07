@@ -22,7 +22,7 @@ import {
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { getCities } from '../../lib/cities';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 import AnimatedButton from '../../components/AnimatedButton';
 
 type AutoCapitalize = 'none' | 'sentences' | 'words' | 'characters';
@@ -76,7 +76,7 @@ const GlassInput = React.memo(function GlassInput({
     >
       <Ionicons
         name={icon}
-        size={18}
+        size={20}
         color={focused ? Colors.primary : Colors.textMuted}
       />
       <TextInput
@@ -106,24 +106,27 @@ const inputStyles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: Colors.backgroundAlt,
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.md,
-    paddingHorizontal: 14,
+    paddingHorizontal: Spacing.gutter,
     paddingVertical: 14,
     borderWidth: 1.5,
-    borderColor: Colors.borderStrong,
-    minHeight: 52,
+    borderColor: Colors.border,
+    minHeight: 56,
   },
   wrapFocused: {
     borderColor: Colors.primary,
     borderWidth: 2,
-    backgroundColor: Colors.backgroundAlt,
+    backgroundColor: Colors.background,
+    // Shift the padding by the extra 0.5px of border so content doesn't jump.
+    paddingHorizontal: Spacing.gutter - 1,
   },
-  wrapDisabled: { opacity: 0.5 },
+  wrapDisabled: { opacity: 0.4 },
   input: {
     flex: 1,
     color: Colors.text,
+    fontFamily: Fonts.body,
     fontSize: FontSize.md,
     lineHeight: 22,
     paddingVertical: 0,
@@ -131,6 +134,7 @@ const inputStyles = StyleSheet.create({
   inputAsButton: {
     flex: 1,
     color: Colors.text,
+    fontFamily: Fonts.body,
     fontSize: FontSize.md,
     lineHeight: 22,
     paddingVertical: 0,
@@ -167,12 +171,18 @@ const PasswordStrengthBar = React.memo(function PasswordStrengthBar({
             key={i}
             style={[
               styles.strengthSegment,
-              { backgroundColor: i <= segments ? Colors.text : Colors.border },
+              // Monochrome: filled = solid ink, empty = visible grey track.
+              i <= segments ? styles.strengthSegmentOn : styles.strengthSegmentOff,
             ]}
           />
         ))}
       </View>
-      <Text style={styles.strengthLabel}>{label}</Text>
+      <View style={styles.strengthMetaRow}>
+        <Text style={styles.strengthCaption}>Password strength</Text>
+        <Text style={styles.strengthLabel} allowFontScaling={false}>
+          {label}
+        </Text>
+      </View>
     </View>
   );
 });
@@ -488,8 +498,8 @@ export default function LoginScreen() {
                         ? isActive ? 'log-in' : 'log-in-outline'
                         : isActive ? 'person-add' : 'person-add-outline'
                     }
-                    size={15}
-                    color={isActive ? '#ffffff' : Colors.textSecondary}
+                    size={16}
+                    color={isActive ? Colors.background : Colors.textSecondary}
                     style={styles.tabIcon}
                   />
                   <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{label}</Text>
@@ -593,8 +603,8 @@ export default function LoginScreen() {
               <>
                 {/* Country picker */}
                 <View style={styles.sectionLabelRow}>
-                  <Ionicons name="earth-outline" size={13} color={Colors.textSecondary} />
-                  <Text style={styles.sectionLabel}>Where are you located?</Text>
+                  <Ionicons name="earth-outline" size={14} color={Colors.textSecondary} />
+                  <Text style={styles.sectionLabel}>Location</Text>
                 </View>
 
                 <TouchableOpacity
@@ -636,7 +646,7 @@ export default function LoginScreen() {
                 {country && (
                   <>
                     <View style={styles.sectionLabelRow}>
-                      <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
+                      <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
                       <Text style={styles.sectionLabel}>City</Text>
                     </View>
 
@@ -708,7 +718,22 @@ export default function LoginScreen() {
                             ))
                           ) : (
                             <View style={styles.cityEmpty}>
-                              <Text style={styles.cityEmptyText}>No matching cities</Text>
+                              <Ionicons
+                                name="map-outline"
+                                size={24}
+                                color={Colors.textMuted}
+                                style={styles.cityEmptyIcon}
+                              />
+                              <Text style={styles.cityEmptyText}>
+                                {citySearch.trim()
+                                  ? `No cities match "${citySearch.trim()}"`
+                                  : 'No cities available'}
+                              </Text>
+                              <Text style={styles.cityEmptyHint}>
+                                {citySearch.trim()
+                                  ? 'Try a different spelling or a nearby city.'
+                                  : 'You can add your city later from your profile.'}
+                              </Text>
                             </View>
                           )}
                         </ScrollView>
@@ -769,8 +794,9 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 60,
+    paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.xl,
   },
   formSection: {
     width: '100%',
@@ -782,13 +808,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   logoOuterGlow: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
+    width: 128,
+    height: 128,
+    borderRadius: 64,
     backgroundColor: Colors.primaryDim,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 18,
+    marginBottom: Spacing.md,
   },
   logoRing: {
     width: 104,
@@ -808,33 +834,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoLetter: {
-    fontSize: 38,
+    fontFamily: Fonts.headingBold,
+    fontSize: 40,
     fontWeight: FontWeight.heavy,
-    color: '#ffffff',
-    lineHeight: 44,
+    color: Colors.background,
+    lineHeight: 46,
   },
   appName: {
-    fontSize: FontSize.xxl + 6,
+    fontFamily: Fonts.headingBold,
+    fontSize: FontSize.xxl,
     fontWeight: FontWeight.heavy,
     color: Colors.text,
     letterSpacing: 1.5,
-    marginBottom: 6,
+    marginBottom: Spacing.xs,
   },
   taglineRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.xs + 4,
   },
   taglineDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
+    width: 3,
+    height: 3,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.textMuted,
   },
   tagline: {
+    fontFamily: Fonts.body,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     letterSpacing: 0.3,
+    lineHeight: 20,
   },
 
   // ── Tab switcher ──
@@ -842,7 +872,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.md,
-    padding: 3,
+    padding: Spacing.xs,
     marginBottom: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -852,30 +882,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 11,
-    paddingHorizontal: 12,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
     borderRadius: Radius.md,
-    gap: 6,
+    gap: Spacing.xs + 2,
     minHeight: 44,
   },
   tabActive: {
     backgroundColor: Colors.primary,
   },
   tabIcon: {
-    marginRight: 6,
+    marginRight: Spacing.xs + 2,
   },
   tabText: {
+    fontFamily: Fonts.bodySemibold,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
     color: Colors.textSecondary,
+    letterSpacing: 0.3,
   },
   tabTextActive: {
-    color: '#ffffff',
+    fontFamily: Fonts.bodyBold,
+    fontWeight: FontWeight.bold,
+    color: Colors.background,
   },
 
   // ── Form card ──
   formCard: {
-    backgroundColor: Colors.backgroundAlt,
+    backgroundColor: Colors.background,
     borderRadius: Radius.md,
     padding: Spacing.md,
     borderWidth: 1,
@@ -886,56 +920,84 @@ const styles = StyleSheet.create({
 
   // ── Misc form elements ──
   eyeBtn: {
-    paddingLeft: 6,
+    paddingLeft: Spacing.xs + 2,
   },
-  eyeHitSlop: { top: 8, bottom: 8, left: 8, right: 8 },
+  eyeHitSlop: { top: 10, bottom: 10, left: 10, right: 10 },
   submitBtn: {
     marginTop: Spacing.xs,
   },
   forgotRow: {
     alignItems: 'flex-end',
-    marginTop: -4,
+    marginTop: -Spacing.xs,
+    minHeight: 36,
+    justifyContent: 'center',
   },
   resetSentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: Spacing.xs + 2,
   },
   resetSentIcon: {
-    marginRight: 4,
+    marginRight: Spacing.xs + 2,
   },
   resetSentText: {
     color: Colors.success,
+    fontFamily: Fonts.bodySemibold,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
+    letterSpacing: 0.2,
   },
 
   // ── Password strength ──
   strengthWrap: {
-    gap: 4,
-    marginTop: -4,
+    gap: Spacing.xs + 2,
+    marginTop: -Spacing.xs,
   },
   strengthBarRow: {
     flexDirection: 'row',
-    gap: 3,
+    gap: Spacing.xs,
   },
   strengthSegment: {
     flex: 1,
-    height: 3,
-    borderRadius: 2,
+    height: 4,
+    borderRadius: Radius.full,
+  },
+  // Filled segments: solid ink. Empty: a clearly visible grey track so the
+  // ratio reads at a glance in monochrome (Colors.border was too faint).
+  strengthSegmentOn: {
+    backgroundColor: Colors.text,
+  },
+  strengthSegmentOff: {
+    backgroundColor: Colors.surfaceBright,
+  },
+  strengthMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  strengthCaption: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    letterSpacing: 0.2,
   },
   strengthLabel: {
+    fontFamily: Fonts.bodyBold,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    fontWeight: FontWeight.semibold,
+    color: Colors.text,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 0.3,
   },
 
   // ── Pickers (country / city) ──
   pickerValue: {
     color: Colors.text,
+    fontFamily: Fonts.bodyMedium,
+    fontWeight: FontWeight.medium,
   },
   pickerPlaceholder: {
     color: Colors.textMuted,
+    fontFamily: Fonts.body,
   },
   hiddenPicker: {
     height: 0,
@@ -946,14 +1008,17 @@ const styles = StyleSheet.create({
   sectionLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
-    marginBottom: -2,
+    gap: Spacing.xs + 2,
+    marginTop: Spacing.xs,
+    marginBottom: -Spacing.xs,
   },
   sectionLabel: {
     color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
+    fontFamily: Fonts.bodyBold,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.heavy,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
 
   // ── City dropdown ──
@@ -1001,13 +1066,27 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
   },
   cityEmpty: {
-    paddingVertical: 16,
+    paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
     alignItems: 'center',
   },
+  cityEmptyIcon: {
+    marginBottom: Spacing.sm,
+    opacity: 0.7,
+  },
   cityEmptyText: {
-    color: Colors.textMuted,
+    color: Colors.text,
+    fontFamily: Fonts.bodySemibold,
     fontSize: FontSize.sm,
+    textAlign: 'center',
+  },
+  cityEmptyHint: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.body,
+    fontSize: FontSize.xs,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+    lineHeight: 18,
   },
 
   // ── Error ──

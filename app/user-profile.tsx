@@ -31,7 +31,7 @@ import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
 import { SkeletonProfile } from '../components/SkeletonLoader';
 import { useToast } from '../components/Toast';
-import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radius, Shadow, Spacing } from '../lib/theme';
 
 type Profile = {
   displayName: string;
@@ -317,19 +317,25 @@ export default function UserProfileScreen() {
           </Text>
           {!!profile.username && <Text style={styles.usernameHandle}>@{profile.username}</Text>}
 
-          {!!locationLabel && (
-            <View style={styles.metaRow}>
-              <Ionicons name="location-outline" size={13} color={Colors.textMuted} />
-              <Text style={styles.metaText}>{locationLabel}</Text>
-            </View>
-          )}
+          {(!!locationLabel || mutualCount > 0) && (
+            <View style={styles.metaGroup}>
+              {!!locationLabel && (
+                <View style={styles.metaRow}>
+                  <Ionicons name="location-outline" size={14} color={Colors.textMuted} />
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {locationLabel}
+                  </Text>
+                </View>
+              )}
 
-          {mutualCount > 0 && (
-            <View style={styles.metaRow}>
-              <Ionicons name="people-outline" size={13} color={Colors.textMuted} />
-              <Text style={styles.metaText}>
-                {mutualCount} mutual friend{mutualCount !== 1 ? 's' : ''}
-              </Text>
+              {mutualCount > 0 && (
+                <View style={styles.metaRow}>
+                  <Ionicons name="people-outline" size={14} color={Colors.textMuted} />
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {mutualCount} mutual friend{mutualCount !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -338,12 +344,14 @@ export default function UserProfileScreen() {
             <View style={styles.friendActions}>
               {relation === 'friend' && (
                 <AnimatedButton
-                  label="Connected"
+                  label="Friends"
                   onPress={handleUnfriend}
                   variant="secondary"
                   loading={actionLoading}
                   disabled={actionLoading}
                   style={styles.actionBtn}
+                  icon={<Ionicons name="checkmark-circle" size={18} color={Colors.text} />}
+                  accessibilityLabel="You are friends. Tap to remove friend"
                 />
               )}
               {relation === 'none' && (
@@ -354,16 +362,19 @@ export default function UserProfileScreen() {
                   loading={actionLoading}
                   disabled={actionLoading}
                   style={styles.actionBtn}
+                  icon={<Ionicons name="person-add" size={18} color={Colors.background} />}
                 />
               )}
               {relation === 'pending_outgoing' && (
                 <AnimatedButton
-                  label="Request Sent — Cancel"
+                  label="Request Sent"
                   onPress={handleCancelRequest}
                   variant="ghost"
                   loading={actionLoading}
                   disabled={actionLoading}
                   style={styles.actionBtn}
+                  icon={<Ionicons name="time-outline" size={18} color={Colors.primary} />}
+                  accessibilityLabel="Friend request sent. Tap to cancel"
                 />
               )}
               {relation === 'pending_incoming' && (
@@ -375,6 +386,7 @@ export default function UserProfileScreen() {
                     loading={actionLoading}
                     disabled={actionLoading}
                     style={styles.flex1}
+                    icon={<Ionicons name="checkmark" size={18} color={Colors.background} />}
                   />
                   <AnimatedButton
                     label="Decline"
@@ -410,14 +422,19 @@ export default function UserProfileScreen() {
         </AnimatedCard>
 
         {/* Their public plans */}
-        {theirPlans.length > 0 && (
-          <View style={styles.plansSection}>
-            <Text style={styles.sectionLabel}>Plans</Text>
-            {theirPlans.map((plan) => (
-              <PlanRow key={plan.id} plan={plan} onPress={openPlan} />
-            ))}
-          </View>
-        )}
+        <View style={styles.plansSection}>
+          <Text style={styles.sectionLabel}>Public Plans</Text>
+          {theirPlans.length > 0 ? (
+            theirPlans.map((plan, i) => (
+              <PlanRow key={plan.id} plan={plan} index={i} onPress={openPlan} />
+            ))
+          ) : (
+            <View style={styles.plansEmpty}>
+              <Ionicons name="calendar-outline" size={28} color={Colors.textMuted} />
+              <Text style={styles.plansEmptyText}>No public plans yet</Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </ScreenWrapper>
   );
@@ -453,7 +470,9 @@ const ProfileHeader = React.memo(function ProfileHeader({
 const StatBox = React.memo(function StatBox({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.statBox}>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statValue} numberOfLines={1} allowFontScaling={false}>
+        {value}
+      </Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -461,31 +480,41 @@ const StatBox = React.memo(function StatBox({ label, value }: { label: string; v
 
 const PlanRow = React.memo(function PlanRow({
   plan,
+  index = 0,
   onPress,
 }: {
   plan: PlanSummary;
+  index?: number;
   onPress: (id: string) => void;
 }) {
   const dateLabel = formatPlanDate(plan.date);
   const status = plan.status ?? 'draft';
   return (
     <TouchableOpacity
-      style={styles.planRow}
+      style={[styles.planRow, index > 0 && styles.planRowGap]}
       onPress={() => onPress(plan.id)}
       activeOpacity={0.75}
+      hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
       accessibilityRole="button"
-      accessibilityLabel={`Open plan ${plan.title ?? ''}`}
+      accessibilityLabel={`Open plan ${plan.title ?? 'untitled'}, status ${status}`}
     >
       <View style={styles.planRowAccent} />
       <View style={styles.planRowContent}>
         <Text style={styles.planRowTitle} numberOfLines={1}>
           {plan.title || 'Untitled plan'}
         </Text>
-        {!!dateLabel && <Text style={styles.planRowDate}>{dateLabel}</Text>}
+        {!!dateLabel && (
+          <Text style={styles.planRowDate} allowFontScaling={false}>
+            {dateLabel}
+          </Text>
+        )}
       </View>
       <View style={styles.planStatusPill}>
-        <Text style={styles.planStatusText}>{status}</Text>
+        <Text style={styles.planStatusText} numberOfLines={1}>
+          {status}
+        </Text>
       </View>
+      <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} style={styles.planChevron} />
     </TouchableOpacity>
   );
 });
@@ -495,8 +524,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -504,15 +533,33 @@ const styles = StyleSheet.create({
   headerSpacer: { width: 44 },
   headerTitle: {
     fontSize: FontSize.lg,
+    fontFamily: Fonts.heading,
     fontWeight: FontWeight.bold,
     color: Colors.text,
     flex: 1,
     textAlign: 'center',
   },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
-  notFoundText: { fontSize: FontSize.lg, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xl },
-  avatarSection: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.xs, marginBottom: Spacing.md },
+
+  // ── Loading / not-found ─────────────────────────────────────────────────────
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+  },
+  notFoundText: {
+    fontSize: FontSize.lg,
+    fontFamily: Fonts.headingSemibold,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.semibold,
+    textAlign: 'center',
+  },
+
+  content: { padding: Spacing.container, paddingBottom: Spacing.xxl },
+
+  // ── Avatar + identity ───────────────────────────────────────────────────────
+  avatarSection: { alignItems: 'center', paddingTop: Spacing.lg, paddingBottom: Spacing.md },
   avatarCircle: {
     width: 96,
     height: 96,
@@ -520,40 +567,93 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
     overflow: 'hidden',
     borderWidth: 3,
     borderColor: Colors.primaryGlow,
     ...Shadow.primaryStrong,
   },
   avatarImage: { width: '100%', height: '100%', borderRadius: 48 },
-  avatarText: { fontSize: 38, fontWeight: FontWeight.heavy, color: '#ffffff' },
-  displayName: { fontSize: FontSize.xxl, fontWeight: FontWeight.heavy, color: Colors.text, textAlign: 'center' },
-  usernameHandle: { fontSize: FontSize.md, color: Colors.textMuted, fontWeight: FontWeight.semibold },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  metaText: { fontSize: FontSize.sm, color: Colors.textMuted },
-  friendActions: { marginTop: Spacing.md, width: '100%', alignItems: 'center' },
-  actionBtn: { paddingHorizontal: Spacing.lg },
+  avatarText: {
+    fontSize: 40,
+    lineHeight: 48,
+    fontFamily: Fonts.headingBold,
+    fontWeight: FontWeight.heavy,
+    color: Colors.background,
+  },
+  displayName: {
+    fontSize: FontSize.xxl,
+    lineHeight: 38,
+    fontFamily: Fonts.headingBold,
+    fontWeight: FontWeight.heavy,
+    color: Colors.text,
+    textAlign: 'center',
+    maxWidth: '100%',
+  },
+  usernameHandle: {
+    fontSize: FontSize.md,
+    fontFamily: Fonts.bodyMedium,
+    color: Colors.textMuted,
+    fontWeight: FontWeight.medium,
+    marginTop: 2,
+  },
+  metaGroup: { alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' },
+  metaText: {
+    fontSize: FontSize.sm,
+    fontFamily: Fonts.body,
+    color: Colors.textMuted,
+    flexShrink: 1,
+  },
+
+  // ── Relationship actions ────────────────────────────────────────────────────
+  friendActions: { marginTop: Spacing.md, width: '100%', alignItems: 'stretch', paddingHorizontal: Spacing.xs },
+  actionBtn: {},
   incomingRow: { flexDirection: 'row', gap: Spacing.sm, width: '100%' },
   flex1: { flex: 1 },
-  cardSpacing: { marginBottom: Spacing.md },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  sectionTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text },
-  bioText: { fontSize: FontSize.md, color: Colors.textSecondary, lineHeight: 22 },
+
+  // ── Cards / sections ────────────────────────────────────────────────────────
+  cardSpacing: { marginBottom: Spacing.sm },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.xs },
+  sectionTitle: {
+    fontSize: FontSize.lg,
+    fontFamily: Fonts.heading,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+  },
+  bioText: {
+    fontSize: FontSize.md,
+    fontFamily: Fonts.body,
+    color: Colors.textSecondary,
+    lineHeight: 24,
+  },
+
+  // ── Stats ───────────────────────────────────────────────────────────────────
   statsRow: { flexDirection: 'row', alignItems: 'center' },
-  statBox: { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm },
-  statValue: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text },
+  statBox: { flex: 1, alignItems: 'center', paddingVertical: Spacing.xs, gap: 4 },
+  statValue: {
+    fontSize: FontSize.xl,
+    lineHeight: 30,
+    fontFamily: Fonts.headingBold,
+    fontWeight: FontWeight.heavy,
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
+  },
   statLabel: {
     fontSize: FontSize.xs,
+    fontFamily: Fonts.bodySemibold,
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
-    marginTop: 2,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
   },
-  statDivider: { width: 1, height: 44, backgroundColor: Colors.border },
+  statDivider: { width: 1, height: 36, backgroundColor: Colors.borderStrong },
+
+  // ── Plans ───────────────────────────────────────────────────────────────────
   plansSection: { marginTop: Spacing.md },
   sectionLabel: {
     fontSize: FontSize.xs,
+    fontFamily: Fonts.bodySemibold,
     fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     marginBottom: Spacing.sm,
@@ -563,28 +663,62 @@ const styles = StyleSheet.create({
   planRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 56,
     backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.md,
-    marginBottom: 8,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  planRowGap: { marginTop: Spacing.xs },
   planRowAccent: { width: 3, alignSelf: 'stretch', backgroundColor: Colors.primary },
-  planRowContent: { flex: 1, paddingVertical: 12, paddingLeft: 12 },
-  planRowTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.text },
-  planRowDate: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  planRowContent: { flex: 1, paddingVertical: Spacing.sm, paddingLeft: Spacing.sm },
+  planRowTitle: {
+    fontSize: FontSize.md,
+    fontFamily: Fonts.bodySemibold,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text,
+  },
+  planRowDate: {
+    fontSize: FontSize.xs,
+    fontFamily: Fonts.body,
+    color: Colors.textMuted,
+    marginTop: 3,
+    fontVariant: ['tabular-nums'],
+  },
   planStatusPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: Radius.full,
-    marginRight: 12,
-    backgroundColor: Colors.glassMid,
+    marginLeft: Spacing.sm,
+    backgroundColor: Colors.glassStrong,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   planStatusText: {
     fontSize: FontSize.xs,
+    fontFamily: Fonts.bodySemibold,
     fontWeight: FontWeight.semibold,
     textTransform: 'capitalize',
+    letterSpacing: 0.3,
     color: Colors.textSecondary,
+  },
+  planChevron: { marginHorizontal: Spacing.xs },
+
+  // ── Plans empty state ───────────────────────────────────────────────────────
+  plansEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  plansEmptyText: {
+    fontSize: FontSize.sm,
+    fontFamily: Fonts.bodyMedium,
+    color: Colors.textMuted,
   },
 });
