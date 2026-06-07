@@ -84,16 +84,22 @@ const ProfileStatItem = React.memo(function ProfileStatItem({
 });
 
 const profileStatStyles = StyleSheet.create({
-  badge: { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm + 2 },
-  value: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text, letterSpacing: -0.5 },
-  sub: { fontSize: 10, color: Colors.textMuted, fontWeight: FontWeight.semibold },
+  badge: { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm },
+  value: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.heavy,
+    color: Colors.text,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  sub: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.semibold },
   label: {
-    fontSize: 9,
+    fontSize: FontSize.xs,
     color: Colors.textMuted,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.heavy,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginTop: 2,
+    letterSpacing: 1,
+    marginTop: 4,
   },
 });
 
@@ -462,6 +468,8 @@ export default function ProfileScreen() {
             onPress={handleAvatarPick}
             disabled={uploadingAvatar}
             style={styles.avatarWrapper}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel="Change profile photo"
             accessibilityState={{ disabled: uploadingAvatar, busy: uploadingAvatar }}
@@ -481,7 +489,7 @@ export default function ProfileScreen() {
               )}
             </Animated.View>
             <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={10} color={Colors.background} />
+              <Ionicons name="camera" size={13} color={Colors.background} />
             </View>
           </TouchableOpacity>
 
@@ -594,9 +602,15 @@ export default function ProfileScreen() {
         {/* Recent Posts */}
         <View style={styles.recentPostsSection}>
           <Text style={styles.sectionLabel}>Recent Posts</Text>
-          <Text style={styles.recentPostsEmpty}>
-            Your moments from plans will appear here.
-          </Text>
+          <View style={styles.emptyState}>
+            <View style={styles.emptyStateIcon}>
+              <Ionicons name="images-outline" size={22} color={Colors.textMuted} />
+            </View>
+            <Text style={styles.emptyStateTitle}>No posts yet</Text>
+            <Text style={styles.emptyStateBody}>
+              Your moments from plans will appear here.
+            </Text>
+          </View>
         </View>
 
         {/* ── Emergency Contact Card ── */}
@@ -783,22 +797,22 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
   },
   avatarImage: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
   },
   avatarFallback: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: Colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
@@ -813,19 +827,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 32,
+    borderRadius: 36,
   },
   cameraBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: Colors.background,
   },
   heroInfo: {
@@ -988,36 +1002,44 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   modalClose: {
-    padding: 6,
+    width: 36,
+    height: 36,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceRaised,
   },
 
   // Form fields
   fieldLabel: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
-    marginBottom: 6,
-    marginTop: Spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginTop: Spacing.md,
   },
   fieldInput: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.sm + 2,
+    borderColor: Colors.borderStrong,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 12,
+    minHeight: 48,
     color: Colors.text,
     fontSize: FontSize.md,
   },
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
   usernameAt: {
-    color: Colors.primary,
-    fontWeight: FontWeight.bold,
-    fontSize: FontSize.md,
-    marginRight: 4,
-    paddingBottom: 2,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.heavy,
+    fontSize: FontSize.lg,
   },
   usernameInput: {
     flex: 1,
@@ -1077,26 +1099,32 @@ const styles = StyleSheet.create({
   },
   consensusLabel: {
     fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontVariant: ['tabular-nums'],
   },
   consensusTrack: {
-    height: 6,
+    height: 8,
     backgroundColor: Colors.surfaceRaised,
     borderRadius: 0,
     width: '100%',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   consensusFill: {
-    height: 6,
+    height: '100%',
     backgroundColor: Colors.primary,
     borderRadius: 0,
+    minWidth: 2,
   },
 
   // My Plans section
   plansSection: { marginBottom: Spacing.lg },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     letterSpacing: 1.5,
@@ -1160,12 +1188,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   interestTag: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 8,
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: Colors.borderStrong,
     backgroundColor: Colors.surface,
+    minHeight: 36,
+    justifyContent: 'center',
   },
   interestTagText: {
     fontSize: FontSize.xs,
@@ -1184,36 +1214,36 @@ const styles = StyleSheet.create({
   },
   achievementsRow: {
     flexDirection: 'row',
-    gap: Spacing.xs + 6,
+    gap: Spacing.xs + 4,
     marginTop: Spacing.sm,
     flexWrap: 'wrap',
   },
   achievementBadge: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 10,
     borderRadius: Radius.md,
     borderWidth: 1.5,
     borderColor: Colors.primary,
     backgroundColor: Colors.primary,
-    minWidth: 80,
-    minHeight: 44,
+    minWidth: 84,
+    minHeight: 64,
   },
   achievementLocked: {
     backgroundColor: Colors.surface,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
   },
   achievementLabel: {
-    fontSize: 10,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.heavy,
     color: Colors.background,
-    letterSpacing: 0.8,
+    letterSpacing: 0.3,
     textAlign: 'center',
-    marginTop: 4,
   },
   achievementLabelLocked: {
-    color: Colors.textDisabled,
+    color: Colors.textMuted,
   },
 
   // Recent Posts
@@ -1222,10 +1252,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.container,
     paddingBottom: Spacing.lg,
   },
-  recentPostsEmpty: {
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  emptyStateIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  emptyStateTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+  },
+  emptyStateBody: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    marginTop: Spacing.sm,
+    textAlign: 'center',
     lineHeight: 20,
   },
 });

@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -58,6 +61,9 @@ type FilterKey = 'all' | 'plans' | 'friends';
 
 const FILTERS: readonly FilterKey[] = ['all', 'plans', 'friends'] as const;
 const TIME_GROUP_ORDER = ['Today', 'Yesterday', 'This Week', 'Earlier'] as const;
+
+// Expand the tap area of the compact filter pills to a comfortable target.
+const PILL_HIT_SLOP = { top: 8, bottom: 8, left: 4, right: 4 } as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -122,11 +128,15 @@ const FilterPill = React.memo(function FilterPill({
       style={[styles.filterPill, active && styles.filterPillActive]}
       onPress={() => onPress(filter)}
       activeOpacity={0.7}
+      hitSlop={PILL_HIT_SLOP}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       accessibilityLabel={`Show ${label}`}
     >
-      <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
+      <Text
+        style={[styles.filterPillText, active && styles.filterPillTextActive]}
+        allowFontScaling={false}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -144,16 +154,26 @@ const HighlightCard = React.memo(function HighlightCard({
     <TouchableOpacity
       style={styles.highlightCard}
       onPress={() => onPress(item)}
-      activeOpacity={0.85}
+      activeOpacity={0.9}
       accessibilityRole="button"
-      accessibilityLabel={item.message}
+      accessibilityLabel={`${item.message}. Quorum reached.`}
     >
-      <View style={styles.highlightImagePlaceholder} />
+      <View style={styles.highlightImagePlaceholder}>
+        <Ionicons
+          name="people"
+          size={64}
+          color={Colors.borderStrong}
+          style={styles.highlightWatermark}
+        />
+      </View>
       <View style={styles.highlightOverlay}>
+        <View style={styles.highlightMetaRow}>
+          <Ionicons name="checkmark-circle" size={14} color={Colors.background} />
+          <Text style={styles.highlightSub}>QUORUM REACHED</Text>
+        </View>
         <Text style={styles.highlightTitle} numberOfLines={2}>
           {item.message}
         </Text>
-        <Text style={styles.highlightSub}>Quorum reached</Text>
       </View>
     </TouchableOpacity>
   );
@@ -195,19 +215,20 @@ const RequestCard = React.memo(function RequestCard({
 
         <View style={styles.requestActions}>
           <AnimatedButton
+            label="Decline"
+            variant="ghost"
+            size="sm"
+            disabled={processing}
+            onPress={() => onDecline(req)}
+            style={styles.declineBtn}
+          />
+          <AnimatedButton
             label="Accept"
             variant="primary"
             size="sm"
             loading={processing}
             onPress={() => onAccept(req)}
             style={styles.acceptBtn}
-          />
-          <AnimatedButton
-            label="Decline"
-            variant="ghost"
-            size="sm"
-            disabled={processing}
-            onPress={() => onDecline(req)}
           />
         </View>
       </View>
@@ -235,30 +256,71 @@ const ActivityRow = React.memo(function ActivityRow({
     >
       <View style={styles.activityRow}>
         <View style={styles.iconCircle}>
-          <Ionicons name={iconName} size={18} color={Colors.text} />
+          <Ionicons name={iconName} size={20} color={Colors.text} />
         </View>
         <Text style={styles.activityMessage} numberOfLines={2}>
           {item.message}
         </Text>
-        <Text style={styles.activityTime}>{formatRelTime(item.timestamp)}</Text>
+        <Text
+          style={styles.activityTime}
+          numberOfLines={1}
+          allowFontScaling={false}
+        >
+          {formatRelTime(item.timestamp)}
+        </Text>
       </View>
     </TouchableOpacity>
   );
 });
 
-const SkeletonCard = React.memo(function SkeletonCard() {
+const SkeletonCard = React.memo(function SkeletonCard({
+  shimmer,
+}: {
+  shimmer: Animated.AnimatedInterpolation<number>;
+}) {
   return (
-    <View style={styles.skeletonCard}>
+    <View style={styles.skeletonCard} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={styles.skeletonRow}>
-        <View style={styles.skeletonCircle} />
+        <Animated.View style={[styles.skeletonCircle, { opacity: shimmer }]} />
         <View style={styles.skeletonLines}>
-          <View style={[styles.skeletonLine, styles.skeletonLineMain]} />
-          <View style={[styles.skeletonLine, styles.skeletonLineSub]} />
+          <Animated.View
+            style={[styles.skeletonLine, styles.skeletonLineMain, { opacity: shimmer }]}
+          />
+          <Animated.View
+            style={[styles.skeletonLine, styles.skeletonLineSub, { opacity: shimmer }]}
+          />
         </View>
       </View>
     </View>
   );
 });
+
+// Drives a calm opacity pulse shared by all skeleton rows during loading.
+function useShimmer(active: boolean) {
+  const value = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!active) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(value, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.timing(value, {
+          toValue: 0,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, value]);
+  return value.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -549,6 +611,8 @@ export default function ActivityScreen() {
       );
   }, [filteredItems]);
 
+  const shimmer = useShimmer(loading);
+
   const showHighlights = !loading && activeFilter !== 'friends' && highlights.length > 0;
   const showFriendRequests = activeFilter !== 'plans' && friendRequests.length > 0;
   const isEmpty =
@@ -604,10 +668,13 @@ export default function ActivityScreen() {
               <TouchableOpacity
                 onPress={handleViewAll}
                 hitSlop={styles.hitSlop}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="View all highlights"
+                style={styles.viewAllRow}
               >
                 <Text style={styles.viewAllLink}>View All</Text>
+                <Ionicons name="chevron-forward" size={14} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
             {highlights.map((item) => (
@@ -639,10 +706,10 @@ export default function ActivityScreen() {
 
             {loading ? (
               <>
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
+                <SkeletonCard shimmer={shimmer} />
+                <SkeletonCard shimmer={shimmer} />
+                <SkeletonCard shimmer={shimmer} />
+                <SkeletonCard shimmer={shimmer} />
               </>
             ) : (
               groups.map((group) => (
@@ -660,12 +727,13 @@ export default function ActivityScreen() {
         {/* Empty state */}
         {isEmpty && (
           <View style={styles.empty}>
-            <Ionicons
-              name="pulse-outline"
-              size={56}
-              color={Colors.textMuted}
-              style={styles.emptyIcon}
-            />
+            <View style={styles.emptyIconRing}>
+              <Ionicons
+                name="pulse-outline"
+                size={32}
+                color={Colors.textSecondary}
+              />
+            </View>
             <Text style={styles.emptyText}>
               {activeFilter === 'friends'
                 ? 'No friend activity yet'
@@ -674,8 +742,23 @@ export default function ActivityScreen() {
                 : 'All quiet here'}
             </Text>
             <Text style={styles.emptySubText}>
-              Friend requests, plan confirmations, and activity will show up here.
+              {activeFilter === 'friends'
+                ? 'Friend requests and new connections will show up here.'
+                : activeFilter === 'plans'
+                ? 'Plan confirmations and updates will show up here.'
+                : 'Friend requests, plan confirmations, and activity will show up here.'}
             </Text>
+            <View style={styles.emptyAction}>
+              <AnimatedButton
+                label="Discover plans"
+                variant="secondary"
+                size="sm"
+                onPress={handleViewAll}
+                icon={
+                  <Ionicons name="compass-outline" size={16} color={Colors.text} />
+                }
+              />
+            </View>
           </View>
         )}
       </ScrollView>
@@ -706,10 +789,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundAlt,
   },
   headerTitle: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.black,
     color: Colors.text,
-    letterSpacing: 3,
+    letterSpacing: 4,
   },
   filterRow: {
     flexDirection: 'row',
@@ -721,12 +804,11 @@ const styles = StyleSheet.create({
   },
   filterPill: {
     paddingHorizontal: Spacing.gutter,
-    paddingVertical: Spacing.xs * 2,
-    borderRadius: Radius.md,
+    borderRadius: Radius.full,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.backgroundAlt,
-    minHeight: 36,
+    borderColor: Colors.borderStrong,
+    backgroundColor: Colors.background,
+    minHeight: 40,
     justifyContent: 'center',
   },
   filterPillActive: {
@@ -737,9 +819,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
     color: Colors.textSecondary,
+    letterSpacing: 0.2,
   },
   filterPillTextActive: {
     color: Colors.background,
+    fontWeight: FontWeight.heavy,
   },
   highlightsSection: {
     paddingTop: Spacing.md,
@@ -754,6 +838,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.container,
     marginBottom: Spacing.sm,
   },
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   viewAllLink: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
@@ -762,34 +851,51 @@ const styles = StyleSheet.create({
   highlightCard: {
     marginHorizontal: Spacing.container,
     marginBottom: Spacing.sm,
-    height: 120,
+    height: 132,
     borderRadius: Radius.md,
     overflow: 'hidden',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   highlightImagePlaceholder: {
     width: '100%',
     height: '100%',
     backgroundColor: Colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  highlightWatermark: {
+    opacity: 0.25,
   },
   highlightOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: Spacing.sm,
+    paddingHorizontal: Spacing.gutter,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
     backgroundColor: Colors.overlay,
+  },
+  highlightMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
   },
   highlightTitle: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.heavy,
     color: Colors.background,
     letterSpacing: -0.3,
+    lineHeight: 21,
   },
   highlightSub: {
     fontSize: FontSize.xs,
-    color: Colors.glassHighlight,
-    marginTop: 2,
+    fontWeight: FontWeight.heavy,
+    color: Colors.background,
+    letterSpacing: 1.2,
   },
 
   // Sections
@@ -808,7 +914,7 @@ const styles = StyleSheet.create({
 
   // Friend request card
   requestCard: {
-    paddingVertical: 14,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -857,46 +963,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   acceptBtn: {
-    minWidth: 72,
+    minWidth: 84,
+  },
+  declineBtn: {
+    minWidth: 84,
   },
 
   // Activity item
   activityItem: {
-    paddingVertical: 14,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   activityRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: Spacing.sm,
   },
   iconCircle: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
     backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   activityMessage: {
     flex: 1,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.md,
     color: Colors.text,
     fontWeight: FontWeight.medium,
-    lineHeight: 20,
+    lineHeight: 22,
+    paddingTop: 1,
   },
   activityTime: {
     fontSize: FontSize.xs,
     color: Colors.textMuted,
-    fontWeight: FontWeight.medium,
+    fontWeight: FontWeight.semibold,
     flexShrink: 0,
+    minWidth: 52,
+    textAlign: 'right',
+    paddingTop: 3,
+    fontVariant: ['tabular-nums'],
   },
 
   // Skeleton
   skeletonCard: {
-    paddingVertical: 14,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -906,8 +1022,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   skeletonCircle: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: Radius.full,
     backgroundColor: Colors.surfaceOverlay,
   },
@@ -942,23 +1058,35 @@ const styles = StyleSheet.create({
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 100,
-    gap: Spacing.sm,
+    paddingTop: Spacing.xxl + Spacing.lg,
+    paddingHorizontal: Spacing.container,
   },
-  emptyIcon: {
-    opacity: 0.5,
+  emptyIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
   },
   emptyText: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textSecondary,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
   },
   emptySubText: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.md,
     lineHeight: 20,
-    opacity: 0.7,
+  },
+  emptyAction: {
+    marginTop: Spacing.md,
+    alignSelf: 'center',
   },
 });

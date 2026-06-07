@@ -32,7 +32,7 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
 import { useToast } from '../components/Toast';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -85,7 +85,11 @@ const Avatar = React.memo(function Avatar({
       <View style={[styles.avatar, tintBg ? { backgroundColor: tintBg } : null]}>
         <Text style={[styles.avatarText, tint ? { color: tint } : null]}>{initials(name)}</Text>
       </View>
-      {online ? <View style={styles.presenceDot} /> : null}
+      {online ? (
+        <View style={styles.presenceRing}>
+          <View style={styles.presenceDot} />
+        </View>
+      ) : null}
     </View>
   );
 });
@@ -107,6 +111,7 @@ const IconButton = React.memo(function IconButton({
     <TouchableOpacity
       style={styles.iconHit}
       onPress={onPress}
+      activeOpacity={0.6}
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={HIT_SLOP}
@@ -118,21 +123,27 @@ const IconButton = React.memo(function IconButton({
 
 const EmptyState = React.memo(function EmptyState({
   icon,
-  text,
+  title,
+  hint,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  text: string;
+  title: string;
+  hint?: string;
 }) {
   return (
     <View style={styles.emptyState}>
-      <Ionicons name={icon} size={56} color={Colors.textMuted} style={styles.emptyIcon} />
-      <Text style={styles.emptyText}>{text}</Text>
+      <View style={styles.emptyIconWrap}>
+        <Ionicons name={icon} size={32} color={Colors.textMuted} />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      {hint ? <Text style={styles.emptyHint}>{hint}</Text> : null}
     </View>
   );
 });
 
 const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
-const LIST_CONTENT = { padding: Spacing.md, paddingBottom: 100 };
+const LIST_CONTENT = { padding: Spacing.md, paddingBottom: 100, flexGrow: 1 };
+const SEARCH_LIST_CONTENT = { paddingBottom: 100, flexGrow: 1 };
 
 export default function SocialScreen() {
   const router = useRouter();
@@ -538,6 +549,7 @@ export default function SocialScreen() {
             <TouchableOpacity
               style={styles.userTap}
               onPress={() => viewProfile(item.id)}
+              activeOpacity={0.6}
               accessibilityRole="button"
               accessibilityLabel={`View ${item.displayName || 'user'}'s profile`}
             >
@@ -560,12 +572,13 @@ export default function SocialScreen() {
               <TouchableOpacity
                 onPress={() => cancelRequest(item.id)}
                 style={styles.pendingBtn}
+                activeOpacity={0.6}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel friend request"
                 hitSlop={HIT_SLOP}
               >
                 <Text style={styles.pendingTag}>Pending</Text>
-                <Ionicons name="close" size={12} color={Colors.textMuted} style={styles.pendingClose} />
+                <Ionicons name="close" size={14} color={Colors.textSecondary} style={styles.pendingClose} />
               </TouchableOpacity>
             ) : (
               <AnimatedButton
@@ -591,6 +604,7 @@ export default function SocialScreen() {
           <TouchableOpacity
             style={styles.userTap}
             onPress={() => viewProfile(item.fromId)}
+            activeOpacity={0.6}
             accessibilityRole="button"
             accessibilityLabel={`View ${item.fromName || 'user'}'s profile`}
           >
@@ -632,6 +646,7 @@ export default function SocialScreen() {
           <TouchableOpacity
             style={styles.userTap}
             onPress={() => viewProfile(item.id)}
+            activeOpacity={0.6}
             accessibilityRole="button"
             accessibilityLabel={`View ${item.displayName || 'friend'}'s profile`}
           >
@@ -653,6 +668,7 @@ export default function SocialScreen() {
           <TouchableOpacity
             style={styles.unfriendBtn}
             onPress={() => unfriend(item)}
+            activeOpacity={0.6}
             accessibilityRole="button"
             accessibilityLabel={`Remove ${item.displayName || 'friend'}`}
             hitSlop={HIT_SLOP}
@@ -682,6 +698,7 @@ export default function SocialScreen() {
             <TouchableOpacity
               style={styles.unblockBtn}
               onPress={() => unblockUser(u.id)}
+              activeOpacity={0.6}
               accessibilityRole="button"
               accessibilityLabel={`Unblock ${u.displayName || 'user'}`}
               hitSlop={HIT_SLOP}
@@ -701,6 +718,7 @@ export default function SocialScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.iconHit}
+          activeOpacity={0.6}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={HIT_SLOP}
@@ -711,6 +729,7 @@ export default function SocialScreen() {
         <TouchableOpacity
           onPress={() => selectTab('search', 1)}
           style={styles.iconHit}
+          activeOpacity={0.6}
           accessibilityRole="button"
           accessibilityLabel="Search for people"
           hitSlop={HIT_SLOP}
@@ -736,6 +755,7 @@ export default function SocialScreen() {
               }}
               onPress={() => selectTab(t, i)}
               style={styles.tab}
+              activeOpacity={0.8}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               accessibilityLabel={t === 'friends' ? 'Friends' : t === 'requests' ? 'Requests' : 'Search'}
@@ -767,6 +787,9 @@ export default function SocialScreen() {
               <Ionicons name="key-outline" size={16} color={Colors.text} />
               <Text style={styles.joinCodeTitle}>Join by Invite Code</Text>
             </View>
+            <Text style={styles.joinCodeSubtitle}>
+              Enter the {INVITE_CODE_LENGTH}-character code someone shared to join their plan.
+            </Text>
             <View style={styles.joinCodeRow}>
               <TextInput
                 style={styles.joinCodeInput}
@@ -781,16 +804,21 @@ export default function SocialScreen() {
                 onSubmitEditing={handleJoinByCode}
               />
               <TouchableOpacity
-                style={[styles.squareBtn, joiningByCode && styles.btnDisabled]}
+                style={[
+                  styles.squareBtn,
+                  (joiningByCode || joinCode.length !== INVITE_CODE_LENGTH) && styles.btnDisabled,
+                ]}
                 onPress={handleJoinByCode}
                 disabled={joiningByCode}
+                activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Join plan by code"
+                accessibilityState={{ disabled: joiningByCode, busy: joiningByCode }}
               >
                 {joiningByCode ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator size="small" color={Colors.background} />
                 ) : (
-                  <Ionicons name="arrow-forward" size={18} color="#ffffff" />
+                  <Ionicons name="arrow-forward" size={20} color={Colors.background} />
                 )}
               </TouchableOpacity>
             </View>
@@ -811,12 +839,14 @@ export default function SocialScreen() {
             />
             {searchQuery.length > 0 ? (
               <TouchableOpacity
-                style={styles.squareBtn}
+                style={styles.clearBtn}
                 onPress={() => setSearchQuery('')}
+                activeOpacity={0.6}
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
+                hitSlop={HIT_SLOP}
               >
-                <Ionicons name="close" size={18} color="#ffffff" />
+                <Ionicons name="close-circle" size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -829,11 +859,16 @@ export default function SocialScreen() {
             data={results}
             keyExtractor={keyById}
             keyboardShouldPersistTaps="handled"
+            contentContainerStyle={SEARCH_LIST_CONTENT}
             renderItem={renderSearchItem}
             removeClippedSubviews
             ListEmptyComponent={
               !searching && searchQuery.trim() ? (
-                <EmptyState icon="search-outline" text="No users found" />
+                <EmptyState
+                  icon="search-outline"
+                  title="No users found"
+                  hint="Try a different name or an exact @username."
+                />
               ) : null
             }
           />
@@ -849,7 +884,13 @@ export default function SocialScreen() {
           contentContainerStyle={LIST_CONTENT}
           renderItem={renderRequestItem}
           removeClippedSubviews
-          ListEmptyComponent={<EmptyState icon="mail-outline" text="No pending requests" />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="mail-outline"
+              title="No pending requests"
+              hint="Friend requests you receive will show up here."
+            />
+          }
         />
       )}
 
@@ -862,7 +903,13 @@ export default function SocialScreen() {
           contentContainerStyle={LIST_CONTENT}
           renderItem={renderFriendItem}
           removeClippedSubviews
-          ListEmptyComponent={<EmptyState icon="people-outline" text="No friends yet — search to add some" />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="people-outline"
+              title="No friends yet"
+              hint="Use Search to find people by name or @username and send a request."
+            />
+          }
           ListFooterComponent={blockedFooter}
         />
       )}
@@ -883,6 +930,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSize.xxl,
+    fontFamily: Fonts.headingBold,
     fontWeight: FontWeight.heavy,
     color: Colors.text,
     letterSpacing: -0.5,
@@ -894,7 +942,8 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     marginHorizontal: Spacing.md,
-    marginVertical: Spacing.sm,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
     backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.full,
     borderWidth: 1,
@@ -905,7 +954,7 @@ const styles = StyleSheet.create({
   tabPill: {
     position: 'absolute',
     top: 4,
-    height: 34,
+    height: 36,
     backgroundColor: Colors.primary,
     borderRadius: Radius.full,
     shadowColor: '#000000',
@@ -915,36 +964,58 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Radius.full, zIndex: 1 },
-  tabInner: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  tabText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  tabTextActive: { color: '#ffffff', fontWeight: FontWeight.bold },
+  tabInner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  tabText: {
+    fontSize: FontSize.sm,
+    fontFamily: Fonts.bodySemibold,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.semibold,
+    letterSpacing: 0.2,
+  },
+  tabTextActive: {
+    color: Colors.background,
+    fontFamily: Fonts.bodyBold,
+    fontWeight: FontWeight.bold,
+  },
 
   badge: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.background,
     borderRadius: Radius.full,
     minWidth: 18,
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
-  badgeText: { color: Colors.primary, fontSize: 10, fontWeight: FontWeight.heavy },
+  badgeText: {
+    color: Colors.primary,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.heavy,
+    fontVariant: ['tabular-nums'],
+  },
 
   tabBody: { padding: Spacing.md, flex: 1 },
 
-  searchRow: { flexDirection: 'row', gap: 8, marginBottom: Spacing.md, alignItems: 'center' },
-  searchInput: {
-    flex: 1,
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 13,
     color: Colors.text,
     fontSize: FontSize.md,
+    fontFamily: Fonts.body,
   },
-  searchSpinner: { marginVertical: Spacing.md },
+  clearBtn: { alignItems: 'center', justifyContent: 'center' },
+  searchSpinner: { marginTop: Spacing.xs, marginBottom: Spacing.md },
   squareBtn: {
     width: 48,
     height: 48,
@@ -953,74 +1024,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnDisabled: { opacity: 0.7 },
+  btnDisabled: { opacity: 0.4 },
 
-  userRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  userTap: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  userInfo: { flex: 1 },
+  userRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  userTap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  userInfo: { flex: 1, gap: 2 },
   flexOne: { flex: 1 },
 
   avatarWrap: { position: 'relative' },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.surfaceOverlay,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  presenceDot: {
+  avatarText: {
+    color: Colors.text,
+    fontFamily: Fonts.headingSemibold,
+    fontWeight: FontWeight.bold,
+    fontSize: FontSize.lg,
+  },
+  // Online indicator: greyscale. A light ring punches the dot out of the
+  // avatar/card so it reads as a status badge without relying on hue.
+  presenceRing: {
     position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: Colors.success,
-    borderWidth: 2,
-    borderColor: Colors.surfaceRaised,
+    bottom: -1,
+    right: -1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  presenceDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: Colors.text,
   },
 
-  userName: { color: Colors.text, fontWeight: FontWeight.semibold, fontSize: FontSize.md },
-  userHandle: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: FontWeight.medium },
-  userMeta: { color: Colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20 },
+  userName: {
+    color: Colors.text,
+    fontFamily: Fonts.bodySemibold,
+    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.md,
+    lineHeight: 22,
+  },
+  userHandle: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontFamily: Fonts.bodyMedium,
+    fontWeight: FontWeight.medium,
+    lineHeight: 20,
+  },
+  userMeta: { color: Colors.textMuted, fontSize: FontSize.sm, lineHeight: 20 },
 
-  friendTag: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  friendTag: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    paddingHorizontal: Spacing.xs,
+  },
   pendingBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    minHeight: 36,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 7,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
   },
-  pendingTag: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
-  pendingClose: { marginLeft: 3 },
-  addBtn: { paddingHorizontal: 14, paddingVertical: 6 },
+  pendingTag: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  pendingClose: { marginLeft: Spacing.xs },
+  addBtn: { paddingHorizontal: Spacing.gutter, paddingVertical: 9 },
 
-  declineBtn: { paddingHorizontal: 10, paddingVertical: 6 },
-  declineText: { color: Colors.textMuted },
-  acceptBtn: { paddingHorizontal: 14, paddingVertical: 6 },
+  declineBtn: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 9,
+  },
+  declineText: { color: Colors.textMuted, fontWeight: FontWeight.medium },
+  acceptBtn: { paddingHorizontal: Spacing.gutter, paddingVertical: 9 },
 
   unfriendBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 7,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
   },
   unfriendBtnText: { color: Colors.textSecondary, fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
 
   blockedSection: {
     marginTop: Spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.borderStrong,
     paddingTop: Spacing.md,
   },
   blockedSectionTitle: {
-    fontSize: 11,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     marginBottom: Spacing.sm,
@@ -1030,23 +1139,55 @@ const styles = StyleSheet.create({
   blockedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   unblockBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 7,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.borderStrong,
   },
   unblockBtnText: { color: Colors.text, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
 
-  emptyState: { alignItems: 'center', paddingTop: 60, gap: 4 },
-  emptyIcon: { marginBottom: 12 },
-  emptyText: { color: Colors.textMuted, textAlign: 'center', marginTop: 32, fontSize: FontSize.md },
+  emptyState: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  emptyTitle: {
+    color: Colors.text,
+    textAlign: 'center',
+    fontFamily: Fonts.headingSemibold,
+    fontWeight: FontWeight.bold,
+    fontSize: FontSize.lg,
+  },
+  emptyHint: {
+    color: Colors.textMuted,
+    textAlign: 'center',
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    marginTop: Spacing.xs,
+    maxWidth: 280,
+  },
 
   joinCodeCard: {
     backgroundColor: Colors.surfaceRaised,
@@ -1056,21 +1197,32 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  joinCodeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  joinCodeTitle: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text },
-  joinCodeRow: { flexDirection: 'row', gap: 8 },
+  joinCodeHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.xs },
+  joinCodeTitle: {
+    fontSize: FontSize.md,
+    fontFamily: Fonts.bodyBold,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+  },
+  joinCodeSubtitle: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    lineHeight: 20,
+    marginBottom: Spacing.sm,
+  },
+  joinCodeRow: { flexDirection: 'row', gap: Spacing.sm },
   joinCodeInput: {
     flex: 1,
+    height: 48,
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.borderStrong,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 11,
     color: Colors.text,
     fontSize: FontSize.lg,
     fontWeight: FontWeight.heavy,
-    letterSpacing: 4,
+    letterSpacing: 6,
     textAlign: 'center',
   },
 });

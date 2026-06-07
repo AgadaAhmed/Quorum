@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   RefreshControl,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import {
   arrayUnion,
@@ -48,25 +50,27 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
 }
 
 function formatDistance(km: number) {
-  if (km < 1) return `${Math.round(km * 1000)}m`;
-  if (km < 10) return `${km.toFixed(1)}km`;
-  return `${Math.round(km)}km`;
+  if (km < 1) return `${Math.round(km * 1000)} m away`;
+  if (km < 10) return `${km.toFixed(1)} km away`;
+  return `${Math.round(km)} km away`;
 }
 
 function formatPlanDate(date: Plan['date']): string | null {
   if (!date) return null;
   if (typeof date === 'string') return date;
   if (typeof date.seconds === 'number') {
-    return new Date(date.seconds * 1000).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+    const d = new Date(date.seconds * 1000);
+    // Relative labels for near dates aid quick scanning; fall back to absolute.
+    const startOfDay = (x: Date) =>
+      new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const dayDiff = Math.round(
+      (startOfDay(d) - startOfDay(new Date())) / 86400000
+    );
+    if (dayDiff === 0) return 'Today';
+    if (dayDiff === 1) return 'Tomorrow';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
   return null;
-}
-
-function quorumPct(votes: number, required: number): number {
-  return Math.round(Math.min(votes / Math.max(required, 1), 1) * 100);
 }
 
 interface Coords {
@@ -144,12 +148,16 @@ const PlanCard = React.memo(function PlanCard({
   }, [joined, full, onPress, onJoin, item]);
 
   const actionLabel = joining
-    ? 'Joining...'
+    ? 'Joining'
     : joined
-    ? 'View Plan'
+    ? 'View plan'
     : full
-    ? 'Plan Full'
-    : 'Join Plan';
+    ? 'Plan full'
+    : 'Join plan';
+
+  const disabled = joining || (full && !joined);
+  // Joined plans are a return action, not the primary CTA — render them quietly.
+  const secondary = joined;
 
   return (
     <GlassCard index={index} onPress={handleCardPress} style={styles.card}>
@@ -157,84 +165,132 @@ const PlanCard = React.memo(function PlanCard({
         {item.coverUrl ? (
           <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
         ) : (
-          <View style={styles.cardCoverPlaceholder} />
-        )}
-        <View
-          style={[
-            styles.cardImageBadge,
-            confirmed ? styles.cardImageBadgeConfirmed : styles.cardImageBadgePending,
-          ]}
-        >
-          <Text style={styles.cardImageBadgeText}>
-            {confirmed ? 'Confirmed' : 'Pending'}
-          </Text>
-        </View>
-        {isOwn ? (
-          <View style={styles.ownCornerBadge}>
-            <Text style={styles.ownCornerBadgeText}>Yours</Text>
+          <View style={styles.cardCoverPlaceholder}>
+            <Ionicons name="image-outline" size={28} color={Colors.textDisabled} />
           </View>
-        ) : null}
+        )}
+        {/* Scrim keeps white badge text legible over any cover image. */}
+        <LinearGradient
+          colors={SCRIM_COLORS}
+          start={SCRIM_START}
+          end={SCRIM_END}
+          style={styles.coverScrim}
+          pointerEvents="none"
+        />
+        <View style={styles.cardBadgeRow}>
+          {isOwn ? (
+            <View style={styles.cardBadge}>
+              <Text style={styles.cardBadgeText}>YOURS</Text>
+            </View>
+          ) : null}
+          <View
+            style={[
+              styles.cardBadge,
+              confirmed ? styles.cardBadgeSolid : styles.cardBadgeOutline,
+            ]}
+          >
+            <Ionicons
+              name={confirmed ? 'checkmark-circle' : 'time-outline'}
+              size={12}
+              color={'#ffffff'}
+            />
+            <Text style={styles.cardBadgeText}>
+              {confirmed ? 'CONFIRMED' : 'PENDING'}
+            </Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.cardCategoryLabel} numberOfLines={1}>
-          {item.category ? `${item.category.toUpperCase()} · ` : ''}
-          {confirmed ? 'CONFIRMED' : 'ACTIVE'}
-          {distKm != null ? ` · ${formatDistance(distKm)}` : ''}
-        </Text>
+        {item.category ? (
+          <Text style={styles.cardCategoryLabel} numberOfLines={1}>
+            {item.category.toUpperCase()}
+          </Text>
+        ) : null}
 
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.title}
         </Text>
 
-        {(dateLabel || item.location) ? (
+        {(dateLabel || item.location || distKm != null) ? (
           <View style={styles.metaRow}>
             {dateLabel ? (
               <View style={styles.metaChip}>
-                <Ionicons name="calendar-outline" size={12} color={Colors.textMuted} />
+                <Ionicons name="calendar-outline" size={14} color={Colors.textMuted} />
                 <Text style={styles.metaText}>{dateLabel}</Text>
               </View>
             ) : null}
             {item.location ? (
-              <View style={styles.metaChip}>
-                <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+              <View style={[styles.metaChip, styles.metaChipFlex]}>
+                <Ionicons name="location-outline" size={14} color={Colors.textMuted} />
                 <Text style={styles.metaText} numberOfLines={1}>
                   {item.location}
                 </Text>
+              </View>
+            ) : null}
+            {distKm != null ? (
+              <View style={styles.metaChip}>
+                <Ionicons name="navigate-outline" size={14} color={Colors.textMuted} />
+                <Text style={styles.metaText}>{formatDistance(distKm)}</Text>
               </View>
             ) : null}
           </View>
         ) : null}
 
         <View style={styles.progressWrapper}>
-          <View style={styles.progressLabelRow}>
-            <Text style={styles.progressLabel}>Quorum Status</Text>
-            <Text style={styles.progressPct}>{quorumPct(votes, required)}%</Text>
-          </View>
+          {/* QuorumProgressBar renders its own votes/percent header row. */}
+          <Text style={styles.progressLabel}>QUORUM</Text>
           <QuorumProgressBar votes={votes} required={required} />
         </View>
 
         <TouchableOpacity
-          style={styles.viewDetailsBtn}
+          style={[
+            styles.actionBtn,
+            secondary && styles.actionBtnSecondary,
+            disabled && styles.actionBtnDisabled,
+          ]}
           onPress={handleAction}
-          disabled={joining || (full && !joined)}
-          activeOpacity={0.7}
+          disabled={disabled}
+          activeOpacity={0.85}
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
           accessibilityLabel={`${actionLabel}: ${item.title}`}
         >
-          <Text
-            style={[
-              styles.viewDetailsBtnText,
-              full && !joined ? styles.viewDetailsBtnTextDisabled : null,
-            ]}
-          >
-            {actionLabel}
-          </Text>
+          {joining ? (
+            <ActivityIndicator size="small" color={'#ffffff'} />
+          ) : (
+            <>
+              <Text
+                style={[
+                  styles.actionBtnText,
+                  secondary && styles.actionBtnTextSecondary,
+                  disabled && styles.actionBtnTextDisabled,
+                ]}
+              >
+                {actionLabel}
+              </Text>
+              <Ionicons
+                name={joined ? 'arrow-forward' : full ? 'lock-closed' : 'add'}
+                size={16}
+                color={
+                  disabled
+                    ? Colors.textMuted
+                    : secondary
+                    ? Colors.text
+                    : '#ffffff'
+                }
+              />
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </GlassCard>
   );
 });
+
+const SCRIM_COLORS: [string, string] = ['rgba(0,0,0,0.45)', 'rgba(0,0,0,0)'];
+const SCRIM_START = { x: 0.5, y: 0 };
+const SCRIM_END = { x: 0.5, y: 1 };
 
 export default function DiscoverScreen() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -390,26 +446,29 @@ export default function DiscoverScreen() {
       <>
         <View style={styles.header}>
           <Text style={styles.title}>Discover</Text>
+          <Text style={styles.subtitle}>Public plans near you</Text>
           <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={16} color={Colors.textMuted} />
+            <Ionicons name="search-outline" size={20} color={Colors.textMuted} />
             <TextInput
-              placeholder="Search plans..."
+              placeholder="Search plans"
               placeholderTextColor={Colors.textMuted}
               value={search}
               onChangeText={setSearch}
               style={styles.searchInput}
               returnKeyType="search"
               autoCorrect={false}
+              clearButtonMode="never"
               accessibilityLabel="Search plans"
             />
             {search.length > 0 ? (
               <TouchableOpacity
                 onPress={() => setSearch('')}
                 hitSlop={HIT_SLOP}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
-                <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
+                <Ionicons name="close-circle" size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -427,20 +486,39 @@ export default function DiscoverScreen() {
     [search, category, loading]
   );
 
+  const hasFilters = !!search || category !== 'all';
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setCategory('all');
+  }, []);
+
   const listEmpty = useMemo(
     () =>
       loading ? null : (
         <View style={styles.empty}>
-          <Ionicons name="compass-outline" size={48} color={Colors.textMuted} />
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="compass-outline" size={32} color={Colors.textMuted} />
+          </View>
           <Text style={styles.emptyTitle}>No plans found</Text>
           <Text style={styles.emptySubtitle}>
-            {search || category !== 'all'
-              ? 'Try adjusting your filters'
-              : 'Public plans will appear here'}
+            {hasFilters
+              ? 'No plans match your search and filters. Try broadening them.'
+              : 'There are no public plans yet. Pull down to refresh, or check back soon.'}
           </Text>
+          {hasFilters ? (
+            <TouchableOpacity
+              style={styles.emptyAction}
+              onPress={clearFilters}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Clear filters"
+            >
+              <Text style={styles.emptyActionText}>Clear filters</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ),
-    [loading, search, category]
+    [loading, hasFilters, clearFilters]
   );
 
   const contentContainerStyle = useMemo(
@@ -481,8 +559,9 @@ const HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.container,
+    paddingTop: Spacing.xs,
     paddingBottom: Spacing.sm,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   title: {
     fontSize: FontSize.xxl,
@@ -490,18 +569,29 @@ const styles = StyleSheet.create({
     color: Colors.text,
     letterSpacing: -0.6,
   },
+  subtitle: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+    marginBottom: Spacing.xs,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs * 2,
-    backgroundColor: Colors.backgroundAlt,
+    gap: Spacing.sm,
+    minHeight: 48,
+    backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  searchInput: { flex: 1, color: Colors.text, fontSize: FontSize.md },
+  searchInput: {
+    flex: 1,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    paddingVertical: 0,
+  },
   skeletonWrap: {
     paddingHorizontal: Spacing.container,
     paddingTop: Spacing.sm,
@@ -514,41 +604,55 @@ const styles = StyleSheet.create({
   },
   card: { padding: 0 },
   coverWrap: { position: 'relative' },
-  cardCover: { width: '100%', height: 180 },
+  cardCover: { width: '100%', height: 176 },
   cardCoverPlaceholder: {
     width: '100%',
-    height: 180,
+    height: 176,
     backgroundColor: Colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardBody: { padding: Spacing.md, gap: 10 },
-  cardImageBadge: {
+  coverScrim: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.md,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 72,
   },
-  cardImageBadgePending: { backgroundColor: Colors.overlay },
-  cardImageBadgeConfirmed: { backgroundColor: Colors.secondary },
-  cardImageBadgeText: {
+  cardBadgeRow: {
+    position: 'absolute',
+    top: Spacing.sm,
+    left: Spacing.sm,
+    right: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs * 2,
+  },
+  cardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm - 2,
+    paddingVertical: Spacing.xs + 1,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.overlay,
+  },
+  // Confirmed = solid near-black fill; pending = translucent + hairline ring.
+  cardBadgeSolid: { backgroundColor: 'rgba(0,0,0,0.78)' },
+  cardBadgeOutline: {
+    backgroundColor: Colors.overlay,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  cardBadgeText: {
     color: '#ffffff',
-    fontSize: 11,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 0.3,
+    fontSize: FontSize.xs - 2,
+    fontWeight: FontWeight.heavy,
+    letterSpacing: 1,
   },
-  ownCornerBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: Colors.gold,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.md,
-  },
-  ownCornerBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: FontWeight.heavy },
+  cardBody: { padding: Spacing.md, gap: Spacing.sm },
   cardCategoryLabel: {
-    fontSize: 10,
+    fontSize: FontSize.xs - 2,
     fontWeight: FontWeight.heavy,
     color: Colors.textMuted,
     letterSpacing: 1.5,
@@ -559,57 +663,101 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.black,
     color: Colors.text,
     letterSpacing: -0.5,
-    lineHeight: 28,
+    lineHeight: 30,
   },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  metaChip: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs + 2 },
+  metaChipFlex: { flexShrink: 1 },
   metaText: {
-    fontSize: FontSize.xs,
+    fontSize: FontSize.sm,
     color: Colors.textSecondary,
     fontWeight: FontWeight.medium,
+    lineHeight: 18,
   },
-  progressWrapper: { gap: 6 },
-  progressLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  progressWrapper: { gap: Spacing.xs + 2, marginTop: Spacing.xs },
   progressLabel: {
-    fontSize: 11,
-    fontWeight: FontWeight.bold,
+    fontSize: FontSize.xs - 1,
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.2,
   },
-  progressPct: { fontSize: 11, fontWeight: FontWeight.heavy, color: Colors.text },
-  viewDetailsBtn: {
-    alignSelf: 'flex-end',
-    minHeight: 44,
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    gap: Spacing.xs + 2,
+    minHeight: 48,
+    marginTop: Spacing.xs,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
   },
-  viewDetailsBtnText: {
-    fontSize: FontSize.sm,
+  actionBtnSecondary: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+  },
+  actionBtnDisabled: {
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 0,
+  },
+  actionBtnText: {
+    fontSize: FontSize.md,
     fontWeight: FontWeight.bold,
-    color: Colors.text,
+    color: '#ffffff',
     letterSpacing: 0.2,
   },
-  viewDetailsBtnTextDisabled: { color: Colors.textMuted },
+  actionBtnTextSecondary: { color: Colors.text },
+  actionBtnTextDisabled: { color: Colors.textMuted },
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingTop: 80,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl * 2,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceRaised,
+    marginBottom: Spacing.xs,
   },
   emptyTitle: {
     color: Colors.text,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.heavy,
+    letterSpacing: -0.3,
   },
   emptySubtitle: {
     color: Colors.textSecondary,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.md,
     textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: 320,
+  },
+  emptyAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+  },
+  emptyActionText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+    letterSpacing: 0.2,
   },
 });

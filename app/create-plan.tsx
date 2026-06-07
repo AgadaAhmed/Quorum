@@ -379,6 +379,7 @@ export default function CreatePlanScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backBtn}
+          activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={HIT_SLOP}
@@ -399,6 +400,7 @@ export default function CreatePlanScreen() {
             <TouchableOpacity
               style={styles.templateBtn}
               onPress={() => setShowTemplates(true)}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={`Use a template, ${templates.length} available`}
             >
@@ -408,25 +410,36 @@ export default function CreatePlanScreen() {
             </TouchableOpacity>
           )}
 
+          <SectionHeading text="Basics" first />
+
           <Label text="Cover Photo (optional)" first />
           <TouchableOpacity
             style={styles.coverPicker}
             onPress={handlePickCover}
+            activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={coverUri ? 'Change cover photo' : 'Add cover photo'}
           >
             {coverUri ? (
-              <Image source={{ uri: coverUri }} style={styles.coverPreview} resizeMode="cover" />
+              <>
+                <Image source={{ uri: coverUri }} style={styles.coverPreview} resizeMode="cover" />
+                <View style={styles.coverEditBadge}>
+                  <Ionicons name="camera-outline" size={14} color={Colors.background} />
+                  <Text style={styles.coverEditBadgeText}>Change</Text>
+                </View>
+              </>
             ) : (
               <View style={styles.coverPlaceholder}>
                 <Ionicons name="image-outline" size={28} color={Colors.textMuted} style={styles.mb6} />
                 <Text style={styles.coverPlaceholderText}>ADD COVER PHOTO</Text>
+                <Text style={styles.coverPlaceholderHint}>Recommended 16:9</Text>
               </View>
             )}
           </TouchableOpacity>
           {coverUri && (
-            <TouchableOpacity onPress={() => setCoverUri(null)} hitSlop={HIT_SLOP}>
-              <Text style={styles.clearDate}>Remove cover photo</Text>
+            <TouchableOpacity onPress={() => setCoverUri(null)} hitSlop={HIT_SLOP} activeOpacity={0.7} style={styles.inlineAction}>
+              <Ionicons name="trash-outline" size={14} color={Colors.textMuted} style={styles.mr4} />
+              <Text style={styles.inlineActionText}>Remove cover photo</Text>
             </TouchableOpacity>
           )}
 
@@ -440,7 +453,10 @@ export default function CreatePlanScreen() {
             maxLength={80}
             returnKeyType="next"
           />
-          <Text style={styles.charCount}>{title.length}/80</Text>
+          <View style={styles.fieldFooterRow}>
+            <Text style={styles.helperText}>Keep it short and memorable.</Text>
+            <Text style={styles.charCount}>{title.length}/80</Text>
+          </View>
 
           <Label text="Description" />
           <TextInput
@@ -453,31 +469,47 @@ export default function CreatePlanScreen() {
             numberOfLines={3}
             maxLength={500}
           />
+          <View style={styles.fieldFooterRow}>
+            <View style={styles.flex} />
+            <Text style={styles.charCount}>{description.length}/500</Text>
+          </View>
 
           <Label text="Location" />
-          <TextInput
-            style={styles.input}
-            placeholder="Where is it happening?"
-            placeholderTextColor={Colors.textMuted}
-            value={location}
-            onChangeText={setLocation}
-            maxLength={150}
-          />
+          <View style={styles.input}>
+            <View style={styles.timeRow}>
+              <Ionicons name="location-outline" size={16} color={Colors.textMuted} style={styles.mr8} />
+              <TextInput
+                style={[styles.flex, styles.embeddedInput]}
+                placeholder="Where is it happening?"
+                placeholderTextColor={Colors.textMuted}
+                value={location}
+                onChangeText={setLocation}
+                maxLength={150}
+              />
+            </View>
+          </View>
+          <Text style={styles.helperText}>Used to show distance in Discover.</Text>
+
+          <SectionHeading text="When" />
 
           <Label text="Date" />
           <TouchableOpacity
-            style={styles.input}
+            style={[styles.input, styles.timeRow]}
             onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={formattedDate ? `Date: ${formattedDate}` : 'Pick a date'}
           >
+            <Ionicons name="calendar-outline" size={16} color={Colors.textMuted} style={styles.mr8} />
             <Text style={formattedDate ? styles.valueText : styles.placeholderText}>
               {formattedDate || 'Pick a date'}
             </Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} style={styles.mlAuto} />
           </TouchableOpacity>
           {date && (
-            <TouchableOpacity onPress={() => setDate(null)} hitSlop={HIT_SLOP}>
-              <Text style={styles.clearDate}>Clear date</Text>
+            <TouchableOpacity onPress={() => setDate(null)} hitSlop={HIT_SLOP} activeOpacity={0.7} style={styles.inlineAction}>
+              <Ionicons name="close" size={14} color={Colors.textMuted} style={styles.mr4} />
+              <Text style={styles.inlineActionText}>Clear date</Text>
             </TouchableOpacity>
           )}
 
@@ -511,11 +543,13 @@ export default function CreatePlanScreen() {
           <TouchableOpacity
             style={[styles.input, styles.timeRow]}
             onPress={() => setShowTimePicker(true)}
+            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={`Time: ${formattedTime}`}
           >
             <Ionicons name="time-outline" size={16} color={Colors.textMuted} style={styles.mr8} />
             <Text style={styles.valueText}>{formattedTime}</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} style={styles.mlAuto} />
           </TouchableOpacity>
 
           {Platform.OS === 'android' && showTimePicker && (
@@ -545,18 +579,23 @@ export default function CreatePlanScreen() {
 
           <Label text="Vote Deadline (optional)" />
           <TouchableOpacity
-            style={styles.input}
+            style={[styles.input, styles.timeRow]}
             onPress={() => setShowVoteDeadlinePicker(true)}
+            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={formattedVoteDeadline ? `Vote deadline: ${formattedVoteDeadline}` : 'Pick a vote deadline'}
           >
+            <Ionicons name="hourglass-outline" size={16} color={Colors.textMuted} style={styles.mr8} />
             <Text style={formattedVoteDeadline ? styles.valueText : styles.placeholderText}>
-              {formattedVoteDeadline || 'Pick a deadline (optional)'}
+              {formattedVoteDeadline || 'Pick a deadline'}
             </Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} style={styles.mlAuto} />
           </TouchableOpacity>
+          <Text style={styles.helperText}>The vote closes automatically at this date.</Text>
           {voteDeadline && (
-            <TouchableOpacity onPress={() => setVoteDeadline(null)} hitSlop={HIT_SLOP}>
-              <Text style={styles.clearDate}>Clear deadline</Text>
+            <TouchableOpacity onPress={() => setVoteDeadline(null)} hitSlop={HIT_SLOP} activeOpacity={0.7} style={styles.inlineAction}>
+              <Ionicons name="close" size={14} color={Colors.textMuted} style={styles.mr4} />
+              <Text style={styles.inlineActionText}>Clear deadline</Text>
             </TouchableOpacity>
           )}
 
@@ -590,6 +629,8 @@ export default function CreatePlanScreen() {
             </PickerModal>
           )}
 
+          <SectionHeading text="Details" />
+
           <Label text="Category" />
           <View style={styles.categoryRow}>
             {CATEGORIES.map((c) => {
@@ -598,6 +639,7 @@ export default function CreatePlanScreen() {
                 <TouchableOpacity
                   key={c}
                   style={[styles.categoryChip, active && styles.categoryChipActive]}
+                  activeOpacity={0.7}
                   onPress={() => {
                     setUsingCustomCategory(false);
                     setCategory(category === c ? '' : c);
@@ -605,12 +647,14 @@ export default function CreatePlanScreen() {
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >
+                  {active && <Ionicons name="checkmark" size={14} color={Colors.background} style={styles.mr4} />}
                   <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{c}</Text>
                 </TouchableOpacity>
               );
             })}
             <TouchableOpacity
               style={[styles.categoryChip, usingCustomCategory && styles.categoryChipActive]}
+              activeOpacity={0.7}
               onPress={() => {
                 setUsingCustomCategory(true);
                 setCategory('');
@@ -618,6 +662,7 @@ export default function CreatePlanScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: usingCustomCategory }}
             >
+              {usingCustomCategory && <Ionicons name="checkmark" size={14} color={Colors.background} style={styles.mr4} />}
               <Text style={[styles.categoryChipText, usingCustomCategory && styles.categoryChipTextActive]}>
                 Custom
               </Text>
@@ -635,6 +680,8 @@ export default function CreatePlanScreen() {
             />
           )}
 
+          <SectionHeading text="Quorum & Access" />
+
           <Label text="Required Votes (Quorum)" />
           <View style={styles.voteRow}>
             {VOTE_OPTIONS.map((n) => {
@@ -643,6 +690,7 @@ export default function CreatePlanScreen() {
                 <TouchableOpacity
                   key={n}
                   style={[styles.voteChip, active && styles.voteChipActive]}
+                  activeOpacity={0.7}
                   onPress={() => setRequiredVotes(n)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
@@ -652,6 +700,7 @@ export default function CreatePlanScreen() {
               );
             })}
           </View>
+          <Text style={styles.helperText}>The plan confirms once this many people vote yes.</Text>
 
           <Label text="Max Participants (optional)" />
           <View style={styles.voteRowWrap}>
@@ -661,6 +710,7 @@ export default function CreatePlanScreen() {
                 <TouchableOpacity
                   key={String(opt.value)}
                   style={[styles.voteChip, active && styles.voteChipActive]}
+                  activeOpacity={0.7}
                   onPress={() => setMaxParticipants(opt.value)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
@@ -688,25 +738,47 @@ export default function CreatePlanScreen() {
               <TouchableOpacity
                 style={[styles.toggleBtn, !isPublic && styles.toggleBtnActive]}
                 onPress={() => setIsPublic(false)}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityState={{ selected: !isPublic }}
               >
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={16}
+                  color={!isPublic ? Colors.primary : Colors.textMuted}
+                  style={styles.mr6}
+                />
                 <Text style={[styles.toggleText, !isPublic && styles.toggleTextActive]}>Private</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.toggleBtn, isPublic && styles.toggleBtnActive]}
                 onPress={() => setIsPublic(true)}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isPublic }}
               >
+                <Ionicons
+                  name="globe-outline"
+                  size={16}
+                  color={isPublic ? Colors.primary : Colors.textMuted}
+                  style={styles.mr6}
+                />
                 <Text style={[styles.toggleText, isPublic && styles.toggleTextActive]}>Public</Text>
               </TouchableOpacity>
             </View>
           )}
+          {!inCooldown && (
+            <Text style={styles.helperText}>
+              {isPublic ? 'Anyone can discover and join this plan.' : 'Only people with the invite link can join.'}
+            </Text>
+          )}
+
+          <SectionHeading text="Poll (optional)" />
 
           <TouchableOpacity
             style={styles.pollToggleBtn}
             onPress={togglePoll}
+            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={showPoll ? 'Remove poll' : 'Add a poll'}
           >
@@ -731,44 +803,64 @@ export default function CreatePlanScreen() {
                 onChangeText={setPollQuestion}
                 maxLength={200}
               />
+              {pollSubmitted && !pollQuestion.trim() && (
+                <Text style={styles.fieldError}>A question is required.</Text>
+              )}
+
               <Text style={styles.pollSectionLabel}>Options</Text>
-              {pollOptions.map((opt, i) => (
-                <View key={i} style={styles.pollOptionRow}>
-                  <TextInput
-                    style={[styles.input, styles.flex, pollSubmitted && !opt.trim() && styles.inputError]}
-                    placeholder={`Option ${i + 1}`}
-                    placeholderTextColor={Colors.textMuted}
-                    value={opt}
-                    onChangeText={(t) => setPollOption(i, t)}
-                    maxLength={100}
-                  />
-                  {pollOptions.length > MIN_POLL_OPTIONS && (
-                    <TouchableOpacity
-                      style={styles.removeOptionBtn}
-                      onPress={() => removePollOption(i)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove option ${i + 1}`}
-                    >
-                      <Ionicons name="close-circle" size={22} color={Colors.error} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
+              {pollOptions.map((opt, i) => {
+                const invalid = pollSubmitted && !opt.trim();
+                return (
+                  <View key={i} style={styles.pollOptionRow}>
+                    <View style={styles.optionIndex}>
+                      <Text style={styles.optionIndexText}>{i + 1}</Text>
+                    </View>
+                    <TextInput
+                      style={[styles.input, styles.flex, invalid && styles.inputError]}
+                      placeholder={`Option ${i + 1}`}
+                      placeholderTextColor={Colors.textMuted}
+                      value={opt}
+                      onChangeText={(t) => setPollOption(i, t)}
+                      maxLength={100}
+                    />
+                    {pollOptions.length > MIN_POLL_OPTIONS && (
+                      <TouchableOpacity
+                        style={styles.removeOptionBtn}
+                        onPress={() => removePollOption(i)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove option ${i + 1}`}
+                      >
+                        <Ionicons name="close-circle" size={22} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+              {pollSubmitted && pollOptions.filter((o) => o.trim()).length < MIN_POLL_OPTIONS && (
+                <Text style={styles.fieldError}>Add at least {MIN_POLL_OPTIONS} options.</Text>
+              )}
               {pollOptions.length < MAX_POLL_OPTIONS && (
                 <TouchableOpacity
                   style={styles.addOptionBtn}
                   onPress={addPollOption}
+                  activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel="Add poll option"
                 >
-                  <Ionicons name="add-circle-outline" size={15} color={Colors.primary} style={styles.mr4} />
+                  <Ionicons name="add-circle-outline" size={16} color={Colors.primary} style={styles.mr6} />
                   <Text style={styles.addOptionText}>Add option</Text>
                 </TouchableOpacity>
               )}
             </View>
           )}
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle-outline" size={16} color={Colors.error} style={styles.mr8} />
+              <Text style={styles.error}>{error}</Text>
+            </View>
+          ) : null}
 
           <AnimatedButton
             label={submitLabel}
@@ -790,6 +882,8 @@ export default function CreatePlanScreen() {
               <TouchableOpacity
                 onPress={() => setShowTemplates(false)}
                 hitSlop={HIT_SLOP}
+                activeOpacity={0.7}
+                style={styles.modalCloseBtn}
                 accessibilityRole="button"
                 accessibilityLabel="Close templates"
               >
@@ -797,7 +891,13 @@ export default function CreatePlanScreen() {
               </TouchableOpacity>
             </View>
             {templates.length === 0 ? (
-              <Text style={styles.templateEmpty}>You have no saved templates yet.</Text>
+              <View style={styles.templateEmptyState}>
+                <Ionicons name="bookmark-outline" size={28} color={Colors.textMuted} style={styles.mb6} />
+                <Text style={styles.templateEmptyTitle}>No templates yet</Text>
+                <Text style={styles.templateEmpty}>
+                  Save a plan as a template to reuse its details next time.
+                </Text>
+              </View>
             ) : (
               <FlatList
                 data={templates}
@@ -826,6 +926,15 @@ const Label = React.memo(function Label({ text, first }: { text: string; first?:
   return <Text style={[styles.label, first && styles.labelFirst]}>{text}</Text>;
 });
 
+const SectionHeading = React.memo(function SectionHeading({ text, first }: { text: string; first?: boolean }) {
+  return (
+    <View style={[styles.sectionHeading, first && styles.sectionHeadingFirst]}>
+      <Text style={styles.sectionHeadingText}>{text}</Text>
+      <View style={styles.sectionHeadingRule} />
+    </View>
+  );
+});
+
 const PickerModal = React.memo(function PickerModal({
   visible,
   onCancel,
@@ -842,10 +951,10 @@ const PickerModal = React.memo(function PickerModal({
       <View style={styles.dateModalOverlay}>
         <View style={styles.dateModalContent}>
           <View style={styles.dateModalHeader}>
-            <TouchableOpacity onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel">
+            <TouchableOpacity onPress={onCancel} activeOpacity={0.7} hitSlop={HIT_SLOP} accessibilityRole="button" accessibilityLabel="Cancel">
               <Text style={styles.dateModalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={onDone} accessibilityRole="button" accessibilityLabel="Done">
+            <TouchableOpacity onPress={onDone} activeOpacity={0.7} hitSlop={HIT_SLOP} accessibilityRole="button" accessibilityLabel="Done">
               <Text style={styles.dateModalDone}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -869,6 +978,7 @@ const TemplateRow = React.memo(function TemplateRow({
     <TouchableOpacity
       style={styles.templateItem}
       onPress={() => onApply(item)}
+      activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={`Use template ${item.name || 'Untitled'}`}
     >
@@ -888,11 +998,12 @@ const TemplateRow = React.memo(function TemplateRow({
       <TouchableOpacity
         onPress={() => onDelete(item.id)}
         hitSlop={HIT_SLOP}
+        activeOpacity={0.7}
         style={styles.templateDeleteBtn}
         accessibilityRole="button"
         accessibilityLabel={`Delete template ${item.name || 'Untitled'}`}
       >
-        <Ionicons name="trash-outline" size={16} color={Colors.error} />
+        <Ionicons name="trash-outline" size={18} color={Colors.textMuted} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -917,15 +1028,31 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
   headerSpacer: { width: 44 },
   title: { flex: 1, textAlign: 'center', fontSize: FontSize.md, fontWeight: FontWeight.black, color: Colors.text, letterSpacing: 3 },
-  form: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.xl },
+  form: { paddingHorizontal: Spacing.container, paddingTop: Spacing.sm, gap: Spacing.xs, paddingBottom: Spacing.xxl },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.xs,
+  },
+  sectionHeadingFirst: { marginTop: Spacing.xs },
+  sectionHeadingText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.black,
+    color: Colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  sectionHeadingRule: { flex: 1, height: 1, backgroundColor: Colors.border },
   label: {
-    fontSize: 11,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
-    marginBottom: 8,
-    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.sm,
   },
   labelFirst: { marginTop: 0 },
   input: {
@@ -933,22 +1060,42 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.border,
     borderRadius: Radius.md,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Spacing.gutter,
+    paddingVertical: 14,
+    minHeight: 50,
     color: Colors.text,
     fontSize: FontSize.md,
     justifyContent: 'center',
   },
+  embeddedInput: { paddingVertical: 0, color: Colors.text, fontSize: FontSize.md },
   valueText: { color: Colors.text, fontSize: FontSize.md },
   placeholderText: { color: Colors.textMuted, fontSize: FontSize.md },
-  multiline: { height: 90, textAlignVertical: 'top' },
+  multiline: { minHeight: 96, paddingVertical: 12, textAlignVertical: 'top' },
   timeRow: { flexDirection: 'row', alignItems: 'center' },
-  clearDate: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: -4, paddingVertical: 4 },
-  charCount: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'right', marginTop: -4 },
+  fieldFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.xs },
+  helperText: { fontSize: FontSize.xs, color: Colors.textMuted, lineHeight: 16, marginTop: Spacing.xs },
+  fieldError: { fontSize: FontSize.xs, color: Colors.error, fontWeight: FontWeight.semibold, marginTop: Spacing.xs },
+  inlineAction: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 6, marginTop: 2 },
+  inlineActionText: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  charCount: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'right', fontVariant: ['tabular-nums'] },
   coverPicker: { borderRadius: Radius.md, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.border },
-  coverPreview: { width: '100%', height: 160 },
-  coverPlaceholder: { height: 160, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  coverPlaceholderText: { fontSize: 11, fontWeight: FontWeight.heavy, color: Colors.textMuted, letterSpacing: 1.5 },
+  coverPreview: { width: '100%', height: 168 },
+  coverEditBadge: {
+    position: 'absolute',
+    right: Spacing.sm,
+    bottom: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.overlay,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+  },
+  coverEditBadgeText: { color: Colors.background, fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  coverPlaceholder: { height: 168, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
+  coverPlaceholderText: { fontSize: FontSize.xs, fontWeight: FontWeight.heavy, color: Colors.textSecondary, letterSpacing: 1.5 },
+  coverPlaceholderHint: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 4 },
   dateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   dateModalContent: {
     backgroundColor: Colors.surfaceRaised,
@@ -966,67 +1113,95 @@ const styles = StyleSheet.create({
   dateModalCancel: { color: Colors.textSecondary, fontSize: FontSize.md, paddingVertical: 4 },
   dateModalDone: { color: Colors.primary, fontSize: FontSize.md, fontWeight: FontWeight.bold, paddingVertical: 4 },
   pickerSpinner: { backgroundColor: Colors.surfaceRaised },
-  categoryRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  categoryRow: { flexDirection: 'row', gap: Spacing.xs * 2, flexWrap: 'wrap' },
   categoryChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44,
+    paddingHorizontal: Spacing.gutter,
+    paddingVertical: 10,
     borderRadius: Radius.md,
     backgroundColor: Colors.backgroundAlt,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
   },
   categoryChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   categoryChipText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
   categoryChipTextActive: { color: Colors.background },
-  voteRow: { flexDirection: 'row', gap: 8 },
-  voteRowWrap: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  voteRow: { flexDirection: 'row', gap: Spacing.xs * 2 },
+  voteRowWrap: { flexDirection: 'row', gap: Spacing.xs * 2, flexWrap: 'wrap' },
   voteChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    minWidth: 48,
+    minHeight: 44,
+    paddingHorizontal: Spacing.gutter,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: Radius.full,
     backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 1.5,
+    borderColor: Colors.borderStrong,
   },
   voteChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  voteChipText: { color: Colors.textSecondary, fontWeight: FontWeight.bold },
+  voteChipText: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   voteChipTextActive: { color: Colors.background },
-  toggleRow: { flexDirection: 'row', gap: 10 },
+  toggleRow: { flexDirection: 'row', gap: Spacing.sm },
   toggleBtn: {
     flex: 1,
+    flexDirection: 'row',
+    minHeight: 48,
     paddingVertical: 12,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: Radius.md,
     backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 1.5,
+    borderColor: Colors.borderStrong,
   },
   toggleBtnActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primary },
-  toggleText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  toggleTextActive: { color: Colors.primary },
+  toggleText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold, fontSize: FontSize.md },
+  toggleTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
   pollToggleBtn: {
+    minHeight: 48,
     paddingVertical: 12,
     paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.backgroundAlt,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 1.5,
+    borderColor: Colors.borderStrong,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  pollToggleInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pollToggleInner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs + 2 },
   pollToggleText: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   pollSection: {
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.md,
     padding: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  pollSectionLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  pollOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pollSectionLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.heavy,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  pollOptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs * 2 },
+  optionIndex: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceBright,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionIndexText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textSecondary },
   removeOptionBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  addOptionBtn: { paddingVertical: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  addOptionBtn: { minHeight: 44, paddingVertical: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   addOptionText: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   cooldownBanner: {
     flexDirection: 'row',
@@ -1039,9 +1214,20 @@ const styles = StyleSheet.create({
   },
   cooldownTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gold, marginBottom: 2 },
   cooldownText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 18 },
-  error: { color: Colors.error, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
-  inputError: { borderColor: Colors.error, borderWidth: 1.5 },
-  submitBtn: { marginTop: 8, paddingVertical: 16 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.errorDim,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 10,
+    marginTop: Spacing.sm,
+  },
+  error: { flex: 1, color: Colors.error, fontSize: FontSize.sm, fontWeight: FontWeight.semibold, lineHeight: 18 },
+  inputError: { borderColor: Colors.borderStrong, borderWidth: 1.5 },
+  submitBtn: { marginTop: Spacing.md, paddingVertical: 16 },
   submitText: { fontWeight: FontWeight.heavy, letterSpacing: 1 },
   templateBtn: {
     flexDirection: 'row',
@@ -1070,7 +1256,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   templateModalTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text },
-  templateEmpty: { fontSize: FontSize.sm, color: Colors.textMuted, paddingVertical: Spacing.md },
+  modalCloseBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
+  templateEmptyState: { alignItems: 'center', paddingVertical: Spacing.lg, paddingHorizontal: Spacing.md },
+  templateEmptyTitle: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: 4 },
+  templateEmpty: { fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
   templateList: { gap: 8, paddingBottom: Spacing.md },
   templateItem: {
     flexDirection: 'row',

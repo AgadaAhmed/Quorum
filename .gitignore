@@ -46,3 +46,7 @@ app-example
 
 # git worktrees
 .worktrees/
+
+# ruflo swarm bookkeeping
+.claude-flow/
+.swarm/
