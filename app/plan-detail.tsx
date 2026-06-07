@@ -813,20 +813,64 @@ export default function PlanDetailScreen() {
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [plan?.comments]);
 
-  if (loading || !plan) {
+  if (loading) {
     return (
       <ScreenWrapper>
         <View style={styles.loadingHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.menuBtn}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.menuBtn}
+            hitSlop={HIT_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>Plan Detail</Text>
-          <View style={{ width: 40 }} />
+          <View style={{ width: 44 }} />
         </View>
-        <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md }}>
+        <View style={styles.loadingBody}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <ScreenWrapper>
+        <View style={styles.loadingHeader}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.menuBtn}
+            hitSlop={HIT_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Plan Detail</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        <View style={styles.notFoundState}>
+          <View style={styles.notFoundIconWrap}>
+            <Ionicons name="calendar-clear-outline" size={36} color={Colors.textMuted} />
+          </View>
+          <Text style={styles.notFoundTitle}>Plan not found</Text>
+          <Text style={styles.notFoundText}>
+            This plan may have been deleted, or you no longer have access to it.
+          </Text>
+          <TouchableOpacity
+            style={styles.notFoundBtn}
+            onPress={() => router.replace('/(tabs)')}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Back to plans"
+          >
+            <Text style={styles.notFoundBtnText}>Back to Plans</Text>
+          </TouchableOpacity>
         </View>
       </ScreenWrapper>
     );
@@ -840,15 +884,15 @@ export default function PlanDetailScreen() {
         {plan.coverUrl ? (
           <Image source={{ uri: plan.coverUrl }} style={styles.coverImage} resizeMode="cover" />
         ) : null}
-        <Text style={styles.upcomingLabel}>UPCOMING PLAN</Text>
-        <View style={styles.planTitleRow}>
-          <Text style={styles.planTitle}>{plan.title}</Text>
-          {plan.category && (
-            <Text style={styles.categoryTag}>
-              {plan.category}
-            </Text>
-          )}
-        </View>
+        <Text style={styles.upcomingLabel}>{plan.status === 'confirmed' ? 'CONFIRMED PLAN' : 'UPCOMING PLAN'}</Text>
+        <Text style={styles.planTitle}>{plan.title}</Text>
+        {plan.category ? (
+          <View style={styles.categoryTagRow}>
+            <View style={styles.categoryTag}>
+              <Text style={styles.categoryTagText}>{plan.category}</Text>
+            </View>
+          </View>
+        ) : null}
         {scamFlagged && (
           <View style={styles.scamBanner}>
             <Ionicons name="warning-outline" size={16} color={Colors.error} style={{ marginRight: 8 }} />
@@ -1100,16 +1144,27 @@ export default function PlanDetailScreen() {
 
       {/* Quorum & Vote */}
       <AnimatedCard index={1} style={{ marginBottom: Spacing.md }}>
-        <Text style={styles.sectionTitle}>Quorum Progress</Text>
-        <QuorumProgressBar votes={voteCount} required={required} />
-        <View style={{ height: 12 }} />
+        <View style={styles.quorumHeader}>
+          <Text style={styles.sectionTitleTight}>Quorum Progress</Text>
+          <Text style={styles.quorumCount}>
+            {voteCount}
+            <Text style={styles.quorumCountDim}>/{required}</Text>
+          </Text>
+        </View>
+        <Text style={styles.quorumSub}>
+          {plan.status === 'confirmed'
+            ? 'Quorum reached — this plan is confirmed'
+            : `${Math.max(0, required - voteCount)} more ${Math.max(0, required - voteCount) === 1 ? 'vote' : 'votes'} to confirm`}
+        </Text>
+        <View style={styles.quorumBarWrap}>
+          <QuorumProgressBar votes={voteCount} required={required} />
+        </View>
         <AnimatedButton
           label={hasVoted ? "You're In — Withdraw" : "I'm In"}
           onPress={handleVote}
           variant={hasVoted ? 'secondary' : 'primary'}
           loading={voting}
           disabled={voting}
-          style={{ marginTop: Spacing.lg }}
         />
         {/* Host rating prompt */}
         {plan.status === 'confirmed' &&
@@ -1152,6 +1207,8 @@ export default function PlanDetailScreen() {
             <TouchableOpacity
               onPress={() => setShowInvite(!showInvite)}
               style={styles.rowCenter}
+              hitSlop={HIT_SLOP}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={showInvite ? 'Done inviting' : 'Invite friends'}
             >
@@ -1165,16 +1222,28 @@ export default function PlanDetailScreen() {
         {plan.participants && plan.participants.length > 0 && (
           <View style={styles.whoIsInSection}>
             <Text style={styles.whoIsInLabel}>WHO'S IN</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.whoIsInScroll}>
-              {plan.participants.slice(0, 10).map((pid: string, i: number) => (
-                <View key={pid} style={[styles.whoIsInAvatar, { marginLeft: i === 0 ? 0 : -8 }]}>
-                  <Text style={styles.whoIsInInitial}>{pid.charAt(0).toUpperCase()}</Text>
-                </View>
-              ))}
-              {plan.participants.length > 10 && (
-                <View style={[styles.whoIsInAvatar, { marginLeft: -8, backgroundColor: Colors.surfaceRaised }]}>
-                  <Text style={[styles.whoIsInInitial, { color: Colors.textSecondary }]}>
-                    +{plan.participants.length - 10}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.whoIsInScroll}
+            >
+              {plan.participants.slice(0, MAX_VISIBLE_AVATARS).map((pid: string, i: number) => {
+                const pName = participantNames[pid];
+                const initial = (pName?.[0] || pid.charAt(0) || '?').toUpperCase();
+                return (
+                  <View
+                    key={pid}
+                    style={[styles.whoIsInAvatar, i > 0 && styles.whoIsInAvatarOverlap]}
+                    accessibilityLabel={pName || 'Participant'}
+                  >
+                    <Text style={styles.whoIsInInitial}>{initial}</Text>
+                  </View>
+                );
+              })}
+              {plan.participants.length > MAX_VISIBLE_AVATARS && (
+                <View style={[styles.whoIsInAvatar, styles.whoIsInAvatarOverlap, styles.whoIsInAvatarMore]}>
+                  <Text style={styles.whoIsInMoreText}>
+                    +{plan.participants.length - MAX_VISIBLE_AVATARS}
                   </Text>
                 </View>
               )}
@@ -1190,6 +1259,7 @@ export default function PlanDetailScreen() {
               <TouchableOpacity
                 style={styles.participantTouchable}
                 onPress={() => pid !== uid && router.push({ pathname: '/user-profile', params: { userId: pid } } as any)}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={`View ${name}'s profile`}
               >
@@ -1243,6 +1313,8 @@ export default function PlanDetailScreen() {
               onPress={handleAddPhoto}
               disabled={uploadingPhoto}
               style={[styles.rowCenter, uploadingPhoto && styles.dim]}
+              hitSlop={HIT_SLOP}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Add photo"
             >
@@ -1430,21 +1502,44 @@ export default function PlanDetailScreen() {
         </View>
       );
     }
+    const pollTotalVotes = plan.poll.options.reduce(
+      (sum: number, o: string) => sum + (plan.poll.votes?.[o]?.length || 0), 0
+    );
     return (
       <AnimatedCard index={0} style={{ marginBottom: Spacing.md }}>
-        <Text style={styles.sectionTitle}>{plan.poll.question}</Text>
+        <Text style={styles.pollQuestion}>{plan.poll.question}</Text>
+        <Text style={styles.pollMeta}>
+          {pollTotalVotes === 0
+            ? 'No votes yet — tap an option to vote'
+            : `${pollTotalVotes} ${pollTotalVotes === 1 ? 'vote' : 'votes'} · tap to change`}
+        </Text>
         {plan.poll.options.map((opt: string) => {
           const votes: string[] = plan.poll.votes?.[opt] || [];
-          const totalVotes = plan.poll.options.reduce(
-            (sum: number, o: string) => sum + (plan.poll.votes?.[o]?.length || 0), 0
-          );
           const hasVotedForThis = votes.includes(uid);
-          const percentage = totalVotes > 0 ? Math.round((votes.length / totalVotes) * 100) : 0;
+          const percentage = pollTotalVotes > 0 ? Math.round((votes.length / pollTotalVotes) * 100) : 0;
           return (
-            <TouchableOpacity key={opt} style={styles.pollOption} onPress={() => handlePollVote(opt)}>
+            <TouchableOpacity
+              key={opt}
+              style={[styles.pollOption, hasVotedForThis && styles.pollOptionActive]}
+              onPress={() => handlePollVote(opt)}
+              activeOpacity={0.8}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: hasVotedForThis }}
+              accessibilityLabel={`${opt}, ${percentage} percent, ${votes.length} ${votes.length === 1 ? 'vote' : 'votes'}`}
+            >
               <View style={[styles.pollOptionFill, { width: `${percentage}%` as any }]} />
-              <Text style={[styles.pollOptionText, hasVotedForThis && styles.pollOptionTextActive]}>{opt}</Text>
-              <Text style={styles.pollOptionPct}>{votes.length}{hasVotedForThis ? ' (voted)' : ''}</Text>
+              <View style={styles.pollOptionLabelWrap}>
+                {hasVotedForThis && (
+                  <Ionicons name="checkmark-circle" size={16} color={Colors.primary} style={styles.iconMr6} />
+                )}
+                <Text
+                  style={[styles.pollOptionText, hasVotedForThis && styles.pollOptionTextActive]}
+                  numberOfLines={1}
+                >
+                  {opt}
+                </Text>
+              </View>
+              <Text style={[styles.pollOptionPct, hasVotedForThis && styles.pollOptionTextActive]}>{percentage}%</Text>
             </TouchableOpacity>
           );
         })}
@@ -1458,8 +1553,14 @@ export default function PlanDetailScreen() {
       <TouchableOpacity
         style={styles.chatCard}
         onPress={() => router.push({ pathname: '/chat', params: { planId: plan.id, planTitle: plan.title } })}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Open plan chat"
       >
-        <View style={{ flex: 1 }}>
+        <View style={styles.chatCardIcon}>
+          <Ionicons name="chatbubbles-outline" size={22} color={Colors.text} />
+        </View>
+        <View style={styles.flex1}>
           <Text style={styles.chatCardTitle}>Plan Chat</Text>
           <Text style={styles.chatCardSub}>Discuss this plan with participants</Text>
         </View>
@@ -1506,6 +1607,8 @@ export default function PlanDetailScreen() {
             <TouchableOpacity
               style={styles.floatBtn}
               onPress={() => router.back()}
+              activeOpacity={0.7}
+              hitSlop={HIT_SLOP}
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
@@ -1515,6 +1618,8 @@ export default function PlanDetailScreen() {
               <TouchableOpacity
                 style={styles.floatBtn}
                 onPress={() => setShowSOS(true)}
+                activeOpacity={0.7}
+                hitSlop={HIT_SLOP}
                 accessibilityRole="button"
                 accessibilityLabel="Emergency SOS"
               >
@@ -1524,6 +1629,8 @@ export default function PlanDetailScreen() {
                 <TouchableOpacity
                   style={styles.floatBtn}
                   onPress={() => setShowReport(true)}
+                  activeOpacity={0.7}
+                  hitSlop={HIT_SLOP}
                   accessibilityRole="button"
                   accessibilityLabel="Report this plan"
                 >
@@ -1533,6 +1640,8 @@ export default function PlanDetailScreen() {
               <TouchableOpacity
                 style={styles.floatBtn}
                 onPress={handleShare}
+                activeOpacity={0.7}
+                hitSlop={HIT_SLOP}
                 accessibilityRole="button"
                 accessibilityLabel="Share plan"
               >
@@ -1568,6 +1677,10 @@ export default function PlanDetailScreen() {
               key={t.key}
               onPress={() => setActiveTab(t.key as DetailTab)}
               style={[styles.detailTab, activeTab === t.key && styles.detailTabActive]}
+              activeOpacity={0.7}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === t.key }}
+              accessibilityLabel={t.label}
             >
               <Text style={[styles.detailTabLabel, activeTab === t.key && styles.detailTabLabelActive]}>{t.label}</Text>
             </TouchableOpacity>
@@ -1584,10 +1697,11 @@ export default function PlanDetailScreen() {
       </ScrollView>
 
       {/* Edit Modal */}
-      <Modal visible={showEdit} transparent animationType="slide">
+      <Modal visible={showEdit} transparent animationType="slide" onRequestClose={() => setShowEdit(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
               <Text style={styles.modalTitle}>Edit Plan</Text>
               <TextInput
                 style={styles.modalInput}
@@ -1826,8 +1940,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  menuBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.text, flex: 1, textAlign: 'center' },
+  menuBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text, flex: 1, textAlign: 'center' },
+  loadingBody: { paddingHorizontal: Spacing.container, paddingTop: Spacing.md, gap: Spacing.sm },
+  // Not-found state
+  notFoundState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xxl,
+  },
+  notFoundIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  notFoundTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.heavy,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  notFoundText: {
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: Spacing.lg,
+    maxWidth: 300,
+  },
+  notFoundBtn: {
+    minHeight: 48,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+  },
+  notFoundBtnText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.background,
+  },
   content: { paddingBottom: 40 },
   // Cover / float header
   coverWrapper: { position: 'relative' },
@@ -1893,17 +2053,31 @@ const styles = StyleSheet.create({
   tabEmptyText: { fontSize: FontSize.md, color: Colors.textMuted, textAlign: 'center' },
   // Plan info
   coverImage: { width: '100%', height: 140, borderRadius: Radius.md, marginBottom: 12 },
-  planTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8, gap: 8 },
   planTitle: {
-    fontSize: 40,
-    fontWeight: '900',
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.black,
     color: Colors.text,
-    flex: 1,
-    letterSpacing: -1,
-    lineHeight: 44,
+    letterSpacing: -0.5,
+    lineHeight: 38,
+    marginBottom: Spacing.sm,
   },
-  categoryTag: { color: Colors.primary, fontSize: FontSize.sm, fontWeight: '600', marginTop: 4 },
-  planDesc: { fontSize: FontSize.md, color: Colors.textSecondary, marginBottom: 12, lineHeight: 22 },
+  categoryTagRow: { flexDirection: 'row', marginBottom: Spacing.sm },
+  categoryTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  categoryTagText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  planDesc: { fontSize: FontSize.md, color: Colors.textSecondary, marginBottom: Spacing.sm, lineHeight: 24 },
   metaGrid: { gap: 8, marginBottom: 12 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   metaText: { fontSize: FontSize.md, color: Colors.textSecondary },
@@ -1946,22 +2120,79 @@ const styles = StyleSheet.create({
   templateBtn: { marginTop: 4, borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryDim },
   templateBtnText: { color: Colors.primary },
   sectionTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text, marginBottom: 12 },
+  sectionTitleTight: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text },
+  quorumHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xs,
+  },
+  quorumCount: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.black,
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  quorumCountDim: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
+  },
+  quorumSub: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.medium,
+    marginBottom: Spacing.sm,
+  },
+  quorumBarWrap: { marginBottom: Spacing.md },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   inviteToggle: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
+  pollQuestion: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+    lineHeight: 24,
+  },
+  pollMeta: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    fontWeight: FontWeight.medium,
+    marginBottom: Spacing.sm,
+  },
   pollOption: {
     flexDirection: 'row', alignItems: 'center', borderRadius: Radius.md, overflow: 'hidden',
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 8, height: 44, position: 'relative',
+    borderWidth: 1, borderColor: Colors.border, marginBottom: 8, minHeight: 48, position: 'relative',
   },
+  pollOptionActive: { borderColor: Colors.borderStrong },
   pollOptionFill: {
     position: 'absolute', left: 0, top: 0, bottom: 0,
-    backgroundColor: Colors.primary + '33', borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceBright,
   },
-  pollOptionText: { flex: 1, paddingHorizontal: 12, color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.md },
-  pollOptionTextActive: { color: Colors.primary },
-  pollOptionPct: { paddingHorizontal: 12, color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: '700' },
-  chatCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  chatCardTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
-  chatCardSub: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  pollOptionLabelWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    paddingVertical: 8,
+  },
+  pollOptionText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold, fontSize: FontSize.md },
+  pollOptionTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+  pollOptionPct: {
+    paddingHorizontal: 12,
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    fontVariant: ['tabular-nums'],
+  },
+  chatCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, minHeight: 48 },
+  chatCardIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: Colors.surfaceRaised,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  chatCardTitle: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: 2 },
+  chatCardSub: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 18 },
   participantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 },
   participantAvatar: {
     width: 36, height: 36, borderRadius: 18,
@@ -1984,14 +2215,22 @@ const styles = StyleSheet.create({
   },
   inviteBtnText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
   noFriendsText: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 8, textAlign: 'center' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalContent: {
     backgroundColor: Colors.backgroundAlt,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
-    padding: Spacing.lg, gap: Spacing.sm, paddingBottom: 40,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, gap: Spacing.sm, paddingBottom: Spacing.xl,
   },
-  modalTitle: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.text, marginBottom: 4 },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.borderStrong,
+    alignSelf: 'center',
+    marginBottom: Spacing.sm,
+  },
+  modalTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text, marginBottom: Spacing.xs },
   modalInput: {
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 12,
@@ -2014,14 +2253,14 @@ const styles = StyleSheet.create({
   catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   catChipText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
   catChipTextActive: { color: Colors.background, fontWeight: '700' },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
   modalCancel: {
-    flex: 1, paddingVertical: 12, alignItems: 'center',
-    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center',
+    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.borderStrong,
   },
-  modalCancelText: { color: Colors.textSecondary, fontWeight: '600' },
-  modalSave: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.primary },
-  modalSaveText: { color: Colors.background, fontWeight: '700' },
+  modalCancelText: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
+  modalSave: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.full, backgroundColor: Colors.primary },
+  modalSaveText: { color: Colors.background, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   celebration: {
     position: 'absolute', top: '35%', alignSelf: 'center',
     backgroundColor: Colors.gold, paddingHorizontal: 30, paddingVertical: 20,
@@ -2040,8 +2279,8 @@ const styles = StyleSheet.create({
   },
   inviteCodeText: { color: Colors.primary, fontWeight: '800', fontSize: FontSize.md, letterSpacing: 2 },
   photoThumb: { width: 90, height: 90, borderRadius: Radius.md },
-  photoEmpty: { alignItems: 'center', paddingVertical: 20 },
-  photoEmptyText: { color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center' },
+  photoEmpty: { alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.xs },
+  photoEmptyText: { color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center', lineHeight: 20 },
   checklistInputRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   checklistInput: {
     flex: 1, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
@@ -2304,21 +2543,33 @@ const styles = StyleSheet.create({
   },
   whoIsInScroll: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: Spacing.sm,
   },
   whoIsInAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: Colors.backgroundAlt,
+    borderColor: Colors.background,
+  },
+  whoIsInAvatarOverlap: { marginLeft: AVATAR_OVERLAP },
+  whoIsInAvatarMore: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: Colors.background,
   },
   whoIsInInitial: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
     color: Colors.background,
+  },
+  whoIsInMoreText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.heavy,
+    color: Colors.textSecondary,
   },
   lastTimeSection: {
     paddingTop: Spacing.sm,

@@ -34,7 +34,7 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
-import SkeletonCard from '../../components/SkeletonLoader';
+import { SkeletonItem } from '../../components/SkeletonLoader';
 import { useToast } from '../../components/Toast';
 import OnboardingSlider from '../../components/OnboardingSlider';
 import GlassCard from '../../components/GlassCard';
@@ -497,8 +497,9 @@ export default function HomeScreen() {
           <Text style={styles.appTitle}>Quorum</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.iconBtn}
+              style={[styles.iconBtn, styles.iconBtnGhost]}
               onPress={() => router.push('/activity')}
+              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
               hitSlop={HIT_SLOP}
@@ -508,11 +509,12 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={[styles.iconBtn, styles.addBtn]}
               onPress={openCreatePlan}
+              activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Create plan"
               hitSlop={HIT_SLOP}
             >
-              <Ionicons name="add" size={22} color={Colors.background} />
+              <Ionicons name="add" size={26} color={Colors.background} />
             </TouchableOpacity>
           </View>
         </View>
@@ -554,7 +556,7 @@ export default function HomeScreen() {
 
       {/* Search bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={17} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search plans..."
@@ -570,6 +572,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             onPress={() => setSearch('')}
             hitSlop={HIT_SLOP}
+            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Clear search"
           >
@@ -598,7 +601,7 @@ export default function HomeScreen() {
       {loading ? (
         <View style={styles.skeletonWrap}>
           {SKELETON_KEYS.map((k) => (
-            <SkeletonCard key={k} />
+            <PlanCardSkeleton key={k} />
           ))}
         </View>
       ) : (
@@ -682,6 +685,27 @@ const FriendPlanCard = React.memo(function FriendPlanCard({
 });
 
 // ---------------------------------------------------------------------------
+// Plan card skeleton (matches the real card: cover + body + progress)
+// ---------------------------------------------------------------------------
+
+const PlanCardSkeleton = React.memo(function PlanCardSkeleton() {
+  return (
+    <View style={styles.skeletonCard}>
+      <SkeletonItem width="100%" height={180} borderRadius={0} />
+      <View style={styles.skeletonBody}>
+        <SkeletonItem width="35%" height={9} />
+        <SkeletonItem width="80%" height={20} style={styles.skeletonGapSm} />
+        <View style={styles.skeletonMetaRow}>
+          <SkeletonItem width={72} height={11} />
+          <SkeletonItem width={96} height={11} />
+        </View>
+        <SkeletonItem width="100%" height={6} borderRadius={3} style={styles.skeletonGapMd} />
+      </View>
+    </View>
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Empty states
 // ---------------------------------------------------------------------------
 
@@ -716,6 +740,7 @@ const FirstRunEmptyState = React.memo(function FirstRunEmptyState({
       <TouchableOpacity
         style={styles.emptyBtn}
         onPress={onCreate}
+        activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel="Create your first plan"
       >
@@ -810,6 +835,7 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
         {isPinned ? (
           <TouchableOpacity
             style={styles.swipeNeutralAction}
+            activeOpacity={0.7}
             onPress={() => runAndClose(() => onUnpin(item.id))}
             accessibilityRole="button"
             accessibilityLabel="Unpin plan"
@@ -820,6 +846,7 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
         ) : (
           <TouchableOpacity
             style={styles.swipeNeutralAction}
+            activeOpacity={0.7}
             onPress={() => runAndClose(() => onPin(item.id))}
             accessibilityRole="button"
             accessibilityLabel="Pin plan"
@@ -839,42 +866,46 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
         {isArchived ? (
           <TouchableOpacity
             style={[styles.swipeAction, styles.swipeActionSpaced]}
+            activeOpacity={0.7}
             onPress={() => runAndClose(() => onUnarchive(item.id))}
             accessibilityRole="button"
             accessibilityLabel="Restore plan"
           >
-            <Ionicons name="arrow-up-circle-outline" size={18} color={Colors.text} />
+            <Ionicons name="arrow-up-circle-outline" size={20} color={Colors.text} />
             <Text style={styles.swipeActionText}>Restore</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={[styles.swipeAction, styles.swipeActionSpaced]}
+            activeOpacity={0.7}
             onPress={() => runAndClose(() => onArchive(item.id))}
             accessibilityRole="button"
             accessibilityLabel="Archive plan"
           >
-            <Ionicons name="archive-outline" size={18} color={Colors.text} />
+            <Ionicons name="archive-outline" size={20} color={Colors.text} />
             <Text style={styles.swipeActionText}>Archive</Text>
           </TouchableOpacity>
         )}
         {isCreator ? (
           <TouchableOpacity
             style={[styles.swipeAction, styles.swipeActionStrong]}
+            activeOpacity={0.85}
             onPress={() => runAndClose(() => onDelete(item))}
             accessibilityRole="button"
             accessibilityLabel="Delete plan"
           >
-            <Ionicons name="trash-outline" size={18} color={Colors.background} />
+            <Ionicons name="trash-outline" size={20} color={Colors.background} />
             <Text style={[styles.swipeActionText, styles.swipeActionTextInverse]}>Delete</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={styles.swipeAction}
+            activeOpacity={0.7}
             onPress={() => runAndClose(() => onLeave(item))}
             accessibilityRole="button"
             accessibilityLabel="Leave plan"
           >
-            <Ionicons name="exit-outline" size={18} color={Colors.text} />
+            <Ionicons name="exit-outline" size={20} color={Colors.text} />
             <Text style={styles.swipeActionText}>Leave</Text>
           </TouchableOpacity>
         )}
@@ -925,7 +956,7 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
           </View>
           {countdown && (
             <View style={styles.countdownBadge}>
-              <Ionicons name="time-outline" size={11} color={Colors.background} />
+              <Ionicons name="time-outline" size={12} color={Colors.background} />
               <Text style={styles.countdownText}>{countdown}</Text>
             </View>
           )}
@@ -950,13 +981,13 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
             <View style={styles.metaRow}>
               {item.date ? (
                 <View style={styles.metaChip}>
-                  <Ionicons name="calendar-outline" size={12} color={Colors.textMuted} />
-                  <Text style={styles.metaText}>{item.date}</Text>
+                  <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
+                  <Text style={[styles.metaText, styles.metaTextTabular]}>{item.date}</Text>
                 </View>
               ) : null}
               {item.location ? (
                 <View style={styles.metaChip}>
-                  <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                  <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
                   <Text style={styles.metaText} numberOfLines={1}>
                     {item.location}
                   </Text>
@@ -1035,6 +1066,7 @@ function ContextSheet({
 
               <TouchableOpacity
                 style={styles.contextRow}
+                activeOpacity={0.6}
                 onPress={() => {
                   onClose();
                   onView(plan.id);
@@ -1047,6 +1079,7 @@ function ContextSheet({
 
               <TouchableOpacity
                 style={styles.contextRow}
+                activeOpacity={0.6}
                 onPress={() => {
                   onClose();
                   onChat(plan.id, plan.title);
@@ -1059,6 +1092,7 @@ function ContextSheet({
 
               <TouchableOpacity
                 style={styles.contextRow}
+                activeOpacity={0.6}
                 onPress={() => {
                   onClose();
                   if (isPinned) onUnpin(plan.id);
@@ -1076,6 +1110,7 @@ function ContextSheet({
 
               <TouchableOpacity
                 style={styles.contextRow}
+                activeOpacity={0.6}
                 onPress={() => {
                   onClose();
                   if (isArchived) onUnarchive(plan.id);
@@ -1086,7 +1121,7 @@ function ContextSheet({
                 <Ionicons
                   name={isArchived ? 'arrow-up-circle-outline' : 'archive-outline'}
                   size={20}
-                  color={Colors.textSecondary}
+                  color={Colors.text}
                 />
                 <Text style={styles.contextLabel}>{isArchived ? 'Restore' : 'Archive'}</Text>
               </TouchableOpacity>
@@ -1096,6 +1131,7 @@ function ContextSheet({
               {plan.createdBy === uid ? (
                 <TouchableOpacity
                   style={styles.contextRow}
+                  activeOpacity={0.6}
                   onPress={() => {
                     onClose();
                     onDelete(plan);
@@ -1108,6 +1144,7 @@ function ContextSheet({
               ) : (
                 <TouchableOpacity
                   style={styles.contextRow}
+                  activeOpacity={0.6}
                   onPress={() => {
                     onClose();
                     onLeave(plan);
@@ -1170,9 +1207,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Ghost variant: secondary action recedes so the black + is the lone primary.
+  iconBtnGhost: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+  },
   addBtn: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
+    ...Shadow.primary,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -1273,26 +1316,48 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textMuted,
     fontWeight: FontWeight.medium,
-    marginTop: 2,
+    marginTop: 4,
+    lineHeight: 16,
   },
   friendStatusBadge: {
     borderRadius: Radius.full,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     alignSelf: 'flex-start',
-    marginTop: 6,
+    marginTop: 'auto',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     backgroundColor: Colors.surfaceRaised,
   },
   friendStatusText: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+    fontSize: 11,
+    fontWeight: FontWeight.heavy,
     color: Colors.textSecondary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
 
   // Plan list
-  skeletonWrap: { paddingHorizontal: Spacing.md },
+  skeletonWrap: { paddingHorizontal: Spacing.container },
+  skeletonCard: {
+    backgroundColor: Colors.backgroundAlt,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    marginBottom: Spacing.sm,
+  },
+  skeletonBody: {
+    padding: Spacing.md,
+    gap: 8,
+  },
+  skeletonMetaRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  skeletonGapSm: { marginTop: 4 },
+  skeletonGapMd: { marginTop: 8 },
   listContent: {
     paddingHorizontal: Spacing.container,
     paddingBottom: 110,
@@ -1348,9 +1413,10 @@ const styles = StyleSheet.create({
   },
   countdownText: {
     color: Colors.background,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: FontWeight.bold,
     letterSpacing: 0.2,
+    fontVariant: ['tabular-nums'],
   },
   pinnedBadge: {
     position: 'absolute',
@@ -1389,15 +1455,19 @@ const styles = StyleSheet.create({
   metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   metaText: {
-    fontSize: FontSize.xs,
+    fontSize: 13,
     color: Colors.textSecondary,
     fontWeight: FontWeight.medium,
+    lineHeight: 18,
+  },
+  metaTextTabular: {
+    fontVariant: ['tabular-nums'],
   },
   progressWrapper: {
-    gap: 6,
+    gap: 8,
   },
   progressLabelRow: {
     flexDirection: 'row',
@@ -1412,9 +1482,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   progressPct: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: FontWeight.heavy,
     color: Colors.text,
+    fontVariant: ['tabular-nums'],
   },
   viewDetailsBtn: {
     alignSelf: 'flex-end',
@@ -1466,7 +1537,7 @@ const styles = StyleSheet.create({
   },
 
   // Empty states
-  dimIcon: { opacity: 0.6 },
+  dimIcon: { opacity: 0.5, marginBottom: Spacing.xs },
   btnIcon: { marginLeft: 6 },
   onboarding: {
     alignItems: 'center',
@@ -1533,16 +1604,20 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
   },
   emptyFiltered: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingTop: 80,
+    paddingTop: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
   },
   emptyTitle: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.heavy,
     color: Colors.text,
     textAlign: 'center',
+    lineHeight: 24,
+    letterSpacing: -0.2,
   },
   emptySubtitle: {
     fontSize: FontSize.md,
@@ -1571,7 +1646,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.borderStrong,
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -1584,9 +1659,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   contextDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 4,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.borderStrong,
+    marginVertical: Spacing.xs,
   },
   contextRow: {
     flexDirection: 'row',

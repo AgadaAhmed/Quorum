@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   FlatList,
@@ -52,7 +53,7 @@ import { useSubscription } from '../hooks/useSubscription';
 import { useToast } from '../components/Toast';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { SkeletonChatBubble } from '../components/SkeletonLoader';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 const REACTION_EMOJIS = ['+1', 'love', 'haha', 'wow', 'sad', 'fire'] as const;
@@ -243,6 +244,8 @@ const ChatBubble = memo(function ChatBubble({
                   key={emoji}
                   onPress={() => toggleReaction(emoji)}
                   style={[styles.reactionPill, mine && styles.reactionPillActive]}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                   accessibilityRole="button"
                   accessibilityLabel={`${emoji} reaction, ${uids.length}${
                     mine ? ', selected' : ''
@@ -598,6 +601,7 @@ export default function ChatScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backBtn}
+          activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={8}
@@ -615,6 +619,7 @@ export default function ChatScreen() {
         <TouchableOpacity
           style={styles.participantsBtn}
           onPress={() => setShowParticipants((v) => !v)}
+          activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Toggle participants list"
           hitSlop={8}
@@ -669,7 +674,9 @@ export default function ChatScreen() {
             removeClippedSubviews={Platform.OS === 'android'}
             ListEmptyComponent={
               <View style={styles.emptyChat}>
-                <Ionicons name="chatbubbles-outline" size={48} color={Colors.border} />
+                <View style={styles.emptyChatIcon}>
+                  <Ionicons name="chatbubbles-outline" size={32} color={Colors.textMuted} />
+                </View>
                 <Text style={styles.emptyChatText}>No messages yet</Text>
                 <Text style={styles.emptyChatSub}>Be the first to say something</Text>
               </View>
@@ -685,6 +692,7 @@ export default function ChatScreen() {
                 key={p.id}
                 style={styles.mentionItem}
                 onPress={() => selectMention(p)}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={`Mention ${p.displayName}`}
               >
@@ -716,15 +724,17 @@ export default function ChatScreen() {
             onPress={handleImageSend}
             style={styles.attachBtn}
             disabled={uploading}
+            activeOpacity={0.7}
+            hitSlop={6}
             accessibilityRole="button"
             accessibilityLabel="Attach image"
             accessibilityState={{ disabled: uploading }}
           >
-            <Ionicons
-              name="image-outline"
-              size={22}
-              color={uploading ? Colors.textDisabled : Colors.textMuted}
-            />
+            {uploading ? (
+              <ActivityIndicator size="small" color={Colors.textMuted} />
+            ) : (
+              <Ionicons name="image-outline" size={24} color={Colors.textMuted} />
+            )}
           </TouchableOpacity>
           <TextInput
             style={styles.input}
@@ -741,14 +751,15 @@ export default function ChatScreen() {
             style={[styles.sendBtn, inputDisabled && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={inputDisabled}
+            activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Send message"
             accessibilityState={{ disabled: inputDisabled }}
           >
             <Ionicons
-              name="send"
-              size={18}
-              color={inputDisabled ? Colors.textDisabled : '#ffffff'}
+              name="arrow-up"
+              size={20}
+              color={inputDisabled ? Colors.textDisabled : Colors.background}
             />
           </TouchableOpacity>
         </View>
@@ -776,10 +787,13 @@ export default function ChatScreen() {
                         key={emoji}
                         style={[styles.pickerEmoji, active && styles.pickerEmojiActive]}
                         onPress={() => handleReactionSelect(emoji)}
+                        activeOpacity={0.7}
                         accessibilityRole="button"
                         accessibilityLabel={`React with ${emoji}`}
                       >
-                        <Text style={styles.pickerEmojiText}>{emoji}</Text>
+                        <Text style={[styles.pickerEmojiText, active && styles.pickerEmojiTextActive]}>
+                          {emoji}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -792,6 +806,7 @@ export default function ChatScreen() {
                       setReactionPickerMsg(null);
                       if (msg) deleteMessage(msg.id);
                     }}
+                    activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Delete message"
                   >
@@ -814,9 +829,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingTop: 52,
-    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Platform.OS === 'ios' ? 52 : 44,
+    paddingBottom: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.background,
@@ -825,18 +840,24 @@ const styles = StyleSheet.create({
   headerCenter: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
+    alignItems: 'baseline',
+    gap: Spacing.xs + 2,
+    paddingHorizontal: Spacing.xs,
   },
   title: {
+    fontFamily: Fonts.headingBold,
     fontSize: FontSize.lg,
     fontWeight: FontWeight.heavy,
     color: Colors.text,
-    flex: 1,
+    flexShrink: 1,
     letterSpacing: -0.3,
   },
-  msgCount: { fontSize: FontSize.xs, color: Colors.textMuted },
+  msgCount: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
   participantsBtn: {
     width: 44,
     height: 44,
@@ -850,57 +871,75 @@ const styles = StyleSheet.create({
     right: 4,
     backgroundColor: Colors.primary,
     borderRadius: Radius.full,
-    minWidth: 16,
-    height: 16,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: Colors.background,
   },
-  participantsBadgeText: { color: '#ffffff', fontSize: 9, fontWeight: FontWeight.heavy },
+  participantsBadgeText: {
+    color: Colors.background,
+    fontSize: 10,
+    fontWeight: FontWeight.heavy,
+    fontVariant: ['tabular-nums'],
+  },
   participantsList: {
     backgroundColor: Colors.surfaceRaised,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    gap: Spacing.xs,
+    gap: Spacing.xs + 2,
   },
   participantsLabel: {
+    fontFamily: Fonts.bodyBold,
     fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.heavy,
     color: Colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
     marginBottom: Spacing.xs,
   },
-  participantItem: { fontSize: FontSize.sm, color: Colors.text },
+  participantItem: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSize.sm,
+    color: Colors.text,
+    lineHeight: 20,
+  },
   messageList: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    gap: Spacing.xs + 4,
+    gap: Spacing.sm,
   },
   messageListEmpty: {
     flexGrow: 1,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
   },
-  skeletonList: { flex: 1, gap: Spacing.gutter },
-  bubbleContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.xs + 4 },
+  skeletonList: { flex: 1, gap: Spacing.gutter, paddingTop: Spacing.md },
+  bubbleContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.xs + 2 },
   ownBubbleContainer: { justifyContent: 'flex-end' },
   otherBubbleContainer: { justifyContent: 'flex-start' },
-  bubbleColumn: { maxWidth: '75%' },
+  bubbleColumn: { maxWidth: '78%' },
   senderAvatar: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     borderRadius: Radius.full,
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  senderAvatarText: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.md },
+  senderAvatarText: {
+    fontFamily: Fonts.bodyBold,
+    color: Colors.text,
+    fontWeight: FontWeight.bold,
+    fontSize: FontSize.sm,
+  },
+  bubble: { paddingHorizontal: Spacing.sm + 2, paddingVertical: Spacing.xs + 6, borderRadius: Radius.md },
   otherBubble: {
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
@@ -909,84 +948,126 @@ const styles = StyleSheet.create({
   },
   ownBubble: { backgroundColor: Colors.primary, borderBottomRightRadius: 0 },
   senderName: {
+    fontFamily: Fonts.bodyBold,
     fontSize: FontSize.xs,
     color: Colors.textMuted,
     fontWeight: FontWeight.bold,
-    marginBottom: 2,
+    marginBottom: 3,
+    letterSpacing: 0.2,
   },
-  bubbleText: { fontSize: FontSize.md, color: Colors.textSecondary, lineHeight: 22 },
-  ownBubbleText: { color: '#ffffff' },
-  mentionText: { color: Colors.text, fontWeight: FontWeight.bold },
-  mentionTextOwn: { color: '#ffffff', fontWeight: FontWeight.bold, textDecorationLine: 'underline' },
-  timestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 4, alignSelf: 'flex-end' },
-  ownTimestamp: { color: 'rgba(255,255,255,0.7)' },
-  chatImage: { width: 200, height: 200, borderRadius: Radius.md, marginVertical: 2 },
+  bubbleText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.md,
+    color: Colors.text,
+    lineHeight: 23,
+  },
+  ownBubbleText: { color: Colors.background },
+  mentionText: { color: Colors.text, fontFamily: Fonts.bodyBold, fontWeight: FontWeight.bold },
+  mentionTextOwn: {
+    color: Colors.background,
+    fontFamily: Fonts.bodyBold,
+    fontWeight: FontWeight.bold,
+    textDecorationLine: 'underline',
+  },
+  timestamp: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    marginTop: 5,
+    alignSelf: 'flex-end',
+    fontVariant: ['tabular-nums'],
+  },
+  ownTimestamp: { color: 'rgba(255,255,255,0.72)' },
+  chatImage: { width: 220, height: 220, borderRadius: Radius.md, marginVertical: 2 },
   reactionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.xs,
-    marginTop: 4,
-    marginHorizontal: 8,
+    marginTop: 5,
+    marginHorizontal: Spacing.xs,
   },
   reactionsRowOwn: { justifyContent: 'flex-end' },
   reactionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.md,
+    gap: 4,
+    paddingHorizontal: Spacing.xs + 4,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
     backgroundColor: Colors.surfaceRaised,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   reactionPillActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryBorder },
-  reactionEmoji: { fontSize: 13, color: Colors.text },
-  reactionCount: { fontSize: 11, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  reactionEmoji: { fontFamily: Fonts.bodyMedium, fontSize: FontSize.xs, color: Colors.text },
+  reactionCount: {
+    fontFamily: Fonts.bodySemibold,
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.semibold,
+    fontVariant: ['tabular-nums'],
+  },
   mentionList: {
     backgroundColor: Colors.surfaceRaised,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    maxHeight: 160,
+    borderTopColor: Colors.borderStrong,
+    maxHeight: 180,
   },
   mentionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 10,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minHeight: 56,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   mentionAvatar: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: Radius.full,
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mentionAvatarText: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  mentionName: { color: Colors.text, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
-  mentionHandle: { color: Colors.textMuted, fontSize: FontSize.xs },
+  mentionAvatarText: {
+    fontFamily: Fonts.bodyBold,
+    color: Colors.text,
+    fontWeight: FontWeight.bold,
+    fontSize: FontSize.sm,
+  },
+  mentionName: {
+    fontFamily: Fonts.bodySemibold,
+    color: Colors.text,
+    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.md,
+  },
+  mentionHandle: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: FontSize.sm, marginTop: 1 },
   typingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 5,
+    paddingVertical: Spacing.xs + 2,
     backgroundColor: Colors.background,
   },
-  typingDots: { flexDirection: 'row', gap: 4, marginRight: 6, alignItems: 'center' },
-  typingDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.textMuted },
-  typingText: { fontSize: FontSize.xs, color: Colors.textMuted, fontStyle: 'italic' },
+  typingDots: { flexDirection: 'row', gap: 4, marginRight: Spacing.xs + 2, alignItems: 'center' },
+  typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.textMuted },
+  typingText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+  },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
     paddingBottom: Platform.OS === 'ios' ? 28 : Spacing.md,
-    gap: 10,
+    gap: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
@@ -994,15 +1075,19 @@ const styles = StyleSheet.create({
   attachBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   input: {
     flex: 1,
+    minHeight: 44,
     backgroundColor: Colors.backgroundAlt,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingTop: Platform.OS === 'ios' ? 12 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
     color: Colors.text,
+    fontFamily: Fonts.body,
     fontSize: FontSize.md,
-    maxHeight: 100,
+    lineHeight: 21,
+    maxHeight: 120,
   },
   sendBtn: {
     width: 44,
@@ -1012,10 +1097,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: Colors.surfaceRaised },
-  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: Spacing.xs + 4 },
-  emptyChatText: { color: Colors.textSecondary, fontSize: FontSize.md, fontWeight: FontWeight.semibold },
-  emptyChatSub: { color: Colors.textMuted, fontSize: FontSize.sm },
+  sendBtnDisabled: {
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.xs + 2 },
+  emptyChatIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptyChatText: {
+    fontFamily: Fonts.headingSemibold,
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+  },
+  emptyChatSub: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: FontSize.sm },
   // Reaction picker modal
   pickerOverlay: {
     flex: 1,
@@ -1026,23 +1131,30 @@ const styles = StyleSheet.create({
   pickerCard: {
     backgroundColor: Colors.backgroundAlt,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     borderRadius: Radius.md,
     padding: Spacing.md,
     alignItems: 'center',
-    gap: 12,
+    gap: Spacing.sm,
     minWidth: 280,
   },
   pickerHint: {
+    fontFamily: Fonts.bodyBold,
     fontSize: FontSize.xs,
     color: Colors.textMuted,
-    fontWeight: FontWeight.semibold,
+    fontWeight: FontWeight.heavy,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
   },
-  pickerRow: { flexDirection: 'row', gap: Spacing.xs + 4 },
+  pickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.xs + 4,
+  },
   pickerEmoji: {
-    width: 44,
+    minWidth: 44,
+    paddingHorizontal: Spacing.xs + 2,
     height: 44,
     borderRadius: Radius.md,
     backgroundColor: Colors.surfaceRaised,
@@ -1052,17 +1164,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pickerEmojiActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryBorder },
-  pickerEmojiText: { fontSize: 22, color: Colors.text },
+  pickerEmojiText: { fontFamily: Fonts.bodyMedium, fontSize: FontSize.sm, color: Colors.text },
+  pickerEmojiTextActive: { fontFamily: Fonts.bodyBold, fontWeight: FontWeight.bold },
   deleteBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: Spacing.xs + 2,
+    minHeight: 44,
+    alignSelf: 'stretch',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
-    borderRadius: Radius.sm,
+    paddingVertical: Spacing.xs + 4,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.errorDim,
+    borderColor: Colors.borderStrong,
     backgroundColor: Colors.errorDim,
   },
-  deleteBtnText: { color: Colors.error, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  deleteBtnText: {
+    fontFamily: Fonts.bodySemibold,
+    color: Colors.error,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+  },
 });
