@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-import Purchases, { CustomerInfo } from 'react-native-purchases';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { SubscriptionTier } from '../lib/subscription';
 
@@ -12,24 +11,20 @@ export function useSubscription() {
     const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
 
-    // Listen to Firestore for real-time tier updates
-    const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
-      const data = snap.data();
-      setTier(data?.subscriptionTier ?? 'free');
-      setLoading(false);
-    });
-
-    // Check RevenueCat on mount and sync tier to Firestore
-    Purchases.getCustomerInfo().then((info: CustomerInfo) => {
-      const isPro = typeof info.entitlements.active['pro'] !== 'undefined';
-      const newTier: SubscriptionTier = isPro ? 'pro' : 'free';
-      updateDoc(doc(db, 'users', uid), {
-        subscriptionTier: newTier,
-        subscriptionExpiresAt: isPro
-          ? info.entitlements.active['pro'].expirationDate
-          : null,
-      }).catch(() => {}); // best-effort sync
-    }).catch(() => {});
+    // Firestore is the source of truth for entitlement. `subscriptionTier` is
+    // written ONLY by the RevenueCat webhook Cloud Function (Admin SDK); clients
+    // can read it but can no longer write it (see firestore.rules). The client
+    // therefore just listens — when RevenueCat fires the webhook after a purchase,
+    // the field flips here in real time.
+    const unsub = onSnapshot(
+      doc(db, 'users', uid),
+      (snap) => {
+        const data = snap.data();
+        setTier(data?.subscriptionTier ?? 'free');
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
 
     return unsub;
   }, []);

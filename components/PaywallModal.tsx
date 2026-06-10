@@ -11,8 +11,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Purchases from 'react-native-purchases';
-import { doc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
 import { RC_MONTHLY_PRODUCT_ID, RC_ANNUAL_PRODUCT_ID } from '../lib/subscription';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
@@ -50,13 +48,10 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan>('annual');
 
-  const markPro = useCallback(async () => {
-    const uid = auth.currentUser?.uid;
-    if (uid) {
-      await updateDoc(doc(db, 'users', uid), { subscriptionTier: 'pro' });
-    }
-  }, []);
-
+  // NOTE: the tier is NOT written from the client. After a successful purchase,
+  // RevenueCat fires the webhook Cloud Function, which writes `subscriptionTier`
+  // via the Admin SDK; `useSubscription()` then flips `isPro` in real time. We
+  // just close the modal once RevenueCat confirms the entitlement is active.
   const handlePurchase = useCallback(async () => {
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -67,7 +62,6 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
       const { customerInfo } = await Purchases.purchaseStoreProduct(products[0]);
       const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
       if (isPro) {
-        await markPro();
         onClose();
       }
     } catch (e) {
@@ -79,7 +73,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [selectedPlan, markPro, onClose]);
+  }, [selectedPlan, onClose]);
 
   const handleRestore = useCallback(async () => {
     setLoading(true);
@@ -87,7 +81,6 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
       const info = await Purchases.restorePurchases();
       const isPro = typeof info.entitlements.active['pro'] !== 'undefined';
       if (isPro) {
-        await markPro();
         onClose();
       }
     } catch {
@@ -95,7 +88,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [markPro, onClose]);
+  }, [onClose]);
 
   const selectAnnual = useCallback(() => setSelectedPlan('annual'), []);
   const selectMonthly = useCallback(() => setSelectedPlan('monthly'), []);

@@ -8,20 +8,40 @@ service cloud.firestore {
     }
 
     // ── Users ────────────────────────────────────────────────────────────────
+    // Entitlement fields are written ONLY by the RevenueCat webhook Cloud Function
+    // (Admin SDK, which bypasses these rules). Locking them client-side closes the
+    // "set my own subscriptionTier = pro" billing hole.
+    function lockedEntitlementFields() {
+      return ['subscriptionTier', 'subscriptionExpiresAt', 'subscriptionUpdatedAt'];
+    }
+
     match /users/{uid} {
       // Any signed-in user can read profiles (needed for friend lookups, chat, user-profile screen)
       allow read: if isAuth();
 
-      // Only owner can create their own doc
-      allow create: if isAuth() && request.auth.uid == uid;
+      // Owner creates their own doc, but cannot self-assign a paid tier on create.
+      allow create: if isAuth() && request.auth.uid == uid
+        && (!('subscriptionTier' in request.resource.data)
+            || request.resource.data.subscriptionTier == 'free')
+        && (!('subscriptionExpiresAt' in request.resource.data)
+            || request.resource.data.subscriptionExpiresAt == null);
 
-      // Owner can update everything; others can only touch social fields
-      // (friend requests, friends list, blocked) — needed for friend-request flow
       allow update: if isAuth() && (
-        request.auth.uid == uid ||
-        request.resource.data.diff(resource.data)
-          .affectedKeys()
-          .hasOnly(['friendRequests', 'friends', 'blockedUsers'])
+        // Owner may edit their own profile, but NOT the entitlement fields.
+        (
+          request.auth.uid == uid &&
+          !request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasAny(lockedEntitlementFields())
+        ) ||
+        // Anyone else may only touch social fields (friend-request flow), and
+        // still never the entitlement fields.
+        (
+          request.auth.uid != uid &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['friendRequests', 'friends', 'blockedUsers'])
+        )
       );
 
       allow delete: if isAuth() && request.auth.uid == uid;
