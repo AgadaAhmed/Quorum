@@ -49,26 +49,97 @@ service cloud.firestore {
 
     // ── Plans ────────────────────────────────────────────────────────────────
     match /plans/{planId} {
-      // Public plans are visible to all signed-in users; private plans only to participants/creator
+      function uid() { return request.auth.uid; }
+      function existing() { return resource.data; }
+      function incoming() { return request.resource.data; }
+      function changedKeys() { return incoming().diff(existing()).affectedKeys(); }
+
+      function isCreator() { return existing().createdBy == uid(); }
+      function isParticipant() { return uid() in existing().participants; }
+      // Who may touch the plan at all: public, or a participant, or the creator.
+      function canAccess() {
+        return existing().isPublic == true || isParticipant() || isCreator();
+      }
+
+      // The caller toggles ONLY their own uid in the votes array (no ballot stuffing).
+      function votesSelfToggle() {
+        return (
+          // add self
+          (uid() in incoming().votes
+            && !(uid() in existing().votes)
+            && incoming().votes.size() == existing().votes.size() + 1
+            && incoming().votes.hasAll(existing().votes))
+          ||
+          // remove self
+          (!(uid() in incoming().votes)
+            && uid() in existing().votes
+            && existing().votes.size() == incoming().votes.size() + 1
+            && existing().votes.hasAll(incoming().votes))
+        );
+      }
+
+      // Public plans are visible to all signed-in users; private only to participants/creator.
       allow read: if isAuth() && (
-        resource.data.isPublic == true ||
-        request.auth.uid in resource.data.participants ||
-        resource.data.createdBy == request.auth.uid
+        existing().isPublic == true ||
+        uid() in existing().participants ||
+        existing().createdBy == uid()
       );
 
-      // Any signed-in user can create a plan (must set themselves as creator)
-      allow create: if isAuth() && request.resource.data.createdBy == request.auth.uid;
+      // Creator creates the plan, sets themselves as creator AND seeds participants with self.
+      allow create: if isAuth()
+        && incoming().createdBy == uid()
+        && uid() in incoming().participants;
 
-      // Creator can update anything; participants can only add themselves (join)
       allow update: if isAuth() && (
-        resource.data.createdBy == request.auth.uid ||
-        (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) &&
-          request.auth.uid in request.resource.data.participants
-        )
+        // 1. Creator may change anything on their own plan.
+        isCreator() ||
+
+        // 2. Vote: toggle only your own vote (public plans or plans you're in).
+        (changedKeys().hasOnly(['votes']) && canAccess() && votesSelfToggle()) ||
+
+        // 3. Confirm the plan once quorum is actually reached.
+        (changedKeys().hasOnly(['status']) && canAccess()
+          && incoming().status == 'confirmed'
+          && existing().votes.size() >= existing().requiredVotes) ||
+
+        // 4. Self-join a PUBLIC plan. Private joins go through the invite-code
+        //    Cloud Function (a non-participant can't even read a private plan).
+        //    Adds only yourself; cannot remove or add anyone else.
+        (changedKeys().hasOnly(['participants'])
+          && existing().isPublic == true
+          && !(uid() in existing().participants)
+          && uid() in incoming().participants
+          && incoming().participants.size() == existing().participants.size() + 1
+          && incoming().participants.hasAll(existing().participants)) ||
+
+        // 5. Leave a plan: remove only yourself from participants (and drop your vote).
+        (changedKeys().hasOnly(['participants', 'votes'])
+          && isParticipant()
+          && !(uid() in incoming().participants)
+          && incoming().participants.size() == existing().participants.size() - 1
+          && existing().participants.hasAll(incoming().participants)
+          && !(uid() in incoming().votes)
+          && existing().votes.hasAll(incoming().votes)) ||
+
+        // 6. Collaborative content — participants only, and never protected fields
+        //    (title, isPublic, requiredVotes, inviteCode, createdBy, participants…).
+        (isParticipant() && changedKeys().hasOnly([
+          'reactions', 'poll', 'archivedBy', 'photos',
+          'hostRatings', 'checklist', 'comments'
+        ]))
       );
 
-      allow delete: if isAuth() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isAuth() && isCreator();
+
+      // Post-event photos live in a subcollection; only plan participants read/write.
+      match /moments/{momentId} {
+        function planParticipant() {
+          return isAuth()
+            && exists(/databases/$(database)/documents/plans/$(planId))
+            && uid() in get(/databases/$(database)/documents/plans/$(planId)).data.participants;
+        }
+        allow read, write: if planParticipant();
+      }
     }
 
     // ── Chats ────────────────────────────────────────────────────────────────

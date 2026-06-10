@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "test:rules": "firebase emulators:exec --only firestore \"node rules-test/test.js\""
+    "test:rules": "firebase emulators:exec --only firestore \"node rules-test/test.js\"",
+    "test:storage": "firebase emulators:exec --only firestore,storage \"node rules-test/storage.test.js\""
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

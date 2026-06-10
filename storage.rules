@@ -2,33 +2,54 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // User avatars — readable by any authenticated user, writable only by the matching user
+    function isAuth() { return request.auth != null; }
+
+    // True iff the caller is a participant of the given plan (checked against Firestore).
+    function planParticipant(planId) {
+      return isAuth()
+        && firestore.exists(/databases/(default)/documents/plans/$(planId))
+        && request.auth.uid in firestore.get(/databases/(default)/documents/plans/$(planId)).data.participants;
+    }
+
+    // User avatars — any authed user can read; only the owner can write (<=5MB).
     match /avatars/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.auth.uid == uid
+      allow read: if isAuth();
+      allow write: if isAuth() && request.auth.uid == uid
                    && request.resource.size <= 5 * 1024 * 1024;
     }
 
-    // Plan cover images — readable and writable by any authenticated user
-    match /covers/{planId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size <= 5 * 1024 * 1024;
+    // Plan cover images (path: plan-covers/{planId}). The app uploads the cover at
+    // create time, BEFORE the plan doc exists, so the first write is allowed; once
+    // the plan exists, only its creator may overwrite the cover. Readable by any
+    // authed user because covers are shown in Discover for public plans.
+    match /plan-covers/{planId} {
+      allow read: if isAuth();
+      allow write: if isAuth()
+                   && request.resource.size <= 5 * 1024 * 1024
+                   && (
+                     !firestore.exists(/databases/(default)/documents/plans/$(planId))
+                     || firestore.get(/databases/(default)/documents/plans/$(planId)).data.createdBy == request.auth.uid
+                   );
     }
 
-    // Post-event photos — readable and writable by any authenticated user
-    // Participant check is handled by Firestore, not storage rules
-    match /moments/{planId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
+    // Post-event photos on the plan doc (path: plan-photos/{planId}/{photoId}).
+    match /plan-photos/{planId}/{photoId} {
+      allow read: if isAuth();
+      allow write: if planParticipant(planId)
                    && request.resource.size <= 10 * 1024 * 1024;
     }
 
-    // Chat media — readable and writable by any authenticated user
+    // Moments gallery (path: moments/{planId}/...).
+    match /moments/{planId}/{allPaths=**} {
+      allow read: if isAuth();
+      allow write: if planParticipant(planId)
+                   && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    // Chat media — room id == plan id (path: chat-media/{roomId}/{file}).
     match /chat-media/{roomId}/{file} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow read: if isAuth();
+      allow write: if planParticipant(roomId)
                    && request.resource.size <= 10 * 1024 * 1024;
     }
   }
