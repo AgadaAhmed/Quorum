@@ -64,19 +64,12 @@ https://us-central1-quorum-323e1.cloudfunctions.net/revenuecatWebhook
 
 ## Post-deploy wiring
 
-### 1. Identify users to RevenueCat with their Firebase UID
+### 1. Identify users to RevenueCat with their Firebase UID — DONE (in code)
 
 The webhook keys on `event.app_user_id` and writes `users/{uid}`. For that to match,
-the app must tell RevenueCat the Firebase UID after auth:
-
-```ts
-import Purchases from 'react-native-purchases';
-// after the user is signed in (firebaseUid = auth.currentUser.uid)
-await Purchases.logIn(firebaseUid);
-```
-
-Without this, RevenueCat uses an anonymous app_user_id and the webhook writes to the
-wrong (or a non-existent) user doc.
+the app calls `Purchases.logIn(uid)` on sign-in (and `logOut()` on sign-out),
+wired in `app/_layout.tsx` inside the `onAuthStateChanged` handler (guarded by
+`isExpoGo`). No further action needed unless that wiring is removed.
 
 ### 2. Point the RevenueCat webhook at the deployed function
 

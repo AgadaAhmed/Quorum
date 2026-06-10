@@ -127,7 +127,15 @@ export default function RootLayout() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (u) registerPushToken(u.uid);
+      if (u) {
+        registerPushToken(u.uid);
+        // Identify the user to RevenueCat so its app_user_id == Firebase uid.
+        // The revenuecatWebhook keys on app_user_id to write the correct user's
+        // subscriptionTier; without this it would use an anonymous id.
+        if (!isExpoGo) Purchases.logIn(u.uid).catch(() => {});
+      } else if (!isExpoGo) {
+        Purchases.logOut().catch(() => {});
+      }
     });
     return unsub;
   }, []);
