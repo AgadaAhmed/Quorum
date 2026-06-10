@@ -18,7 +18,7 @@
  * `event.app_user_id` here equals the Firestore document id.
  */
 
-const { onRequest } = require('firebase-functions/v2/https');
+const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -27,6 +27,47 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const REVENUECAT_WEBHOOK_AUTH = defineSecret('REVENUECAT_WEBHOOK_AUTH');
+
+const INVITE_CODE_LENGTH = 8;
+
+/**
+ * Join a plan by its invite code.
+ *
+ * Required because the tightened security rules only allow self-join to PUBLIC
+ * plans, and a non-participant cannot even read a PRIVATE plan to find it by
+ * code. This callable runs with the Admin SDK: it validates the code, enforces
+ * capacity, and adds the caller to participants server-side.
+ */
+exports.joinPlanByCode = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Sign in to join a plan.');
+  }
+  const code = String((request.data && request.data.code) || '').trim().toUpperCase();
+  if (code.length !== INVITE_CODE_LENGTH) {
+    throw new HttpsError('invalid-argument', 'Enter a valid invite code.');
+  }
+
+  const snap = await db.collection('plans').where('inviteCode', '==', code).limit(1).get();
+  if (snap.empty) {
+    throw new HttpsError('not-found', 'Invalid code — plan not found.');
+  }
+
+  const planDoc = snap.docs[0];
+  const plan = planDoc.data();
+  const participants = Array.isArray(plan.participants) ? plan.participants : [];
+
+  if (participants.includes(uid)) {
+    return { planId: planDoc.id, alreadyJoined: true };
+  }
+  if (plan.maxParticipants && participants.length >= plan.maxParticipants) {
+    throw new HttpsError('resource-exhausted', 'This plan is full.');
+  }
+
+  await planDoc.ref.update({ participants: admin.firestore.FieldValue.arrayUnion(uid) });
+  logger.info(`joinPlanByCode: ${uid} joined ${planDoc.id}`);
+  return { planId: planDoc.id };
+});
 
 // Event types that grant / keep an active entitlement.
 const ACTIVE_EVENTS = new Set([

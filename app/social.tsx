@@ -27,7 +27,8 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../lib/firebase';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
@@ -351,32 +352,21 @@ export default function SocialScreen() {
     }
     setJoiningByCode(true);
     try {
-      const snap = await getDocs(query(collection(db, 'plans'), where('inviteCode', '==', code)));
-      if (snap.empty) {
-        showToast('Invalid code — plan not found', 'error');
-        return;
-      }
-      const planDoc = snap.docs[0];
-      const planData = planDoc.data();
-      const participants: string[] = Array.isArray(planData.participants) ? planData.participants : [];
-      if (participants.includes(uid)) {
-        router.push({ pathname: '/plan-detail', params: { id: planDoc.id } });
-        return;
-      }
-      if (planData.maxParticipants && participants.length >= planData.maxParticipants) {
-        showToast('This plan is full', 'error');
-        return;
-      }
-      await updateDoc(doc(db, 'plans', planDoc.id), { participants: arrayUnion(uid) });
+      // Joining (including private plans) goes through a Cloud Function. The
+      // client can't read a private plan to find it by code, and security rules
+      // only allow self-join to PUBLIC plans, so the function validates the code
+      // and adds the caller server-side via the Admin SDK.
+      const join = httpsCallable<{ code: string }, { planId: string }>(functions, 'joinPlanByCode');
+      const { data } = await join({ code });
       setJoinCode('');
       showToast('Joined plan!');
-      router.push({ pathname: '/plan-detail', params: { id: planDoc.id } });
-    } catch {
-      showToast('Something went wrong', 'error');
+      router.push({ pathname: '/plan-detail', params: { id: data.planId } });
+    } catch (e: any) {
+      showToast(e?.message || 'Something went wrong', 'error');
     } finally {
       setJoiningByCode(false);
     }
-  }, [joinCode, joiningByCode, uid, router, showToast]);
+  }, [joinCode, joiningByCode, router, showToast]);
 
   // ── Friend request actions ──────────────────────────────────────────────────
   const sendFriendRequest = useCallback(

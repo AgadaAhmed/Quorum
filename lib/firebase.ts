@@ -2,6 +2,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { initializeAuth, getAuth, type Auth, type Persistence } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { getFunctions, type Functions } from 'firebase/functions';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 // `getReactNativePersistence` ships only in Firebase's React Native build, which
@@ -42,4 +43,6 @@ export { auth };
 // getFirestore uses React Native's built-in persistence (no IndexedDB needed)
 export const db: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);
+// Callable Cloud Functions (default region us-central1, matching functions/).
+export const functions: Functions = getFunctions(app);
 export default app;
