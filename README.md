@@ -1,50 +1,46 @@
-``Welcome to your Expo app 👋
+# Quorum
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A social event-coordination app for iOS and Android that fixes the "will this actually happen?" problem with group plans. Instead of endless group-chat back-and-forth, an event only locks in once enough people commit — it reaches **quorum**. Built with **Expo (SDK 55)**, **React Native**, **Firebase**, and **RevenueCat**.
 
-## Get started
+## The idea
 
-1. Install dependencies
+Group plans die in the "maybe" stage. Quorum makes commitment the core mechanic: a plan needs a threshold of confirmed attendees before it goes live. Below quorum, it's a proposal; at quorum, it's happening. This turns vague intentions into real events and gives everyone confidence to show up.
 
-   ```bash
-   npm install
-   ```
+## Features
 
-2. Start the app
+- **Quorum voting** — plans activate only when they cross a confirmed-attendee threshold, with a live progress bar.
+- **Plan creation & discovery** — create plans, browse a social feed, join or pass.
+- **Real-time chat** per plan for coordination.
+- **Safety features** — safety timer, reporting flow, and moderation modals for meeting strangers responsibly.
+- **Onboarding** flow, animated UI, glass-card visual style, confetti/haptic feedback.
+- **Subscriptions** — premium tier via RevenueCat (`react-native-purchases`) with a paywall.
 
-   ```bash
-   npx expo start
-   ```
+## Architecture
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+app/            file-based routing (Expo Router): auth, tabs, chat, plan-detail, create-plan, social, settings
+components/     reusable UI (PaywallModal, QuorumProgressBar, SafetyTimerModal, GlassCard, …)
+lib/            Firebase init (Auth + Firestore + Storage + Functions)
+functions/      Firebase Cloud Functions
+__tests__/      Jest tests (incl. subscription logic)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Backend is **Firebase**: Auth (persisted via AsyncStorage), Firestore, Storage, and Cloud Functions. Billing is handled by RevenueCat, with users identified to RevenueCat by their Firebase UID.
 
-## Learn more
+## Getting started
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm install
+cp .env.example .env   # fill in your Firebase web config
+npx expo start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Firebase client config is read from `EXPO_PUBLIC_*` environment variables (see `.env.example`); no keys are committed. See `DEPLOY.md` for build and release details.
 
-## Join the community
+## Tech
 
-Join our community of developers creating universal apps.
+Expo SDK 55 · React Native 0.83 · TypeScript · Firebase (Auth/Firestore/Storage/Functions) · RevenueCat · Jest.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+
+*Designed and built by Agada Ahmed, with development assisted by Claude.*

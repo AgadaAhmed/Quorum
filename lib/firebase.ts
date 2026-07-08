@@ -13,17 +13,17 @@ const { getReactNativePersistence } = require('firebase/auth') as {
   getReactNativePersistence?: (storage: typeof ReactNativeAsyncStorage) => Persistence;
 };
 
-// NOTE: Firebase client config is intentionally client-side and embedded in the
-// app bundle. Security is enforced entirely by Firestore/Storage security rules.
-// If open-sourcing, move these to environment variables via app.config.js extra.
-// Restrict this API key in Google Cloud Console to your app's bundle ID only.
+// Firebase client config is client-side by design (embedded in the app bundle);
+// security is enforced by Firestore/Storage security rules, and the API key is
+// restricted in Google Cloud Console to this app's bundle ID. The values are read
+// from EXPO_PUBLIC_* env vars (see .env.example) so no key is committed to git.
 const firebaseConfig = {
-  apiKey: 'REDACTED_FIREBASE_KEY_USE_ENV',
-  authDomain: 'quorum-323e1.firebaseapp.com',
-  projectId: 'quorum-323e1',
-  storageBucket: 'quorum-323e1.firebasestorage.app',
-  messagingSenderId: '567473106597',
-  appId: '1:567473106597:web:0acb465bd61b87eb00a74c',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
