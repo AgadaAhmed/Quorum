@@ -7,10 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "quorum",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "backgroundColor": "#080608",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quorum.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,17 +20,13 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "backgroundColor": "#080608",
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.Quorum"
+      "package": "com.quorum.app"
     },
     "web": {
       "output": "static",
@@ -82,6 +78,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "22e15dc7-2a61-4aff-ae36-0f930e86fb3d"
+      }
     }
   }
 }
