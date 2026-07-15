@@ -165,7 +165,7 @@ export default function SocialScreen() {
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
   // Tab pill animation
-  const tabLayouts = useRef<Array<{ x: number; width: number }>>([]);
+  const tabLayouts = useRef<{ x: number; width: number }[]>([]);
   const tabPillLeft = useRef(new Animated.Value(0)).current;
   const tabPillWidth = useRef(new Animated.Value(0)).current;
   const tabPillInitialized = useRef(false);

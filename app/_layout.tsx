@@ -19,6 +19,7 @@ const isExpoGo = Constants.appOwnership === 'expo';
 
 if (!isExpoGo) {
   // Dynamic require avoids the module-level side-effect that crashes Expo Go
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const Notifications = require('expo-notifications');
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -33,7 +34,9 @@ if (!isExpoGo) {
 
 async function registerPushToken(uid: string) {
   if (isExpoGo) return;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const Device = require('expo-device');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const Notifications = require('expo-notifications');
   if (!Device.isDevice) return;
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -67,7 +70,7 @@ function SplashScreen() {
       Animated.spring(ringScale, { toValue: 1, tension: 40, friction: 10, delay: 80, useNativeDriver: true }),
       Animated.timing(opacity, { toValue: 1, duration: 350, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [scale, ringScale, opacity]);
 
   return (
     <View style={splashStyles.container}>
@@ -154,17 +157,18 @@ export default function RootLayout() {
     } else if (user && !inTabs && !inAuth && !inModal) {
       router.replace('/(tabs)');
     }
-  }, [user, segments]);
+  }, [user, segments, router]);
 
   useEffect(() => {
     if (isExpoGo) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Notifications = require('expo-notifications');
     const sub = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const planId = response.notification.request.content.data?.planId as string | undefined;
       if (planId) router.push({ pathname: '/plan-detail', params: { id: planId } });
     });
     return () => sub.remove();
-  }, []);
+  }, [router]);
 
   if (user === undefined) return <SplashScreen />;
 

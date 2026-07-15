@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
   Image,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -28,46 +26,20 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
-
-const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'] as const;
-const VOTE_OPTIONS = ['2', '3', '5', '7', '10'] as const;
-const MAX_PARTICIPANT_OPTIONS: { label: string; value: number | null }[] = [
-  { label: 'No Limit', value: null },
-  { label: '5', value: 5 },
-  { label: '10', value: 10 },
-  { label: '15', value: 15 },
-  { label: '20', value: 20 },
-  { label: '30', value: 30 },
-  { label: '50', value: 50 },
-];
-const MAX_POLL_OPTIONS = 4;
-const MIN_POLL_OPTIONS = 2;
-const COOLDOWN_DAYS = 7;
-const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const DATE_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
-
-type Template = {
-  id: string;
-  name?: string;
-  description?: string;
-  location?: string;
-  category?: string;
-  requiredVotes?: number;
-  isPublic?: boolean;
-  maxParticipants?: number | null;
-};
-
-function formatDate(d: Date | null): string | null {
-  return d ? d.toLocaleDateString('en-US', DATE_FMT) : null;
-}
-
-function makeInviteCode(): string {
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    code += INVITE_ALPHABET[Math.floor(Math.random() * INVITE_ALPHABET.length)];
-  }
-  return code;
-}
+import { Label, SectionHeading, PickerModal } from '../components/create-plan/FormBits';
+import TemplatesModal from '../components/create-plan/TemplatesModal';
+import {
+  CATEGORIES,
+  VOTE_OPTIONS,
+  MAX_PARTICIPANT_OPTIONS,
+  MAX_POLL_OPTIONS,
+  MIN_POLL_OPTIONS,
+  COOLDOWN_DAYS,
+  HIT_SLOP,
+  Template,
+  formatDate,
+  makeInviteCode,
+} from '../components/create-plan/shared';
 
 export default function CreatePlanScreen() {
   const router = useRouter();
@@ -315,6 +287,7 @@ export default function CreatePlanScreen() {
     uid,
     isPro,
     title,
+    description,
     showPoll,
     pollQuestion,
     pollOptions,
@@ -365,13 +338,6 @@ export default function CreatePlanScreen() {
   const cooldownDaysLeft = accountAgeDays !== null ? COOLDOWN_DAYS - accountAgeDays : 0;
 
   const submitLabel = uploadingCover ? 'Uploading photo...' : loading ? 'Creating...' : 'Create Plan';
-
-  const renderTemplate = useCallback(
-    ({ item }: { item: Template }) => (
-      <TemplateRow item={item} onApply={applyTemplate} onDelete={deleteTemplate} />
-    ),
-    [applyTemplate, deleteTemplate]
-  );
 
   return (
     <ScreenWrapper>
@@ -874,42 +840,13 @@ export default function CreatePlanScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <Modal visible={showTemplates} transparent animationType="slide" onRequestClose={() => setShowTemplates(false)}>
-        <View style={styles.templateModalOverlay}>
-          <View style={styles.templateModalContent}>
-            <View style={styles.templateModalHeader}>
-              <Text style={styles.templateModalTitle}>My Templates</Text>
-              <TouchableOpacity
-                onPress={() => setShowTemplates(false)}
-                hitSlop={HIT_SLOP}
-                activeOpacity={0.7}
-                style={styles.modalCloseBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Close templates"
-              >
-                <Ionicons name="close" size={22} color={Colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            {templates.length === 0 ? (
-              <View style={styles.templateEmptyState}>
-                <Ionicons name="bookmark-outline" size={28} color={Colors.textMuted} style={styles.mb6} />
-                <Text style={styles.templateEmptyTitle}>No templates yet</Text>
-                <Text style={styles.templateEmpty}>
-                  Save a plan as a template to reuse its details next time.
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={templates}
-                keyExtractor={(t) => t.id}
-                contentContainerStyle={styles.templateList}
-                renderItem={renderTemplate}
-                showsVerticalScrollIndicator={false}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
+      <TemplatesModal
+        visible={showTemplates}
+        templates={templates}
+        onClose={() => setShowTemplates(false)}
+        onApply={applyTemplate}
+        onDelete={deleteTemplate}
+      />
 
       <PaywallModal
         visible={showPaywall}
@@ -919,95 +856,6 @@ export default function CreatePlanScreen() {
     </ScreenWrapper>
   );
 }
-
-const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
-
-const Label = React.memo(function Label({ text, first }: { text: string; first?: boolean }) {
-  return <Text style={[styles.label, first && styles.labelFirst]}>{text}</Text>;
-});
-
-const SectionHeading = React.memo(function SectionHeading({ text, first }: { text: string; first?: boolean }) {
-  return (
-    <View style={[styles.sectionHeading, first && styles.sectionHeadingFirst]}>
-      <Text style={styles.sectionHeadingText}>{text}</Text>
-      <View style={styles.sectionHeadingRule} />
-    </View>
-  );
-});
-
-const PickerModal = React.memo(function PickerModal({
-  visible,
-  onCancel,
-  onDone,
-  children,
-}: {
-  visible: boolean;
-  onCancel: () => void;
-  onDone: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <View style={styles.dateModalOverlay}>
-        <View style={styles.dateModalContent}>
-          <View style={styles.dateModalHeader}>
-            <TouchableOpacity onPress={onCancel} activeOpacity={0.7} hitSlop={HIT_SLOP} accessibilityRole="button" accessibilityLabel="Cancel">
-              <Text style={styles.dateModalCancel}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onDone} activeOpacity={0.7} hitSlop={HIT_SLOP} accessibilityRole="button" accessibilityLabel="Done">
-              <Text style={styles.dateModalDone}>Done</Text>
-            </TouchableOpacity>
-          </View>
-          {children}
-        </View>
-      </View>
-    </Modal>
-  );
-});
-
-const TemplateRow = React.memo(function TemplateRow({
-  item,
-  onApply,
-  onDelete,
-}: {
-  item: Template;
-  onApply: (t: Template) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={styles.templateItem}
-      onPress={() => onApply(item)}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`Use template ${item.name || 'Untitled'}`}
-    >
-      <View style={styles.flex}>
-        <Text style={styles.templateItemTitle}>{item.name || 'Untitled'}</Text>
-        {item.description ? (
-          <Text style={styles.templateItemDesc} numberOfLines={1}>
-            {item.description}
-          </Text>
-        ) : null}
-        <View style={styles.templateTagRow}>
-          {item.category ? <Text style={styles.templateTag}>{item.category}</Text> : null}
-          <Text style={styles.templateTag}>{item.requiredVotes ?? 3} votes</Text>
-          {item.isPublic ? <Text style={styles.templateTag}>Public</Text> : null}
-        </View>
-      </View>
-      <TouchableOpacity
-        onPress={() => onDelete(item.id)}
-        hitSlop={HIT_SLOP}
-        activeOpacity={0.7}
-        style={styles.templateDeleteBtn}
-        accessibilityRole="button"
-        accessibilityLabel={`Delete template ${item.name || 'Untitled'}`}
-      >
-        <Ionicons name="trash-outline" size={18} color={Colors.textMuted} />
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
-});
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
@@ -1029,32 +877,6 @@ const styles = StyleSheet.create({
   headerSpacer: { width: 44 },
   title: { flex: 1, textAlign: 'center', fontSize: FontSize.md, fontWeight: FontWeight.black, color: Colors.text, letterSpacing: 3 },
   form: { paddingHorizontal: Spacing.container, paddingTop: Spacing.sm, gap: Spacing.xs, paddingBottom: Spacing.xxl },
-  sectionHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.xs,
-  },
-  sectionHeadingFirst: { marginTop: Spacing.xs },
-  sectionHeadingText: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.black,
-    color: Colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  sectionHeadingRule: { flex: 1, height: 1, backgroundColor: Colors.border },
-  label: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.heavy,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: Spacing.xs,
-    marginTop: Spacing.sm,
-  },
-  labelFirst: { marginTop: 0 },
   input: {
     backgroundColor: Colors.backgroundAlt,
     borderWidth: 1.5,
@@ -1096,22 +918,6 @@ const styles = StyleSheet.create({
   coverPlaceholder: { height: 168, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
   coverPlaceholderText: { fontSize: FontSize.xs, fontWeight: FontWeight.heavy, color: Colors.textSecondary, letterSpacing: 1.5 },
   coverPlaceholderHint: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 4 },
-  dateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
-  dateModalContent: {
-    backgroundColor: Colors.surfaceRaised,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    paddingBottom: 30,
-  },
-  dateModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  dateModalCancel: { color: Colors.textSecondary, fontSize: FontSize.md, paddingVertical: 4 },
-  dateModalDone: { color: Colors.primary, fontSize: FontSize.md, fontWeight: FontWeight.bold, paddingVertical: 4 },
   pickerSpinner: { backgroundColor: Colors.surfaceRaised },
   categoryRow: { flexDirection: 'row', gap: Spacing.xs * 2, flexWrap: 'wrap' },
   categoryChip: {
@@ -1240,47 +1046,4 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   templateBtnText: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  templateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
-  templateModalContent: {
-    backgroundColor: Colors.surfaceRaised,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    maxHeight: '70%',
-  },
-  templateModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  templateModalTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text },
-  modalCloseBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
-  templateEmptyState: { alignItems: 'center', paddingVertical: Spacing.lg, paddingHorizontal: Spacing.md },
-  templateEmptyTitle: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: 4 },
-  templateEmpty: { fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
-  templateList: { gap: 8, paddingBottom: Spacing.md },
-  templateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  templateItemTitle: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.text },
-  templateItemDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  templateTagRow: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  templateTag: {
-    fontSize: FontSize.xs,
-    color: Colors.primary,
-    fontWeight: FontWeight.semibold,
-    backgroundColor: Colors.primaryDim,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: Radius.full,
-  },
-  templateDeleteBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
 });

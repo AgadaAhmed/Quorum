@@ -22,6 +22,7 @@ const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -52,21 +53,33 @@ exports.joinPlanByCode = onCall(async (request) => {
   if (snap.empty) {
     throw new HttpsError('not-found', 'Invalid code — plan not found.');
   }
+  const planRef = snap.docs[0].ref;
 
-  const planDoc = snap.docs[0];
-  const plan = planDoc.data();
-  const participants = Array.isArray(plan.participants) ? plan.participants : [];
+  // Capacity check and join must be atomic: two users redeeming the last slot
+  // concurrently would otherwise both pass the check and overfill the plan.
+  const result = await db.runTransaction(async (tx) => {
+    const planSnap = await tx.get(planRef);
+    if (!planSnap.exists) {
+      throw new HttpsError('not-found', 'Invalid code — plan not found.');
+    }
+    const plan = planSnap.data();
+    const participants = Array.isArray(plan.participants) ? plan.participants : [];
 
-  if (participants.includes(uid)) {
-    return { planId: planDoc.id, alreadyJoined: true };
+    if (participants.includes(uid)) {
+      return { planId: planRef.id, alreadyJoined: true };
+    }
+    if (plan.maxParticipants && participants.length >= plan.maxParticipants) {
+      throw new HttpsError('resource-exhausted', 'This plan is full.');
+    }
+
+    tx.update(planRef, { participants: admin.firestore.FieldValue.arrayUnion(uid) });
+    return { planId: planRef.id };
+  });
+
+  if (!result.alreadyJoined) {
+    logger.info(`joinPlanByCode: ${uid} joined ${result.planId}`);
   }
-  if (plan.maxParticipants && participants.length >= plan.maxParticipants) {
-    throw new HttpsError('resource-exhausted', 'This plan is full.');
-  }
-
-  await planDoc.ref.update({ participants: admin.firestore.FieldValue.arrayUnion(uid) });
-  logger.info(`joinPlanByCode: ${uid} joined ${planDoc.id}`);
-  return { planId: planDoc.id };
+  return result;
 });
 
 // Event types that grant / keep an active entitlement.
@@ -97,9 +110,13 @@ exports.revenuecatWebhook = onRequest(
     }
 
     // RevenueCat sends the value you configure in the dashboard as the
-    // Authorization header. Reject anything that doesn't match.
-    const authHeader = req.get('Authorization') || '';
-    if (authHeader !== REVENUECAT_WEBHOOK_AUTH.value()) {
+    // Authorization header. Reject anything that doesn't match, using a
+    // constant-time comparison so the check can't be timed byte-by-byte.
+    const authHeader = Buffer.from(req.get('Authorization') || '');
+    const expected = Buffer.from(REVENUECAT_WEBHOOK_AUTH.value());
+    const authOk =
+      authHeader.length === expected.length && crypto.timingSafeEqual(authHeader, expected);
+    if (!authOk) {
       logger.warn('Rejected RevenueCat webhook: bad Authorization header');
       res.status(401).send('Unauthorized');
       return;

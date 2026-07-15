@@ -6,13 +6,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-// Lazy require — avoids DevicePushTokenAutoRegistration.fx.js side-effect crash in Expo Go
-const getNotifications = () => require('expo-notifications') as typeof import('expo-notifications');
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import AnimatedButton from './AnimatedButton';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
+
+// Lazy require — avoids DevicePushTokenAutoRegistration.fx.js side-effect crash in Expo Go
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const getNotifications = () => require('expo-notifications') as typeof import('expo-notifications');
 
 type DurationOption = { label: string; ms: number };
 

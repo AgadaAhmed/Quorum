@@ -4,8 +4,6 @@ import {
   Alert,
   Animated,
   Image,
-  Linking,
-  Modal,
   RefreshControl,
   ScrollView,
   Share,
@@ -14,26 +12,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Platform,
-  KeyboardAvoidingView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
-// Lazy import — expo-notifications' index.js runs DevicePushTokenAutoRegistration.fx.js
-// as a side-effect at load time, crashing Expo Go. Deferring to a getter means the
-// module only loads when a notification is actually scheduled (works fine in Expo Go).
-const Notifications = {
-  scheduleNotificationAsync: (...args: Parameters<typeof import('expo-notifications').scheduleNotificationAsync>) =>
-    (require('expo-notifications') as typeof import('expo-notifications')).scheduleNotificationAsync(...args),
-  cancelScheduledNotificationAsync: (...args: Parameters<typeof import('expo-notifications').cancelScheduledNotificationAsync>) =>
-    (require('expo-notifications') as typeof import('expo-notifications')).cancelScheduledNotificationAsync(...args),
-  SchedulableTriggerInputTypes: new Proxy({} as typeof import('expo-notifications').SchedulableTriggerInputTypes, {
-    get: (_t, prop) => (require('expo-notifications') as typeof import('expo-notifications')).SchedulableTriggerInputTypes[prop as keyof typeof import('expo-notifications').SchedulableTriggerInputTypes],
-  }),
-};
 import * as Calendar from 'expo-calendar';
 import * as Haptics from 'expo-haptics';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   doc,
@@ -65,100 +48,26 @@ import MomentsGallery from '../components/MomentsGallery';
 import { hasScamKeywords } from '../lib/scamDetection';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
-
-const REACTIONS = ['Love', 'Fire', 'Haha', 'Wow', 'No'] as const;
-const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'] as const;
-
-const DETAIL_TABS = ['Overview', 'Poll', 'Chat', 'Moments'] as const;
-type DetailTab = typeof DETAIL_TABS[number];
-type VisibleTab = { key: DetailTab; label: string };
-
-type Friend = { id: string; displayName: string; username?: string };
-
-// Time constants (ms)
-const ONE_HOUR_MS = 60 * 60 * 1000;
-const ONE_DAY_MS = 24 * ONE_HOUR_MS;
-const ONE_WEEK_MS = 7 * ONE_DAY_MS;
-
-// Avatar overlap stack: first avatar flush-left, rest overlap by 8px.
-const AVATAR_OVERLAP = -8;
-const MAX_VISIBLE_AVATARS = 10;
-
-type ChecklistItem = { text: string; completedBy: string | null; addedBy: string };
-type CommentEntry = { text: string; authorId: string; authorName: string; timestamp: number };
-
-// Format a "time ago" label from a timestamp (ms).
-function formatTimeAgo(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  if (diff < 60000) return 'just now';
-  if (diff < ONE_HOUR_MS) return `${Math.floor(diff / 60000)}m`;
-  if (diff < ONE_DAY_MS) return `${Math.floor(diff / ONE_HOUR_MS)}h`;
-  return `${Math.floor(diff / ONE_DAY_MS)}d`;
-}
-
-// ─── Local sub-components (memoized) ──────────────────────────────────────────
-
-const ReactionButton = React.memo(function ReactionButton({
-  emoji, count, reacted, onPress,
-}: {
-  emoji: string; count: number; reacted: boolean; onPress: (emoji: string) => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.reactionBtn, reacted && styles.reactionBtnActive]}
-      onPress={() => onPress(emoji)}
-      accessibilityRole="button"
-      accessibilityLabel={`React ${emoji}${count > 0 ? `, ${count}` : ''}`}
-      accessibilityState={{ selected: reacted }}
-    >
-      <Text style={styles.reactionEmoji}>{emoji}</Text>
-      {count > 0 && <Text style={[styles.reactionCount, reacted && styles.reactionCountActive]}>{count}</Text>}
-    </TouchableOpacity>
-  );
-});
-
-const ChecklistRow = React.memo(function ChecklistRow({
-  item, isLast, completerName, canDelete, onToggle, onDelete,
-}: {
-  item: ChecklistItem & { id: string };
-  isLast: boolean;
-  completerName: string | null;
-  canDelete: boolean;
-  onToggle: (id: string, completedBy: string | null) => void;
-  onDelete: (id: string) => void;
-}) {
-  const isDone = !!item.completedBy;
-  return (
-    <TouchableOpacity
-      style={[styles.checklistItem, isLast && styles.noBorderBottom]}
-      onPress={() => onToggle(item.id, item.completedBy)}
-      activeOpacity={0.7}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: isDone }}
-      accessibilityLabel={item.text}
-    >
-      <View style={[styles.checklistCircle, isDone && styles.checklistCircleDone]}>
-        {isDone && <Ionicons name="checkmark" size={12} color={Colors.background} />}
-      </View>
-      <View style={styles.flex1}>
-        <Text style={[styles.checklistItemText, isDone && styles.checklistItemTextDone]}>{item.text}</Text>
-        {isDone && completerName && <Text style={styles.checklistCompletedBy}>Done by {completerName}</Text>}
-      </View>
-      {canDelete && (
-        <TouchableOpacity
-          onPress={() => onDelete(item.id)}
-          hitSlop={HIT_SLOP}
-          accessibilityRole="button"
-          accessibilityLabel="Delete checklist item"
-        >
-          <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  );
-});
-
-const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
+import ReactionButton from '../components/plan-detail/ReactionButton';
+import ChecklistRow from '../components/plan-detail/ChecklistRow';
+import PollTab from '../components/plan-detail/PollTab';
+import SOSModal from '../components/plan-detail/SOSModal';
+import EditPlanModal from '../components/plan-detail/EditPlanModal';
+import {
+  Notifications,
+  REACTIONS,
+  DetailTab,
+  VisibleTab,
+  Friend,
+  ChecklistItem,
+  CommentEntry,
+  ONE_HOUR_MS,
+  ONE_DAY_MS,
+  AVATAR_OVERLAP,
+  MAX_VISIBLE_AVATARS,
+  HIT_SLOP,
+  formatTimeAgo,
+} from '../components/plan-detail/shared';
 
 export default function PlanDetailScreen() {
   const router = useRouter();
@@ -170,15 +79,6 @@ export default function PlanDetailScreen() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [showInvite, setShowInvite] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [editLocation, setEditLocation] = useState('');
-  const [editDate, setEditDate] = useState<Date | null>(null);
-  const [editCategory, setEditCategory] = useState('');
-  const [editUsingCustomCategory, setEditUsingCustomCategory] = useState(false);
-  const [editIsPublic, setEditIsPublic] = useState(true);
-  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [voting, setVoting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [newChecklistItem, setNewChecklistItem] = useState('');
@@ -296,7 +196,7 @@ export default function PlanDetailScreen() {
 
   useEffect(() => {
     if (!auth.currentUser) router.replace('/(auth)/login');
-  }, []);
+  }, [router]);
 
   // Countdown interval for safety timer
   useEffect(() => {
@@ -356,7 +256,10 @@ export default function PlanDetailScreen() {
     };
 
     schedulePreEventNotif().catch(() => {});
-  }, [plan?.status, plan?.isPublic, plan?.participants, id, uid]);
+    // Deps are the exact plan fields this effect reads; depending on the whole
+    // `plan` object would re-run it (an extra getDoc) on every snapshot update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.status, plan?.isPublic, plan?.participants, plan?.date, plan?.title, id, uid]);
 
   const handleVote = async () => {
     if (!plan || voting) return;
@@ -432,27 +335,6 @@ export default function PlanDetailScreen() {
     }
   }, [plan, uid, showToast]);
 
-  const handlePollVote = async (option: string) => {
-    if (!plan?.poll) return;
-    Haptics.selectionAsync();
-    const updates: any = {};
-    plan.poll.options.forEach((opt: string) => {
-      const currentVotes: string[] = plan.poll.votes?.[opt] || [];
-      if (opt === option) {
-        updates[`poll.votes.${opt}`] = currentVotes.includes(uid) ? arrayRemove(uid) : arrayUnion(uid);
-      } else if (currentVotes.includes(uid)) {
-        updates[`poll.votes.${opt}`] = arrayRemove(uid);
-      }
-    });
-    if (Object.keys(updates).length > 0) {
-      try {
-        await updateDoc(doc(db, 'plans', plan.id), updates);
-      } catch {
-        showToast('Failed to record poll vote', 'error');
-      }
-    }
-  };
-
   const handleInvite = async (friendId: string) => {
     if (!plan) return;
     // Only the creator can invite; friendId must be in the user's actual friends list
@@ -464,31 +346,6 @@ export default function PlanDetailScreen() {
       showToast('Friend invited!');
     } catch {
       showToast('Failed to invite friend', 'error');
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editTitle.trim()) return;
-    if (plan.createdBy !== uid) { showToast('Only the creator can edit this plan', 'error'); return; }
-    setSaving(true);
-    const dateStr = editDate
-      ? editDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-      : plan.date || '';
-    try {
-      await updateDoc(doc(db, 'plans', plan.id), {
-        title: editTitle.trim().slice(0, 80),
-        description: editDesc.trim().slice(0, 500),
-        location: editLocation.trim().slice(0, 150),
-        date: dateStr,
-        category: editCategory.trim() || null,
-        isPublic: editIsPublic,
-      });
-      setShowEdit(false);
-      showToast('Plan updated!');
-    } catch {
-      showToast('Failed to update plan', 'error');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -791,7 +648,7 @@ export default function PlanDetailScreen() {
   );
   const isParticipant = plan?.participants?.includes(uid) === true;
   const scamFlagged = useMemo(
-    () => (plan ? hasScamKeywords((plan.title || '') + ' ' + (plan.description || '')) : false),
+    () => hasScamKeywords((plan?.title || '') + ' ' + (plan?.description || '')),
     [plan?.title, plan?.description]
   );
   const planDateMs = plan?.date ? new Date(plan.date).getTime() : NaN;
@@ -1010,16 +867,7 @@ export default function PlanDetailScreen() {
           <View style={styles.creatorActions}>
             <TouchableOpacity
               style={[styles.editBtn, styles.btnRow]}
-              onPress={() => {
-                setEditTitle(plan.title);
-                setEditDesc(plan.description || '');
-                setEditLocation(plan.location || '');
-                setEditDate(plan.dateTimestamp ? new Date(plan.dateTimestamp) : null);
-                setEditCategory(plan.category || '');
-                setEditUsingCustomCategory(!!plan.category && !CATEGORIES.includes(plan.category));
-                setEditIsPublic(plan.isPublic ?? true);
-                setShowEdit(true);
-              }}
+              onPress={() => setShowEdit(true)}
               accessibilityRole="button"
               accessibilityLabel="Edit plan"
             >
@@ -1127,7 +975,7 @@ export default function PlanDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Mark yourself safe and stop the check-in timer"
               >
-                <Text style={styles.imSafeBtnText}>I'm Safe</Text>
+                <Text style={styles.imSafeBtnText}>I&apos;m Safe</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -1221,7 +1069,7 @@ export default function PlanDetailScreen() {
         {/* WHO'S IN strip */}
         {plan.participants && plan.participants.length > 0 && (
           <View style={styles.whoIsInSection}>
-            <Text style={styles.whoIsInLabel}>WHO'S IN</Text>
+            <Text style={styles.whoIsInLabel}>WHO&apos;S IN</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -1484,68 +1332,12 @@ export default function PlanDetailScreen() {
           </View>
           <View style={styles.safetyTipRow}>
             <Ionicons name="checkmark-circle-outline" size={16} color={Colors.success} style={{ marginRight: 8, marginTop: 2 }} />
-            <Text style={styles.safetyTipText}>Trust your gut — it's okay to leave</Text>
+            <Text style={styles.safetyTipText}>Trust your gut — it&apos;s okay to leave</Text>
           </View>
         </AnimatedCard>
       )}
     </>
   );
-
-  // ─── Poll tab content ───────────────────────────────────────────────────────
-  const renderPoll = () => {
-    if (!plan.poll) {
-      return (
-        <View style={styles.tabEmptyState}>
-          <Ionicons name="bar-chart-outline" size={40} color={Colors.textMuted} style={{ marginBottom: 12 }} />
-          <Text style={styles.tabEmptyTitle}>No poll for this plan</Text>
-          <Text style={styles.tabEmptyText}>The host hasn't added a poll yet.</Text>
-        </View>
-      );
-    }
-    const pollTotalVotes = plan.poll.options.reduce(
-      (sum: number, o: string) => sum + (plan.poll.votes?.[o]?.length || 0), 0
-    );
-    return (
-      <AnimatedCard index={0} style={{ marginBottom: Spacing.md }}>
-        <Text style={styles.pollQuestion}>{plan.poll.question}</Text>
-        <Text style={styles.pollMeta}>
-          {pollTotalVotes === 0
-            ? 'No votes yet — tap an option to vote'
-            : `${pollTotalVotes} ${pollTotalVotes === 1 ? 'vote' : 'votes'} · tap to change`}
-        </Text>
-        {plan.poll.options.map((opt: string) => {
-          const votes: string[] = plan.poll.votes?.[opt] || [];
-          const hasVotedForThis = votes.includes(uid);
-          const percentage = pollTotalVotes > 0 ? Math.round((votes.length / pollTotalVotes) * 100) : 0;
-          return (
-            <TouchableOpacity
-              key={opt}
-              style={[styles.pollOption, hasVotedForThis && styles.pollOptionActive]}
-              onPress={() => handlePollVote(opt)}
-              activeOpacity={0.8}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: hasVotedForThis }}
-              accessibilityLabel={`${opt}, ${percentage} percent, ${votes.length} ${votes.length === 1 ? 'vote' : 'votes'}`}
-            >
-              <View style={[styles.pollOptionFill, { width: `${percentage}%` as any }]} />
-              <View style={styles.pollOptionLabelWrap}>
-                {hasVotedForThis && (
-                  <Ionicons name="checkmark-circle" size={16} color={Colors.primary} style={styles.iconMr6} />
-                )}
-                <Text
-                  style={[styles.pollOptionText, hasVotedForThis && styles.pollOptionTextActive]}
-                  numberOfLines={1}
-                >
-                  {opt}
-                </Text>
-              </View>
-              <Text style={[styles.pollOptionPct, hasVotedForThis && styles.pollOptionTextActive]}>{percentage}%</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </AnimatedCard>
-    );
-  };
 
   // ─── Chat tab content ───────────────────────────────────────────────────────
   const renderChat = () => (
@@ -1690,144 +1482,19 @@ export default function PlanDetailScreen() {
         {/* Tab content */}
         <View style={styles.tabContent}>
           {activeTab === 'Overview' && renderOverview()}
-          {activeTab === 'Poll' && renderPoll()}
+          {activeTab === 'Poll' && <PollTab plan={plan} uid={uid} />}
           {activeTab === 'Chat' && renderChat()}
           {activeTab === 'Moments' && renderMoments()}
         </View>
       </ScrollView>
 
       {/* Edit Modal */}
-      <Modal visible={showEdit} transparent animationType="slide" onRequestClose={() => setShowEdit(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHandle} />
-              <Text style={styles.modalTitle}>Edit Plan</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={editTitle}
-                onChangeText={setEditTitle}
-                placeholder="Title"
-                placeholderTextColor={Colors.textMuted}
-                maxLength={80}
-              />
-              <TextInput
-                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
-                value={editDesc}
-                onChangeText={setEditDesc}
-                placeholder="Description"
-                placeholderTextColor={Colors.textMuted}
-                multiline
-                maxLength={500}
-              />
-              <TextInput
-                style={styles.modalInput}
-                value={editLocation}
-                onChangeText={setEditLocation}
-                placeholder="Location"
-                placeholderTextColor={Colors.textMuted}
-                maxLength={150}
-              />
-              <TouchableOpacity style={styles.modalInput} onPress={() => setShowEditDatePicker(true)}>
-                <Text style={{ color: editDate ? Colors.text : Colors.textMuted }}>
-                  {editDate
-                    ? editDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-                    : plan?.date || 'Pick a date'}
-                </Text>
-              </TouchableOpacity>
-              {Platform.OS === 'android' && showEditDatePicker && (
-                <DateTimePicker
-                  value={editDate || new Date()}
-                  mode="date"
-                  minimumDate={new Date()}
-                  onChange={(_, d) => { setShowEditDatePicker(false); if (d) setEditDate(d); }}
-                />
-              )}
-              {Platform.OS === 'ios' && showEditDatePicker && (
-                <DateTimePicker
-                  value={editDate || new Date()}
-                  mode="date"
-                  minimumDate={new Date()}
-                  display="spinner"
-                  onChange={(_, d) => { if (d) setEditDate(d); }}
-                  style={{ backgroundColor: Colors.background }}
-                />
-              )}
-
-              <Text style={styles.modalLabel}>Category</Text>
-              <View style={styles.catRow}>
-                <TouchableOpacity
-                  style={[styles.catChip, !editCategory && !editUsingCustomCategory && styles.catChipActive]}
-                  onPress={() => { setEditCategory(''); setEditUsingCustomCategory(false); }}
-                >
-                  <Text style={[styles.catChipText, !editCategory && !editUsingCustomCategory && styles.catChipTextActive]}>None</Text>
-                </TouchableOpacity>
-                {CATEGORIES.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.catChip, editCategory === c && !editUsingCustomCategory && styles.catChipActive]}
-                    onPress={() => { setEditUsingCustomCategory(false); setEditCategory(c); }}
-                  >
-                    <Text style={[styles.catChipText, editCategory === c && !editUsingCustomCategory && styles.catChipTextActive]}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={[styles.catChip, editUsingCustomCategory && styles.catChipActive]}
-                  onPress={() => { setEditUsingCustomCategory(true); setEditCategory(''); }}
-                >
-                  <Text style={[styles.catChipText, editUsingCustomCategory && styles.catChipTextActive]}>Custom</Text>
-                </TouchableOpacity>
-              </View>
-              {editUsingCustomCategory && (
-                <TextInput
-                  style={styles.modalInput}
-                  value={editCategory}
-                  onChangeText={setEditCategory}
-                  placeholder="e.g. Hiking, Coding, Book Club..."
-                  placeholderTextColor={Colors.textMuted}
-                  autoFocus
-                  maxLength={40}
-                />
-              )}
-
-              <Text style={styles.modalLabel}>Visibility</Text>
-              <View style={styles.visibilityRow}>
-                <TouchableOpacity
-                  style={[styles.visibilityBtn, editIsPublic && styles.visibilityBtnActive]}
-                  onPress={() => setEditIsPublic(true)}
-                >
-                  <Text style={[styles.visibilityBtnText, editIsPublic && styles.visibilityBtnTextActive]}>Public</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.visibilityBtn, !editIsPublic && styles.visibilityBtnActive]}
-                  onPress={() => setEditIsPublic(false)}
-                >
-                  <Text style={[styles.visibilityBtnText, !editIsPublic && styles.visibilityBtnTextActive]}>Private</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.modalCancel} onPress={() => setShowEdit(false)}>
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalSave, (saving || !editTitle.trim()) && styles.dim]}
-                  onPress={handleSaveEdit}
-                  disabled={saving || !editTitle.trim()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Save plan changes"
-                >
-                  {saving ? (
-                    <ActivityIndicator size="small" color={Colors.background} />
-                  ) : (
-                    <Text style={styles.modalSaveText}>Save</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <EditPlanModal
+        visible={showEdit}
+        onClose={() => setShowEdit(false)}
+        plan={plan}
+        uid={uid}
+      />
 
       {/* Confetti particles */}
       <ConfettiParticles ref={confettiRef} />
@@ -1863,67 +1530,12 @@ export default function PlanDetailScreen() {
       />
 
       {/* SOS Modal */}
-      <Modal visible={showSOS} transparent animationType="slide" onRequestClose={() => setShowSOS(false)}>
-        <View style={sosStyles.overlay}>
-          <View style={sosStyles.sheet}>
-            <View style={sosStyles.handle} />
-            <View style={sosStyles.header}>
-              <Ionicons name="shield-outline" size={28} color={Colors.error} />
-              <Text style={sosStyles.title}>Emergency SOS</Text>
-            </View>
-            <View style={sosStyles.infoCard}>
-              <Text style={sosStyles.infoLabel}>CURRENT PLAN</Text>
-              <Text style={sosStyles.infoValue}>{plan?.title}</Text>
-              {plan?.location ? (
-                <Text style={sosStyles.infoSub}>
-                  {plan.location}
-                </Text>
-              ) : null}
-              {plan?.date ? (
-                <Text style={sosStyles.infoSub}>
-                  {plan.date}
-                </Text>
-              ) : null}
-            </View>
-            {emergencyContact ? (
-              <View style={sosStyles.contactCard}>
-                <Text style={sosStyles.infoLabel}>EMERGENCY CONTACT</Text>
-                <Text style={sosStyles.contactName}>{emergencyContact.name}</Text>
-                <Text style={sosStyles.contactPhone}>{emergencyContact.phone}</Text>
-              </View>
-            ) : (
-              <Text style={sosStyles.noContact}>No emergency contact set. Add one in your Profile.</Text>
-            )}
-            <TouchableOpacity
-              style={[sosStyles.copyBtn, !plan?.location && styles.dim]}
-              disabled={!plan?.location}
-              onPress={() => {
-                const msg = `I'm at "${plan?.title}"${plan?.location ? ` (${plan.location})` : ''}. Sent via Quorum SOS.`;
-                Share.share({ message: msg }).catch(() => {});
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Share location"
-            >
-              <Ionicons name="copy-outline" size={18} color={Colors.text} style={styles.iconMr8} />
-              <Text style={sosStyles.copyBtnText}>Share Location</Text>
-            </TouchableOpacity>
-            {emergencyContact?.phone ? (
-              <TouchableOpacity
-                style={sosStyles.callBtn}
-                onPress={() => Linking.openURL(`tel:${emergencyContact.phone}`).catch(() => showToast('Unable to start call', 'error'))}
-                accessibilityRole="button"
-                accessibilityLabel={`Call ${emergencyContact.name}`}
-              >
-                <Ionicons name="call-outline" size={18} color={Colors.background} style={styles.iconMr8} />
-                <Text style={sosStyles.callBtnText}>Call {emergencyContact.name}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity style={sosStyles.closeBtn} onPress={() => setShowSOS(false)}>
-              <Text style={sosStyles.closeBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <SOSModal
+        visible={showSOS}
+        onClose={() => setShowSOS(false)}
+        plan={plan}
+        emergencyContact={emergencyContact}
+      />
 
       <PaywallModal
         visible={showPaywall}
@@ -2011,10 +1623,8 @@ const styles = StyleSheet.create({
   mb6: { marginBottom: 6 },
   noBorderBottom: { borderBottomWidth: 0 },
   countLabel: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
-  cardGap: { marginBottom: Spacing.md },
   iconMr4: { marginRight: 4 },
   iconMr6: { marginRight: 6 },
-  iconMr8: { marginRight: 8 },
   iconMl6: { marginLeft: 6 },
   avatarInitial: { color: Colors.text, fontWeight: FontWeight.bold },
   rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -2082,14 +1692,6 @@ const styles = StyleSheet.create({
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   metaText: { fontSize: FontSize.md, color: Colors.textSecondary },
   reactionsRow: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
-  reactionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: Radius.md, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
-  },
-  reactionBtnActive: { backgroundColor: Colors.primary + '22', borderColor: Colors.primary },
-  reactionEmoji: { fontSize: 16 },
-  reactionCount: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
-  reactionCountActive: { color: Colors.primary },
   creatorActions: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   editBtn: {
     flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
@@ -2147,44 +1749,6 @@ const styles = StyleSheet.create({
   quorumBarWrap: { marginBottom: Spacing.md },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   inviteToggle: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
-  pollQuestion: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-    lineHeight: 24,
-  },
-  pollMeta: {
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    fontWeight: FontWeight.medium,
-    marginBottom: Spacing.sm,
-  },
-  pollOption: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: Radius.md, overflow: 'hidden',
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 8, minHeight: 48, position: 'relative',
-  },
-  pollOptionActive: { borderColor: Colors.borderStrong },
-  pollOptionFill: {
-    position: 'absolute', left: 0, top: 0, bottom: 0,
-    backgroundColor: Colors.surfaceBright,
-  },
-  pollOptionLabelWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 12,
-    paddingVertical: 8,
-  },
-  pollOptionText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold, fontSize: FontSize.md },
-  pollOptionTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
-  pollOptionPct: {
-    paddingHorizontal: 12,
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
-    fontVariant: ['tabular-nums'],
-  },
   chatCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, minHeight: 48 },
   chatCardIcon: {
     width: 44, height: 44, borderRadius: 22,
@@ -2215,52 +1779,6 @@ const styles = StyleSheet.create({
   },
   inviteBtnText: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.sm },
   noFriendsText: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 8, textAlign: 'center' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
-  modalContent: {
-    backgroundColor: Colors.backgroundAlt,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, gap: Spacing.sm, paddingBottom: Spacing.xl,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.borderStrong,
-    alignSelf: 'center',
-    marginBottom: Spacing.sm,
-  },
-  modalTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.heavy, color: Colors.text, marginBottom: Spacing.xs },
-  modalInput: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 12,
-    color: Colors.text, fontSize: FontSize.md, justifyContent: 'center',
-  },
-  modalLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
-  visibilityRow: { flexDirection: 'row', gap: 10 },
-  visibilityBtn: {
-    flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
-  },
-  visibilityBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  visibilityBtnText: { color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.sm },
-  visibilityBtnTextActive: { color: Colors.background, fontWeight: '700' },
-  catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  catChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.full,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
-  },
-  catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  catChipText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
-  catChipTextActive: { color: Colors.background, fontWeight: '700' },
-  modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-  modalCancel: {
-    flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center',
-    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.borderStrong,
-  },
-  modalCancelText: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  modalSave: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.full, backgroundColor: Colors.primary },
-  modalSaveText: { color: Colors.background, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   celebration: {
     position: 'absolute', top: '35%', alignSelf: 'center',
     backgroundColor: Colors.gold, paddingHorizontal: 30, paddingVertical: 20,
@@ -2291,18 +1809,6 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  checklistItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.border + '55',
-  },
-  checklistCircle: {
-    width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  checklistCircleDone: { backgroundColor: Colors.success, borderColor: Colors.success },
-  checklistItemText: { fontSize: FontSize.md, color: Colors.text, fontWeight: '500' },
-  checklistItemTextDone: { textDecorationLine: 'line-through', color: Colors.textMuted },
-  checklistCompletedBy: { fontSize: FontSize.xs, color: Colors.success, marginTop: 2, fontWeight: '600' },
   checklistEmpty: { alignItems: 'center', paddingVertical: 20 },
   checklistEmptyText: { color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center' },
   commentItem: {
@@ -2607,129 +2113,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.container,
     paddingTop: Spacing.sm,
     paddingBottom: 8,
-  },
-});
-
-const sosStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: Colors.overlay,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: Colors.surfaceRaised,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: Spacing.md,
-    paddingBottom: 40,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: FontSize.xl,
-    fontWeight: '800',
-    color: Colors.error,
-  },
-  infoCard: {
-    backgroundColor: Colors.background,
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  infoLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    color: Colors.textMuted,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: FontSize.lg,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  infoSub: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  contactCard: {
-    backgroundColor: Colors.background,
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.error + '44',
-  },
-  contactName: {
-    fontSize: FontSize.lg,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  contactPhone: {
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    marginTop: 2,
-  },
-  noContact: {
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  copyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceRaised,
-    borderRadius: Radius.full,
-    paddingVertical: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  copyBtnText: {
-    fontSize: FontSize.md,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  callBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.error,
-    borderRadius: Radius.full,
-    paddingVertical: 14,
-    marginBottom: 10,
-  },
-  callBtnText: {
-    fontSize: FontSize.md,
-    fontWeight: '700',
-    color: Colors.background,
-  },
-  closeBtn: {
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  closeBtnText: {
-    fontSize: FontSize.md,
-    color: Colors.textMuted,
   },
 });

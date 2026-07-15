@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
-import { Colors, FontSize, Radius, Shadow, Spacing } from '../../lib/theme';
+import { Colors, Spacing } from '../../lib/theme';
 
 const TABS = [
   { name: 'index',    label: 'Home',     icon: 'home-outline' as const,          iconActive: 'home' as const },
@@ -109,7 +109,7 @@ function TabBtn({
       duration: 200,
       useNativeDriver: true,
     }).start();
-  }, [isActive]);
+  }, [isActive, indicatorOpacity]);
 
   const press = () => {
     Animated.sequence([

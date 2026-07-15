@@ -349,7 +349,6 @@ export default function ChatScreen() {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
     // ROOM_ID derives from planId; isPro/uid changes should rebuild the query.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ROOM_ID, isPro, uid]);
 
   // ── Resolve display names for typing users ─────────────────────────────────
