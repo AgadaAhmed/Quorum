@@ -7,7 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import Constants from 'expo-constants';
 import { doc, updateDoc } from 'firebase/firestore';
-import Purchases, { LOG_LEVEL } from 'react-native-purchases';
+import Purchases from 'react-native-purchases';
 import { auth, db } from '../lib/firebase';
 import { Colors } from '../lib/theme';
 import { ToastProvider } from '../components/Toast';
@@ -123,7 +123,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (isExpoGo) return;
     const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
-    Purchases.setLogLevel(LOG_LEVEL.VERBOSE); // remove before production
     Purchases.configure({ apiKey });
   }, []);
 
