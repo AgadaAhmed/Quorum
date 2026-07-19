@@ -204,12 +204,28 @@ export default function SocialScreen() {
         if (!active) return;
 
         const requests: FriendRequest[] = Array.isArray(data.friendRequests) ? data.friendRequests : [];
+        // Show stored names immediately, then refresh below with the sender's
+        // current displayName (the stored fromName is a snapshot from when the
+        // request was sent and goes stale if they rename).
         setFriendRequests(requests);
 
         const blocked: string[] = Array.isArray(data.blockedUsers) ? data.blockedUsers : [];
         setBlockedUsers(blocked);
 
         try {
+          if (requests.length > 0) {
+            const reqDocs = await Promise.all(
+              requests.map((r) => getDoc(doc(db, 'users', r.fromId)).catch(() => null))
+            );
+            if (!active) return;
+            setFriendRequests(
+              requests.map((r, i) => ({
+                ...r,
+                fromName: reqDocs[i]?.data()?.displayName || r.fromName,
+              }))
+            );
+          }
+
           if (blocked.length > 0) {
             const docs = await Promise.all(blocked.map((id) => getDoc(doc(db, 'users', id))));
             if (!active) return;

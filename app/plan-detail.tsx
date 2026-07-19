@@ -88,6 +88,7 @@ export default function PlanDetailScreen() {
   const [hostRating, setHostRating] = useState(0);
   const [submittingRating, setSubmittingRating] = useState(false);
   const [creatorName, setCreatorName] = useState('');
+  const [creatorUsername, setCreatorUsername] = useState('');
   const [activeTab, setActiveTab] = useState<DetailTab>('Overview');
 
   const visibleTabs = useMemo(() => {
@@ -176,6 +177,7 @@ export default function PlanDetailScreen() {
     if (!plan?.createdBy) return;
     getDoc(doc(db, 'users', plan.createdBy)).then((snap) => {
       setCreatorName(snap.data()?.displayName || 'the host');
+      setCreatorUsername(snap.data()?.username || '');
     });
   }, [plan?.createdBy]);
 
@@ -839,7 +841,9 @@ export default function PlanDetailScreen() {
           <Text style={styles.detailsBoxLabel}>QUORUM DETAILS</Text>
           <View style={styles.detailsBoxRow}>
             <Text style={styles.detailsBoxKey}>HOST</Text>
-            <Text style={styles.detailsBoxValue}>@{plan.createdByUsername || (plan.createdBy ? plan.createdBy.slice(0, 8) : 'host')}</Text>
+            <Text style={styles.detailsBoxValue}>
+              {creatorUsername ? `@${creatorUsername}` : creatorName || 'host'}
+            </Text>
           </View>
           <View style={styles.detailsBoxDivider} />
           <View style={styles.detailsBoxRow}>

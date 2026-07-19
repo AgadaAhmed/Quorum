@@ -83,6 +83,20 @@ export default function HomeScreen() {
     });
   }, []);
 
+  // ---- Live profile overrides ----
+  // The profile screen saves displayName/avatarUrl to the Firestore user doc,
+  // not to the Firebase Auth profile, so the auth values above are only a
+  // first-paint fallback. Subscribe to the doc so edits show up immediately.
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
+      const data = snap.data();
+      if (data?.displayName) setDisplayName(data.displayName);
+      if (data?.avatarUrl) setPhotoURL(data.avatarUrl);
+    });
+    return unsub;
+  }, [uid]);
+
   // ---- Onboarding check ----
   useEffect(() => {
     if (!uid) return;
@@ -110,6 +124,9 @@ export default function HomeScreen() {
   }, [uid]);
 
   // ---- Friends' plans ----
+  // Re-runs on pull-to-refresh (via refreshTick): this tab stays mounted for
+  // the whole session, so a mount-only fetch would never pick up new plans.
+  const [refreshTick, setRefreshTick] = useState(0);
   useEffect(() => {
     if (!uid) {
       setFriendPlans([]);
@@ -165,7 +182,7 @@ export default function HomeScreen() {
     return () => {
       active = false;
     };
-  }, [uid]);
+  }, [uid, refreshTick]);
 
   // ---- My plans subscription (re-subscribes when uid resolves) ----
   useEffect(() => {
@@ -200,6 +217,8 @@ export default function HomeScreen() {
   const onRefresh = useCallback(() => {
     // onSnapshot is realtime; surface a brief spinner that clears on next emit.
     setRefreshing(true);
+    // Friends' plans are fetched (not subscribed) — reload them too.
+    setRefreshTick((t) => t + 1);
   }, []);
 
   // ---- Membership helpers (memoized as callbacks bound to uid) ----

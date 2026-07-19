@@ -10,7 +10,8 @@ import { Tabs, useRouter, usePathname, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { Colors, Spacing } from '../../lib/theme';
 
@@ -27,14 +28,27 @@ function CustomTabBar() {
   const insets = useSafeAreaInsets();
   const [badge, setBadge] = useState(0);
 
+  // Track auth state rather than reading auth.currentUser once: on a cold
+  // start the session restores asynchronously, and a one-shot read would
+  // leave the friend-request badge permanently unsubscribed.
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
-      const d = snap.data();
-      setBadge(d?.friendRequests?.length || 0);
+    let unsubBadge: Unsubscribe | null = null;
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      unsubBadge?.();
+      unsubBadge = null;
+      if (!u) {
+        setBadge(0);
+        return;
+      }
+      unsubBadge = onSnapshot(doc(db, 'users', u.uid), (snap) => {
+        const d = snap.data();
+        setBadge(d?.friendRequests?.length || 0);
+      });
     });
-    return unsub;
+    return () => {
+      unsubAuth();
+      unsubBadge?.();
+    };
   }, []);
 
   const activeRoute = (name: string) => {

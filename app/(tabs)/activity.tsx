@@ -447,9 +447,9 @@ export default function ActivityScreen() {
               const profile = profileSnap.data();
               return {
                 fromId: r.fromId,
-                fromName: r.fromName || profile?.displayName || 'Unknown',
+                fromName: profile?.displayName || r.fromName || 'Unknown',
                 fromUsername: profile?.username,
-                fromAvatar: profile?.photoURL,
+                fromAvatar: profile?.avatarUrl,
               } as FriendRequest;
             } catch {
               return {
