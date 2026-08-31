@@ -18,18 +18,11 @@ service firebase.storage {
                    && request.resource.size <= 5 * 1024 * 1024;
     }
 
-    // Plan cover images (path: plan-covers/{planId}). The app uploads the cover at
-    // create time, BEFORE the plan doc exists, so the first write is allowed; once
-    // the plan exists, only its creator may overwrite the cover. Readable by any
-    // authed user because covers are shown in Discover for public plans.
+    // Plan covers are RETIRED — covers are now generated client-side (PlanBanner),
+    // never uploaded. Keep read for any legacy objects; deny all new writes.
     match /plan-covers/{planId} {
       allow read: if isAuth();
-      allow write: if isAuth()
-                   && request.resource.size <= 5 * 1024 * 1024
-                   && (
-                     !firestore.exists(/databases/(default)/documents/plans/$(planId))
-                     || firestore.get(/databases/(default)/documents/plans/$(planId)).data.createdBy == request.auth.uid
-                   );
+      allow write: if false;
     }
 
     // Post-event photos on the plan doc (path: plan-photos/{planId}/{photoId}).

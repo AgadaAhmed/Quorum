@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -31,6 +30,7 @@ import { auth, db } from '../../lib/firebase';
 import CategoryPillRow from '../../components/CategoryPill';
 import GlassCard from '../../components/GlassCard';
 import QuorumProgressBar from '../../components/QuorumProgressBar';
+import PlanBanner from '../../components/PlanBanner';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import SkeletonCard from '../../components/SkeletonLoader';
 import { useToast } from '../../components/Toast';
@@ -162,13 +162,7 @@ const PlanCard = React.memo(function PlanCard({
   return (
     <GlassCard index={index} onPress={handleCardPress} style={styles.card}>
       <View style={styles.coverWrap}>
-        {item.coverUrl ? (
-          <Image source={{ uri: item.coverUrl }} style={styles.cardCover} />
-        ) : (
-          <View style={styles.cardCoverPlaceholder}>
-            <Ionicons name="image-outline" size={28} color={Colors.textDisabled} />
-          </View>
-        )}
+        <PlanBanner category={item.category} seed={item.id} variant="card" style={styles.cardCover} />
         {/* Scrim keeps white badge text legible over any cover image. */}
         <LinearGradient
           colors={SCRIM_COLORS}
@@ -605,13 +599,6 @@ const styles = StyleSheet.create({
   card: { padding: 0 },
   coverWrap: { position: 'relative' },
   cardCover: { width: '100%', height: 176 },
-  cardCoverPlaceholder: {
-    width: '100%',
-    height: 176,
-    backgroundColor: Colors.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   coverScrim: {
     position: 'absolute',
     top: 0,

@@ -23,6 +23,7 @@ import { auth, db, storage } from '../../lib/firebase';
 import { useToast } from '../../components/Toast';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
+import PlanBanner from '../../components/PlanBanner';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
 type UserProfile = {
@@ -131,11 +132,7 @@ const PlanRow = React.memo(function PlanRow({
       accessibilityLabel={`Open plan ${plan.title || 'Untitled plan'}`}
     >
       <View style={styles.planRowThumb}>
-        {plan.coverUrl ? (
-          <Image source={{ uri: plan.coverUrl }} style={styles.planRowThumbImage} />
-        ) : (
-          <View style={styles.planRowThumbPlaceholder} />
-        )}
+        <PlanBanner category={plan.category} seed={plan.id} variant="thumb" style={styles.planRowThumbImage} />
       </View>
       <View style={styles.planRowInfo}>
         <Text style={styles.planRowTitle} numberOfLines={1}>
@@ -1153,11 +1150,6 @@ const styles = StyleSheet.create({
   planRowThumbImage: {
     width: '100%',
     height: '100%',
-  },
-  planRowThumbPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: Colors.surfaceRaised,
   },
   planRowInfo: {
     flex: 1,

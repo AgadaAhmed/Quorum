@@ -18,6 +18,7 @@ import * as Sharing from 'expo-sharing';
 import * as Calendar from 'expo-calendar';
 import * as Haptics from 'expo-haptics';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import PlanBanner from '../components/PlanBanner';
 import {
   doc,
   onSnapshot,
@@ -740,9 +741,6 @@ export default function PlanDetailScreen() {
     <>
       {/* Plan Info */}
       <AnimatedCard index={0} style={{ marginBottom: Spacing.md }}>
-        {plan.coverUrl ? (
-          <Image source={{ uri: plan.coverUrl }} style={styles.coverImage} resizeMode="cover" />
-        ) : null}
         <Text style={styles.upcomingLabel}>{plan.status === 'confirmed' ? 'CONFIRMED PLAN' : 'UPCOMING PLAN'}</Text>
         <Text style={styles.planTitle}>{plan.title}</Text>
         {plan.category ? (
@@ -1394,11 +1392,7 @@ export default function PlanDetailScreen() {
       >
         {/* Cover image with floating header */}
         <View style={styles.coverWrapper}>
-          {plan.coverUrl ? (
-            <Image source={{ uri: plan.coverUrl }} style={styles.heroCover} resizeMode="cover" />
-          ) : (
-            <View style={styles.heroCoverPlaceholder} />
-          )}
+          <PlanBanner category={plan.category} seed={plan.id} variant="hero" style={styles.heroCover} />
           <View style={styles.floatHeader}>
             <TouchableOpacity
               style={styles.floatBtn}
@@ -1608,7 +1602,6 @@ const styles = StyleSheet.create({
   // Cover / float header
   coverWrapper: { position: 'relative' },
   heroCover: { width: '100%', height: 220 },
-  heroCoverPlaceholder: { width: '100%', height: 140, backgroundColor: Colors.surfaceRaised },
   floatHeader: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'space-between',
@@ -1666,7 +1659,6 @@ const styles = StyleSheet.create({
   tabEmptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: 6 },
   tabEmptyText: { fontSize: FontSize.md, color: Colors.textMuted, textAlign: 'center' },
   // Plan info
-  coverImage: { width: '100%', height: 140, borderRadius: Radius.md, marginBottom: 12 },
   planTitle: {
     fontSize: FontSize.xxl,
     fontWeight: FontWeight.black,
