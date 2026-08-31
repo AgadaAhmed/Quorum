@@ -92,22 +92,27 @@ the Storage emulator's `firestore.get()` can't see harness-seeded docs. They use
 official documented cross-service pattern and work in **deployed** rules, but must be
 verified once in staging.
 
+> ✅ **VERIFIED 2026-08-31** against the live `quorum-323e1` deployment via a
+> client-SDK script (two throwaway users A/B, real rules enforced): **8/8 checks
+> passed**, all rows below confirmed. Test users, objects, and plan doc were
+> cleaned up afterward.
+
 Set up: two test accounts — **A** (creator/participant of a plan `P`) and **B** (NOT
 a participant of `P`). Then confirm:
 
 **Writes that must be DENIED (B is not a participant of plan `P`):**
 
-- [ ] B cannot write to `plan-photos/<P>/<anyfile>`
-- [ ] B cannot write to `moments/<P>/<anyfile>`
-- [ ] B cannot write to `chat-media/<P>/<anyfile>`
-- [ ] B cannot overwrite `plan-covers/<P>` (B is not the creator)
+- [x] B cannot write to `plan-photos/<P>/<anyfile>`
+- [x] B cannot write to `moments/<P>/<anyfile>`
+- [x] B cannot write to `chat-media/<P>/<anyfile>`
+- [x] B cannot overwrite `plan-covers/<P>` (B is not the creator)
 
 **Writes that must SUCCEED:**
 
-- [ ] A (participant) can write to `plan-photos/<P>/<file>`
-- [ ] A (participant) can write to `moments/<P>/<file>`
-- [ ] A (participant) can write to `chat-media/<P>/<file>`
-- [ ] The plan **creator** can overwrite `plan-covers/<P>`
+- [x] A (participant) can write to `plan-photos/<P>/<file>`
+- [x] A (participant) can write to `moments/<P>/<file>`
+- [x] A (participant) can write to `chat-media/<P>/<file>`
+- [x] The plan **creator** can overwrite `plan-covers/<P>`
 
 If any DENIED row actually succeeds, do not open to real users — the participant
 check isn't taking effect (recheck the `firestore.get()` paths in `storage.rules`).
