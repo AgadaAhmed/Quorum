@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,9 +19,11 @@ import { collection, doc, getDoc, getDocs, query, where, setDoc, serverTimestamp
 import { auth, db } from '../lib/firebase';
 import { isAtPlanLimit } from '../lib/subscription';
 import { useSubscription } from '../hooks/useSubscription';
+import { useCelebration } from '../hooks/useCelebration';
 import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
+import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Label, SectionHeading, PickerModal } from '../components/create-plan/FormBits';
@@ -41,6 +44,8 @@ import {
 export default function CreatePlanScreen() {
   const router = useRouter();
   const { isPro } = useSubscription();
+  const confettiRef = useRef<ConfettiRef>(null);
+  const { celebrate, glowStyle } = useCelebration();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -231,11 +236,16 @@ export default function CreatePlanScreen() {
         lat,
         lng,
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      router.push({ pathname: '/plan-detail', params: { id: planRef.id } });
+      celebrate(confettiRef);
+      setTimeout(() => {
+        router.push({ pathname: '/plan-detail', params: { id: planRef.id } });
+      }, 750);
     } catch (e: any) {
       setError(e?.message || 'Failed to create plan');
-    } finally {
+      // Only re-enable on failure. On success we keep `loading` true through the
+      // 750ms celebration + navigation so the Create button can't be tapped again
+      // (the `if (loading) return` guard above would otherwise let a second tap
+      // create a duplicate plan during the delay).
       setLoading(false);
     }
   }, [
@@ -752,15 +762,17 @@ export default function CreatePlanScreen() {
             </View>
           ) : null}
 
-          <AnimatedButton
-            label={submitLabel}
-            onPress={handleCreate}
-            variant="primary"
-            disabled={loading}
-            loading={loading}
-            style={styles.submitBtn}
-            textStyle={styles.submitText}
-          />
+          <Animated.View style={glowStyle}>
+            <AnimatedButton
+              label={submitLabel}
+              onPress={handleCreate}
+              variant="primary"
+              disabled={loading}
+              loading={loading}
+              style={styles.submitBtn}
+              textStyle={styles.submitText}
+            />
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -777,6 +789,8 @@ export default function CreatePlanScreen() {
         onClose={() => setShowPaywall(false)}
         reason="You've reached your 3-plan limit on the free tier."
       />
+
+      <ConfettiParticles ref={confettiRef} />
     </ScreenWrapper>
   );
 }

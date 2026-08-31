@@ -68,6 +68,10 @@ export const Colors = {
   overlay:      'rgba(0,0,0,0.50)',
   overlayLight: 'rgba(0,0,0,0.28)',
 
+  // ── Accent (celebrations ONLY — the one hue in the app) ────────────────────
+  accent:      '#1E9E52',              // success green — celebrations ONLY
+  accentGlow:  'rgba(30,158,82,0.35)', // accent glow for the celebration pulse
+
   // ── Legacy aliases ────────────────────────────────────────────────────────
   card:         '#f2f2f2',
   cardElevated: '#e8e8e8',

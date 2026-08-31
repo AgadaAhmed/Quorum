@@ -32,6 +32,8 @@ import AnimatedButton from '../components/AnimatedButton';
 import { SkeletonProfile } from '../components/SkeletonLoader';
 import { useToast } from '../components/Toast';
 import { Colors, Fonts, FontSize, FontWeight, Radius, Shadow, Spacing } from '../lib/theme';
+import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
+import { useCelebration } from '../hooks/useCelebration';
 
 type Profile = {
   displayName: string;
@@ -87,6 +89,8 @@ export default function UserProfileScreen() {
 
   const avatarScale = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
+  const confettiRef = useRef<ConfettiRef>(null);
+  const { celebrate, glowStyle } = useCelebration();
 
   // ── Load profile, plan count, and relationship status ──────────────────────
   useEffect(() => {
@@ -203,7 +207,6 @@ export default function UserProfileScreen() {
   const handleAccept = useCallback(async () => {
     if (!userId || !uid || actionLoading) return;
     setActionLoading(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
       const filtered = myRequests.filter((r) => r.fromId !== userId);
       await Promise.all([
@@ -212,13 +215,14 @@ export default function UserProfileScreen() {
       ]);
       setRelation('friend');
       setMyRequests(filtered);
+      celebrate(confettiRef);
       showToast(`You and ${profile?.displayName ?? 'user'} are now friends`);
     } catch {
       showToast('Failed to accept request', 'error');
     } finally {
       setActionLoading(false);
     }
-  }, [userId, uid, actionLoading, myRequests, profile?.displayName, showToast]);
+  }, [userId, uid, actionLoading, myRequests, profile?.displayName, showToast, celebrate]);
 
   const handleDecline = useCallback(async () => {
     if (!userId || !uid || actionLoading) return;
@@ -379,15 +383,17 @@ export default function UserProfileScreen() {
               )}
               {relation === 'pending_incoming' && (
                 <View style={styles.incomingRow}>
-                  <AnimatedButton
-                    label="Accept"
-                    onPress={handleAccept}
-                    variant="primary"
-                    loading={actionLoading}
-                    disabled={actionLoading}
-                    style={styles.flex1}
-                    icon={<Ionicons name="checkmark" size={18} color={Colors.background} />}
-                  />
+                  <Animated.View style={[styles.flex1, glowStyle]}>
+                    <AnimatedButton
+                      label="Accept"
+                      onPress={handleAccept}
+                      variant="primary"
+                      loading={actionLoading}
+                      disabled={actionLoading}
+                      style={styles.flex1}
+                      icon={<Ionicons name="checkmark" size={18} color={Colors.background} />}
+                    />
+                  </Animated.View>
                   <AnimatedButton
                     label="Decline"
                     onPress={handleDecline}
@@ -436,6 +442,8 @@ export default function UserProfileScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ConfettiParticles ref={confettiRef} />
     </ScreenWrapper>
   );
 }

@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Colors } from '../lib/theme';
 
@@ -16,17 +16,21 @@ const COLORS = [
   '#ffffff',
 ] as const;
 
+// Accent celebration palette — the ONLY place hue is used in confetti.
+const ACCENT_COLORS = [Colors.accent, '#3FB56C', '#137A3D', '#ffffff', Colors.accent] as const;
+
 type Particle = {
   tx: Animated.Value;
   ty: Animated.Value;
   opacity: Animated.Value;
   rotate: Animated.Value;
   color: string;
+  accentColor: string;
   size: number;
   shape: 'circle' | 'square';
 };
 
-export type ConfettiRef = { fire: () => void };
+export type ConfettiRef = { fire: (opts?: { accent?: boolean }) => void };
 
 const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
   const particles = useRef<Particle[]>(
@@ -36,6 +40,7 @@ const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
       opacity: new Animated.Value(0),
       rotate: new Animated.Value(0),
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      accentColor: ACCENT_COLORS[Math.floor(Math.random() * ACCENT_COLORS.length)],
       size: 5 + Math.floor(Math.random() * 7),
       shape: Math.random() > 0.5 ? 'circle' : 'square',
     }))
@@ -44,7 +49,11 @@ const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
   // Track in-flight animations so we can stop them on unmount.
   const running = useRef<Animated.CompositeAnimation[]>([]);
 
-  const fire = useCallback(() => {
+  const [accent, setAccent] = useState(false);
+
+  const fire = useCallback((opts?: { accent?: boolean }) => {
+    setAccent(!!opts?.accent);
+
     // Cancel anything still animating before re-firing.
     running.current.forEach((a) => a.stop());
     running.current = [];
@@ -114,7 +123,7 @@ const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
                 width: p.size,
                 height: p.size,
                 borderRadius: p.shape === 'circle' ? p.size / 2 : 2,
-                backgroundColor: p.color,
+                backgroundColor: accent ? p.accentColor : p.color,
                 opacity: p.opacity,
                 transform: [{ translateX: p.tx }, { translateY: p.ty }, { rotate: rotations[i] }],
               },
