@@ -158,7 +158,7 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
       friction={2}
     >
       <GlassCard index={index} onPress={handlePress} onLongPress={handleLongPress}>
-        {/* Cover image with overlays */}
+        {/* Decorative category banner with overlays */}
         <View style={styles.coverWrap}>
           <PlanBanner category={item.category} seed={item.id} variant="card" style={styles.coverImage} />
           <View

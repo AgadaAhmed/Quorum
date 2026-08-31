@@ -3,7 +3,7 @@
  * Run via:  npm run test:storage
  * (firebase emulators:exec --only firestore,storage "node rules-test/storage.test.js")
  *
- * SCOPE NOTE: storage.rules gates plan-photos / moments / chat-media / cover-overwrite
+ * SCOPE NOTE: storage.rules gates plan-photos / moments / chat-media
  * on Firestore participant data via cross-service firestore.get()/exists(). Those
  * branches CANNOT be exercised in the local emulator harness: the Storage emulator's
  * firestore.get() does not see documents seeded by the test harness — a known,
@@ -60,6 +60,11 @@ function skip(name) {
   await check('cannot write someone else\'s avatar',
     assertFails(uploadBytes(ref(bob, 'avatars/alice'), DATA)));
 
+  // ── Verifiable locally: plan covers are retired (static `allow write: if false`,
+  //    no Firestore lookup) — covers are now generated client-side (PlanBanner). ──
+  await check('plan-cover writes are always denied (covers retired)',
+    assertFails(uploadBytes(ref(alice, 'plan-covers/plan1'), DATA)));
+
   // ── Cross-service branches: cannot be exercised here (see SCOPE NOTE) ──
   console.log('\nStorage — cross-service participant rules (deploy-verified, see #6803):');
   skip('participant can upload plan-photos/{planId}/{photoId}');
@@ -68,15 +73,13 @@ function skip(name) {
   skip('outsider cannot upload moments to a plan they are not in');
   skip('participant can upload chat-media/{roomId}/{file}');
   skip('outsider cannot upload chat-media to a plan they are not in');
-  skip('plan-cover: only the creator may overwrite an existing plan cover');
 
   await testEnv.cleanup();
   console.log(`\n${passed} passed, ${failed} failed, ${skipped} skipped (cross-service)`);
   console.log(
     '\nDEPLOY-VERIFY (run once in staging after `firebase deploy --only storage`):\n' +
     '  As a participant of a plan: uploading to plan-photos/<planId>/x, moments/<planId>/x,\n' +
-    '  chat-media/<planId>/x should SUCCEED. As a non-participant: each should be DENIED.\n' +
-    '  Overwriting plan-covers/<planId> should succeed only for the plan creator.'
+    '  chat-media/<planId>/x should SUCCEED. As a non-participant: each should be DENIED.'
   );
   process.exit(failed === 0 ? 0 : 1);
 })().catch((e) => {
