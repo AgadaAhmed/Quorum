@@ -614,7 +614,7 @@ export default function PlanDetailScreen() {
   };
 
   const triggerCelebration = () => {
-    confettiRef.current?.fire();
+    confettiRef.current?.fire({ accent: true });
     Animated.sequence([
       Animated.parallel([
         Animated.spring(celebrationScale, { toValue: 1, tension: 50, friction: 5, useNativeDriver: true }),
