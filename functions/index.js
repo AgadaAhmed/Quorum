@@ -83,6 +83,30 @@ exports.joinPlanByCode = onCall(async (request) => {
   return result;
 });
 
+/**
+ * Check whether a username is available (case-insensitive).
+ *
+ * Called during sign-up BEFORE the account exists, i.e. by an UNAUTHENTICATED
+ * client. The registration screen can't query `users` directly for this: the
+ * Firestore rules (correctly) block unauthenticated reads of user docs, which
+ * hold emails and other private fields. This callable runs with the Admin SDK,
+ * so it can check the whole `users` collection without exposing any of it — it
+ * returns only a boolean. (Profile username edits happen while authenticated and
+ * still query Firestore directly.)
+ */
+exports.checkUsername = onCall(async (request) => {
+  const raw = String((request.data && request.data.username) || '').trim();
+  if (!raw || !/^[a-zA-Z0-9_]{1,30}$/.test(raw)) {
+    throw new HttpsError('invalid-argument', 'Invalid username.');
+  }
+  const snap = await db
+    .collection('users')
+    .where('usernameLower', '==', raw.toLowerCase())
+    .limit(1)
+    .get();
+  return { available: snap.empty };
+});
+
 // Event types that grant / keep an active entitlement.
 const ACTIVE_EVENTS = new Set([
   'INITIAL_PURCHASE',

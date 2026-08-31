@@ -19,8 +19,9 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../../lib/firebase';
 import { getCities } from '../../lib/cities';
 import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 import AnimatedButton from '../../components/AnimatedButton';
@@ -300,10 +301,16 @@ export default function LoginScreen() {
       if (mode === 'login') {
         await signInWithEmailAndPassword(auth, trimmedEmail, password);
       } else {
-        const taken = await getDocs(
-          query(collection(db, 'users'), where('usernameLower', '==', trimmedUsername.toLowerCase()))
+        // Username availability must be checked before the account exists, i.e.
+        // while unauthenticated. Firestore rules block unauthenticated reads of
+        // `users`, so this goes through the checkUsername Cloud Function (Admin
+        // SDK) rather than a direct query.
+        const checkUsername = httpsCallable<{ username: string }, { available: boolean }>(
+          functions,
+          'checkUsername'
         );
-        if (!taken.empty) {
+        const check = await checkUsername({ username: trimmedUsername });
+        if (!check.data.available) {
           const base = trimmedUsername.replace(/\d+$/, '');
           const suggestions = [base + '1', base + '2', base + '_' + Math.floor(Math.random() * 99 + 1)];
           setError(`Username taken. Try: ${suggestions.join(', ')}`);
