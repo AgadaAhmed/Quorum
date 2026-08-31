@@ -242,7 +242,10 @@ export default function CreatePlanScreen() {
       }, 750);
     } catch (e: any) {
       setError(e?.message || 'Failed to create plan');
-    } finally {
+      // Only re-enable on failure. On success we keep `loading` true through the
+      // 750ms celebration + navigation so the Create button can't be tapped again
+      // (the `if (loading) return` guard above would otherwise let a second tap
+      // create a duplicate plan during the delay).
       setLoading(false);
     }
   }, [
