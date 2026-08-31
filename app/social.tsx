@@ -35,6 +35,8 @@ import AnimatedButton from '../components/AnimatedButton';
 import { useToast } from '../components/Toast';
 import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
+import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
+import { useCelebration } from '../hooks/useCelebration';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type UserResult = {
@@ -149,6 +151,8 @@ const SEARCH_LIST_CONTENT = { paddingBottom: 100, flexGrow: 1 };
 export default function SocialScreen() {
   const router = useRouter();
   const { showToast } = useToast();
+  const confettiRef = useRef<ConfettiRef>(null);
+  const { celebrate } = useCelebration();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
@@ -436,19 +440,19 @@ export default function SocialScreen() {
 
   const acceptRequest = useCallback(
     async (req: FriendRequest) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       try {
         await updateDoc(doc(db, 'users', uid), {
           friends: arrayUnion(req.fromId),
           friendRequests: arrayRemove(req),
         });
         await updateDoc(doc(db, 'users', req.fromId), { friends: arrayUnion(uid) });
+        celebrate(confettiRef);
         showToast(`You and ${req.fromName} are now friends`);
       } catch {
         showToast('Failed to accept request', 'error');
       }
     },
-    [uid, showToast]
+    [uid, showToast, celebrate]
   );
 
   const declineRequest = useCallback(
@@ -919,6 +923,8 @@ export default function SocialScreen() {
           ListFooterComponent={blockedFooter}
         />
       )}
+
+      <ConfettiParticles ref={confettiRef} />
     </ScreenWrapper>
   );
 }
