@@ -10,6 +10,7 @@
  *   2. Set the shared secret RevenueCat will send in its Authorization header:
  *        firebase functions:secrets:set REVENUECAT_WEBHOOK_AUTH
  *   3. Deploy:  firebase deploy --only functions
+ *      (runtime is pinned to nodejs22 via firebase.json "runtime")
  *   4. In the RevenueCat dashboard → Integrations → Webhooks, point the webhook
  *      at the deployed URL and set the Authorization header to the same secret.
  *
