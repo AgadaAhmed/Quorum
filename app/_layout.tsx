@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { ThemeProvider } from '../lib/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -173,7 +174,8 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
+      <ThemeProvider>
+       <SafeAreaProvider>
         <ToastProvider>
           <StatusBar style="dark" backgroundColor={Colors.background} />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background }, animation: 'slide_from_right' }}>
@@ -188,7 +190,8 @@ export default function RootLayout() {
             <Stack.Screen name="join/[code]" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
           </Stack>
         </ToastProvider>
-      </SafeAreaProvider>
+       </SafeAreaProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
