@@ -37,13 +37,22 @@ here.
 New pure-presentational component `components/PlanBanner.tsx`. No network, no
 state, no side effects.
 
+**Decorative only — no text.** Every render site already shows the plan title
+(and often the category label) in its own body/heading: `SwipeablePlanCard`
+(title + category), `discover` card (title + category), `plan-detail` (title
+heading), and the `profile` plan-row (title beside the thumb). So the banner
+must NOT render the title or category as text — that would duplicate what's
+already on screen. The banner fills the old cover slot with a category **graphic**
+(gradient + icon); the surrounding UI keeps showing the words. Existing overlays
+at each site (status badges, countdown, pinned badge, the plan-detail floating
+header) stay on top of the banner unchanged.
+
 ### Props
 
 ```ts
 type PlanBannerVariant = 'hero' | 'card' | 'thumb';
 
 interface PlanBannerProps {
-  title: string;
   category?: string;   // one of CATEGORIES, or custom/undefined
   seed: string;        // planId — drives deterministic variation
   variant: PlanBannerVariant;
@@ -51,29 +60,31 @@ interface PlanBannerProps {
 }
 ```
 
-### Visual recipe (all greyscale)
+### Visual recipe (all greyscale, no text)
 
-- **Base:** near-black → dark-grey vertical gradient (via `expo-linear-gradient`,
-  already a dependency; if not, fall back to a solid dark tone). Same base tone
-  for every plan — cohesion.
-- **Watermark:** the category's Ionicon, sized ~70% of banner height, ~7% white
-  opacity, anchored bottom-right and allowed to bleed off the edge (`overflow:
-  hidden`). Offset + rotation are chosen from a small fixed set by hashing `seed`,
-  so plans of the same category differ but any single plan is stable.
-- **Scrim:** bottom transparent→black gradient for text legibility.
-- **Eyebrow:** category name, uppercase, letter-spaced, muted grey. Omitted if no
-  category.
-- **Title:** bold white, up to 2 lines, ellipsized (`numberOfLines={2}`).
-- **Border:** hairline using the existing `Colors.border`.
+- **Base:** near-black → dark-grey vertical gradient via `expo-linear-gradient`
+  (confirmed installed, `~55.0.14`). Same base tone for every plan — cohesion.
+- **Category icon:** the category's Ionicon as the visual identity, centered-ish,
+  sized to the variant (below), in a mid-grey (`Colors.textDisabled` /
+  `Colors.textMuted`) at a variant-specific opacity. This is the ONLY mark on the
+  banner. It reads as intentional, not a faint watermark.
+- **Deterministic variation:** a small `hashSeed(seed)` picks one entry from a
+  fixed array of `{ dx, dy, rotate }` offsets, so two plans of the same category
+  differ but any single plan is stable across renders.
+- **Border:** the site's existing container border/scrim is preserved; the banner
+  itself adds none beyond filling its box.
+- **Accessibility:** `accessibilityLabel={`${category ?? 'Plan'} cover`}`,
+  `testID="plan-banner"` for tests.
 
-### Variants
+### Variants (sizing matches the cover slots being replaced)
 
-- **`hero`** — plan-detail top. Tall (~matches current `heroCover`), large title,
-  eyebrow shown.
-- **`card`** — home feed + Discover cards. Compact (~matches current card cover
-  height), title + eyebrow.
-- **`thumb`** — the small profile plan-row thumbnail. Icon-on-tone only, no text
-  (too small to be legible); watermark centered at higher opacity.
+- **`hero`** — plan-detail top. Fills `styles.heroCover` height; large icon
+  (~45% of height), low-moderate opacity; floating header sits on top.
+- **`card`** — home feed + Discover cards. Fills the card cover height
+  (`SwipeablePlanCard` 200, discover `cardCover`); medium icon (~40% of height),
+  moderate opacity; status/countdown/pinned badges sit on top.
+- **`thumb`** — the small profile plan-row thumbnail. Icon centered, higher
+  opacity so it reads at small size; no gradient needed (flat dark tone is fine).
 
 ### Category → icon map
 
@@ -150,11 +161,13 @@ requires a title to create a plan).
 ## Testing
 
 - **New** `__tests__/ui/PlanBanner.test.tsx`:
-  - renders the title and the uppercase category eyebrow (`hero`/`card`);
-  - `thumb` renders no text;
-  - unknown/undefined category falls back to the default icon without throwing;
-  - the hash helper is deterministic (same seed → same placement) and varies
-    across seeds.
+  - renders a `plan-banner` node with an accessibility label derived from the
+    category (e.g. `Music cover`);
+  - unknown/undefined category renders (falls back to the default icon) without
+    throwing, label `Plan cover`;
+  - renders no plan-title text (guards against reintroducing duplication);
+  - the exported `hashSeed` helper is deterministic (same seed → same index) and
+    distributes across seeds.
 - Confirm `create-plan` still creates a plan with no cover and no dangling
   references (typecheck + existing tests).
 - Keep the suite green (currently **53/53**); `npx tsc --noEmit` clean.
