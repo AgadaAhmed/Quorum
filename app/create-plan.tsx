@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,14 +10,12 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, query, where, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { isAtPlanLimit } from '../lib/subscription';
 import { useSubscription } from '../hooks/useSubscription';
 import PaywallModal from '../components/PaywallModal';
@@ -55,8 +52,6 @@ export default function CreatePlanScreen() {
   const [requiredVotes, setRequiredVotes] = useState('3');
   const [isPublic, setIsPublic] = useState(false);
   const [category, setCategory] = useState('');
-  const [coverUri, setCoverUri] = useState<string | null>(null);
-  const [uploadingCover, setUploadingCover] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
@@ -134,27 +129,6 @@ export default function CreatePlanScreen() {
     [uid]
   );
 
-  const handlePickCover = useCallback(async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        setError('Photo library permission is required to add a cover.');
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images' as ImagePicker.MediaType],
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.7,
-      });
-      if (!result.canceled && result.assets?.[0]) {
-        setCoverUri(result.assets[0].uri);
-      }
-    } catch {
-      setError('Could not open the photo library.');
-    }
-  }, []);
-
   const handleCreate = useCallback(async () => {
     if (loading) return;
     setError('');
@@ -203,22 +177,6 @@ export default function CreatePlanScreen() {
     try {
       const planRef = doc(collection(db, 'plans'));
 
-      let coverUrl: string | null = null;
-      if (coverUri) {
-        setUploadingCover(true);
-        try {
-          const response = await fetch(coverUri);
-          const blob = await response.blob();
-          const storageRef = ref(storage, `plan-covers/${planRef.id}`);
-          await uploadBytes(storageRef, blob);
-          coverUrl = await getDownloadURL(storageRef);
-        } catch {
-          // Cover upload failed — create plan without it.
-        } finally {
-          setUploadingCover(false);
-        }
-      }
-
       // Geocode location to lat/lng so Discover can show distance.
       let lat: number | null = null;
       let lng: number | null = null;
@@ -266,7 +224,6 @@ export default function CreatePlanScreen() {
         isPublic,
         status: 'pending',
         createdAt: serverTimestamp(),
-        coverUrl,
         poll,
         voteDeadline: voteDeadline ? voteDeadline.toISOString() : null,
         maxParticipants: maxParticipants ?? null,
@@ -280,7 +237,6 @@ export default function CreatePlanScreen() {
       setError(e?.message || 'Failed to create plan');
     } finally {
       setLoading(false);
-      setUploadingCover(false);
     }
   }, [
     loading,
@@ -291,7 +247,6 @@ export default function CreatePlanScreen() {
     showPoll,
     pollQuestion,
     pollOptions,
-    coverUri,
     location,
     date,
     time,
@@ -337,7 +292,7 @@ export default function CreatePlanScreen() {
   const inCooldown = accountAgeDays !== null && accountAgeDays < COOLDOWN_DAYS;
   const cooldownDaysLeft = accountAgeDays !== null ? COOLDOWN_DAYS - accountAgeDays : 0;
 
-  const submitLabel = uploadingCover ? 'Uploading photo...' : loading ? 'Creating...' : 'Create Plan';
+  const submitLabel = loading ? 'Creating...' : 'Create Plan';
 
   return (
     <ScreenWrapper>
@@ -378,38 +333,7 @@ export default function CreatePlanScreen() {
 
           <SectionHeading text="Basics" first />
 
-          <Label text="Cover Photo (optional)" first />
-          <TouchableOpacity
-            style={styles.coverPicker}
-            onPress={handlePickCover}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={coverUri ? 'Change cover photo' : 'Add cover photo'}
-          >
-            {coverUri ? (
-              <>
-                <Image source={{ uri: coverUri }} style={styles.coverPreview} resizeMode="cover" />
-                <View style={styles.coverEditBadge}>
-                  <Ionicons name="camera-outline" size={14} color={Colors.background} />
-                  <Text style={styles.coverEditBadgeText}>Change</Text>
-                </View>
-              </>
-            ) : (
-              <View style={styles.coverPlaceholder}>
-                <Ionicons name="image-outline" size={28} color={Colors.textMuted} style={styles.mb6} />
-                <Text style={styles.coverPlaceholderText}>ADD COVER PHOTO</Text>
-                <Text style={styles.coverPlaceholderHint}>Recommended 16:9</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          {coverUri && (
-            <TouchableOpacity onPress={() => setCoverUri(null)} hitSlop={HIT_SLOP} activeOpacity={0.7} style={styles.inlineAction}>
-              <Ionicons name="trash-outline" size={14} color={Colors.textMuted} style={styles.mr4} />
-              <Text style={styles.inlineActionText}>Remove cover photo</Text>
-            </TouchableOpacity>
-          )}
-
-          <Label text="Plan Title *" />
+          <Label text="Plan Title *" first />
           <TextInput
             style={styles.input}
             placeholder="e.g. Weekend Getaway"
@@ -862,7 +786,6 @@ const styles = StyleSheet.create({
   mr4: { marginRight: 4 },
   mr6: { marginRight: 6 },
   mr8: { marginRight: 8 },
-  mb6: { marginBottom: 6 },
   mlAuto: { marginLeft: 'auto' },
   header: {
     flexDirection: 'row',
@@ -900,24 +823,6 @@ const styles = StyleSheet.create({
   inlineAction: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 6, marginTop: 2 },
   inlineActionText: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: FontWeight.medium },
   charCount: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  coverPicker: { borderRadius: Radius.md, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.border },
-  coverPreview: { width: '100%', height: 168 },
-  coverEditBadge: {
-    position: 'absolute',
-    right: Spacing.sm,
-    bottom: Spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.overlay,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-  },
-  coverEditBadgeText: { color: Colors.background, fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
-  coverPlaceholder: { height: 168, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  coverPlaceholderText: { fontSize: FontSize.xs, fontWeight: FontWeight.heavy, color: Colors.textSecondary, letterSpacing: 1.5 },
-  coverPlaceholderHint: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 4 },
   pickerSpinner: { backgroundColor: Colors.surfaceRaised },
   categoryRow: { flexDirection: 'row', gap: Spacing.xs * 2, flexWrap: 'wrap' },
   categoryChip: {
