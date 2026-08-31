@@ -33,6 +33,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../lib/firebase';
 import { isAtTemplatesLimit, isAtMomentsLimit } from '../lib/subscription';
+import { inviteShareMessage } from '../lib/invite';
 import { useSubscription } from '../hooks/useSubscription';
 import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -510,7 +511,7 @@ export default function PlanDetailScreen() {
   const handleShareCode = () => {
     if (!plan?.inviteCode) return;
     Share.share({
-      message: `Join "${plan.title}" on Quorum! Use invite code: ${plan.inviteCode}`,
+      message: inviteShareMessage(plan.title, plan.inviteCode),
     }).catch(() => {});
   };
 
