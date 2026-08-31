@@ -31,6 +31,7 @@ import CategoryPillRow from '../../components/CategoryPill';
 import GlassCard from '../../components/GlassCard';
 import QuorumProgressBar from '../../components/QuorumProgressBar';
 import PlanBanner from '../../components/PlanBanner';
+import { isPublicPlanExpired } from '../../lib/planExpiry';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import SkeletonCard from '../../components/SkeletonLoader';
 import { useToast } from '../../components/Toast';
@@ -97,6 +98,7 @@ interface Plan {
   poll?: { question: string; options: string[]; votes: Record<string, string> };
   maxParticipants?: number;
   inviteCode?: string;
+  createdAt?: { seconds: number } | string;
 }
 
 const CATEGORIES = [
@@ -394,7 +396,9 @@ export default function DiscoverScreen() {
     const result = plans.filter((p) => {
       const matchCat = category === 'all' || p.category === category;
       const matchSearch = !q || p.title?.toLowerCase().includes(q);
-      return matchCat && matchSearch;
+      // Public plans expire out of Discover 3 days after their event/creation.
+      const notExpired = !(p.isPublic && isPublicPlanExpired(p));
+      return matchCat && matchSearch && notExpired;
     });
     // Sort by distance when user location is available, otherwise keep createdAt order
     if (userCoords) {
