@@ -1,8 +1,9 @@
 import React, { useCallback, useRef } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { Ionicons } from '@expo/vector-icons';
 import GlassCard from '../GlassCard';
+import PlanBanner from '../PlanBanner';
 import QuorumProgressBar from '../QuorumProgressBar';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 import { getCountdown, Plan, quorumPercent } from './shared';
@@ -159,13 +160,7 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
       <GlassCard index={index} onPress={handlePress} onLongPress={handleLongPress}>
         {/* Cover image with overlays */}
         <View style={styles.coverWrap}>
-          {item.coverUrl ? (
-            <Image source={{ uri: item.coverUrl }} style={styles.coverImage} resizeMode="cover" />
-          ) : (
-            <View style={styles.coverPlaceholder}>
-              <Ionicons name="image-outline" size={28} color={Colors.textDisabled} />
-            </View>
-          )}
+          <PlanBanner category={item.category} seed={item.id} variant="card" style={styles.coverImage} />
           <View
             style={[
               styles.imageBadge,
@@ -245,13 +240,6 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 0,
     backgroundColor: Colors.surfaceBright,
-  },
-  coverPlaceholder: {
-    width: '100%',
-    height: 160,
-    backgroundColor: Colors.surfaceBright,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   imageBadge: {
     position: 'absolute',
