@@ -23,13 +23,13 @@ interface Props {
 
 type Plan = 'monthly' | 'annual';
 
+// Only perks that are actually built and enforced. (Themes will be added here
+// once the monochrome dark-mode / theme feature ships.)
 const FEATURES = [
   'Unlimited active plans',
-  'Unlimited moments + HD quality',
+  'Unlimited moments',
   'Full chat history',
   'Unlimited templates',
-  'Custom plan covers & themes',
-  'Plan analytics',
 ] as const;
 
 // Monochrome backdrop gradient.
