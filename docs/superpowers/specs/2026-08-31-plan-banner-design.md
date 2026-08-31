@@ -27,7 +27,9 @@ here.
 ## Design system constraints (hard)
 
 - **Strictly monochrome:** black / white / grey only, no hue.
-- **No emojis** anywhere (labels, placeholders).
+- **No emojis** anywhere (labels, placeholders, titles, any string). The
+  category glyphs are **Ionicons vector icons**, not emoji characters — that is
+  the only "icon" allowed. Zero emoji codepoints in any source string.
 - Meaning carried by weight / size / borders / icons, not color.
 
 ## Component: `PlanBanner`
