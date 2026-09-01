@@ -36,7 +36,8 @@ import ScreenWrapper from '../../components/ScreenWrapper';
 import SkeletonCard from '../../components/SkeletonLoader';
 import { useToast } from '../../components/Toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
@@ -137,6 +138,8 @@ const PlanCard = React.memo(function PlanCard({
   onPress,
   onJoin,
 }: PlanCardProps) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const dateLabel = formatPlanDate(item.date);
   const votes = item.votes?.length ?? 0;
   const required = item.requiredVotes ?? 1;
@@ -300,6 +303,8 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   // Keep uid in sync with auth state — queries must not fire unauthenticated
   useEffect(() => onAuthStateChanged(auth, (u) => setUid(u?.uid || '')), []);
@@ -481,7 +486,7 @@ export default function DiscoverScreen() {
         ) : null}
       </>
     ),
-    [search, category, loading]
+    [search, category, loading, styles, Colors]
   );
 
   const hasFilters = !!search || category !== 'all';
@@ -516,12 +521,12 @@ export default function DiscoverScreen() {
           ) : null}
         </View>
       ),
-    [loading, hasFilters, clearFilters]
+    [loading, hasFilters, clearFilters, styles, Colors]
   );
 
   const contentContainerStyle = useMemo(
     () => [styles.list, { paddingBottom: insets.bottom + 90 }],
-    [insets.bottom]
+    [insets.bottom, styles]
   );
 
   return (
@@ -554,7 +559,7 @@ export default function DiscoverScreen() {
 const EMPTY_DATA: Plan[] = [];
 const HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.container,
     paddingTop: Spacing.xs,
