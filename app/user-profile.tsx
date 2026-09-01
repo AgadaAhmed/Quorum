@@ -31,7 +31,8 @@ import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
 import { SkeletonProfile } from '../components/SkeletonLoader';
 import { useToast } from '../components/Toast';
-import { Colors, Fonts, FontSize, FontWeight, Radius, Shadow, Spacing } from '../lib/theme';
+import { Fonts, FontSize, FontWeight, Radius, Shadow, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import { useCelebration } from '../hooks/useCelebration';
 
@@ -86,6 +87,8 @@ export default function UserProfileScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [mutualCount, setMutualCount] = useState(0);
   const [theirPlans, setTheirPlans] = useState<PlanSummary[]>([]);
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const avatarScale = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -456,6 +459,8 @@ const ProfileHeader = React.memo(function ProfileHeader({
   title: string;
   onBack: () => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.header}>
       <TouchableOpacity
@@ -476,6 +481,7 @@ const ProfileHeader = React.memo(function ProfileHeader({
 });
 
 const StatBox = React.memo(function StatBox({ label, value }: { label: string; value: number }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statBox}>
       <Text style={styles.statValue} numberOfLines={1} allowFontScaling={false}>
@@ -495,6 +501,8 @@ const PlanRow = React.memo(function PlanRow({
   index?: number;
   onPress: (id: string) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const dateLabel = formatPlanDate(plan.date);
   const status = plan.status ?? 'draft';
   return (
@@ -527,7 +535,7 @@ const PlanRow = React.memo(function PlanRow({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
