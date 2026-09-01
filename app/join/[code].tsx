@@ -3,7 +3,8 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from '../../lib/firebase';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
 /**
  * Deep-link join target: `quorum://join/<code>` (see lib/invite.ts). Auto-joins
@@ -16,6 +17,8 @@ export default function JoinByLink() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const attempted = useRef(false);
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   useEffect(() => {
     if (attempted.current) return;
@@ -70,7 +73,7 @@ export default function JoinByLink() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',

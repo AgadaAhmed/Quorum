@@ -23,7 +23,8 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../../lib/firebase';
 import { getCities } from '../../lib/cities';
-import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { Fonts, FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import AnimatedButton from '../../components/AnimatedButton';
 
 type AutoCapitalize = 'none' | 'sentences' | 'words' | 'characters';
@@ -67,6 +68,8 @@ const GlassInput = React.memo(function GlassInput({
   const [focused, setFocused] = useState(false);
   const handleFocus = useCallback(() => setFocused(true), []);
   const handleBlur = useCallback(() => setFocused(false), []);
+  const Colors = useTheme();
+  const inputStyles = useThemedStyles(makeInputStyles);
   return (
     <View
       style={[
@@ -103,7 +106,7 @@ const GlassInput = React.memo(function GlassInput({
   );
 });
 
-const inputStyles = StyleSheet.create({
+const makeInputStyles = (Colors: ThemePalette) => StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -164,6 +167,7 @@ const PasswordStrengthBar = React.memo(function PasswordStrengthBar({
   password: string;
 }) {
   const { label, segments } = useMemo(() => getPasswordStrength(password), [password]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.strengthWrap}>
       <View style={styles.strengthBarRow}>
@@ -191,6 +195,9 @@ const PasswordStrengthBar = React.memo(function PasswordStrengthBar({
 // ── Main Screen ──────────────────────────────────────────────────────────────
 export default function LoginScreen() {
   const router = useRouter();
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const inputStyles = useThemedStyles(makeInputStyles);
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
   // Login fields
@@ -435,6 +442,22 @@ export default function LoginScreen() {
   }, []);
 
   const submitLabel = mode === 'login' ? 'Sign In' : 'Create Account';
+
+  // CountryPicker theme — memoized so it isn't re-created every render, and
+  // recomputed only when the active palette changes.
+  const countryPickerTheme = useMemo(
+    () => ({
+      backgroundColor: Colors.surfaceRaised,
+      onBackgroundTextColor: Colors.text,
+      fontSize: FontSize.md,
+      filterPlaceholderTextColor: Colors.textMuted,
+      activeOpacity: 0.7,
+      itemHeight: 44,
+      flagSizeButton: 24,
+      flagSize: 24,
+    }),
+    [Colors]
+  );
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -780,20 +803,8 @@ export default function LoginScreen() {
   );
 }
 
-// CountryPicker theme — hoisted so it isn't re-created every render.
-const countryPickerTheme = {
-  backgroundColor: Colors.surfaceRaised,
-  onBackgroundTextColor: Colors.text,
-  fontSize: FontSize.md,
-  filterPlaceholderTextColor: Colors.textMuted,
-  activeOpacity: 0.7,
-  itemHeight: 44,
-  flagSizeButton: 24,
-  flagSize: 24,
-};
-
 // ── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
