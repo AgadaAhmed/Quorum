@@ -1,13 +1,16 @@
 import React from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useThemedStyles } from '../../lib/ThemeContext';
 import { HIT_SLOP } from './shared';
 
 export const Label = React.memo(function Label({ text, first }: { text: string; first?: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   return <Text style={[styles.label, first && styles.labelFirst]}>{text}</Text>;
 });
 
 export const SectionHeading = React.memo(function SectionHeading({ text, first }: { text: string; first?: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.sectionHeading, first && styles.sectionHeadingFirst]}>
       <Text style={styles.sectionHeadingText}>{text}</Text>
@@ -27,6 +30,7 @@ export const PickerModal = React.memo(function PickerModal({
   onDone: () => void;
   children: React.ReactNode;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={styles.dateModalOverlay}>
@@ -46,7 +50,7 @@ export const PickerModal = React.memo(function PickerModal({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   label: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.heavy,

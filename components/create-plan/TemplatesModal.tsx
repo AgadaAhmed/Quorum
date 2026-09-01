@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { HIT_SLOP, Template } from './shared';
 
 const TemplateRow = React.memo(function TemplateRow({
@@ -13,6 +14,8 @@ const TemplateRow = React.memo(function TemplateRow({
   onApply: (t: Template) => void;
   onDelete: (id: string) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       style={styles.templateItem}
@@ -61,6 +64,8 @@ export default function TemplatesModal({
   onApply: (t: Template) => void;
   onDelete: (id: string) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const renderTemplate = useCallback(
     ({ item }: { item: Template }) => (
       <TemplateRow item={item} onApply={onApply} onDelete={onDelete} />
@@ -108,7 +113,7 @@ export default function TemplatesModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   flex: { flex: 1 },
   mb6: { marginBottom: 6 },
   templateModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
