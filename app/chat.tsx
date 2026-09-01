@@ -53,7 +53,8 @@ import { useSubscription } from '../hooks/useSubscription';
 import { useToast } from '../components/Toast';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { SkeletonChatBubble } from '../components/SkeletonLoader';
-import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { Fonts, FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 const REACTION_EMOJIS = ['+1', 'love', 'haha', 'wow', 'sad', 'fire'] as const;
@@ -82,7 +83,11 @@ type Participant = { id: string; displayName: string; username?: string };
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function renderTextWithMentions(text: string, isOwn: boolean) {
+function renderTextWithMentions(
+  text: string,
+  isOwn: boolean,
+  styles: ReturnType<typeof makeStyles>
+) {
   const parts = text.split(/(@\w+)/g);
   return (
     <>
@@ -115,6 +120,7 @@ function initialOf(name?: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TypingDots() {
+  const styles = useThemedStyles(makeStyles);
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -164,6 +170,7 @@ const ChatBubble = memo(function ChatBubble({
   roomId,
   onLongPress,
 }: ChatBubbleProps) {
+  const styles = useThemedStyles(makeStyles);
   const slideX = useRef(new Animated.Value(isOwn ? 40 : -40)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -226,7 +233,7 @@ const ChatBubble = memo(function ChatBubble({
               <Image source={{ uri: message.imageUrl }} style={styles.chatImage} resizeMode="cover" />
             ) : (
               <Text style={[styles.bubbleText, isOwn && styles.ownBubbleText]}>
-                {renderTextWithMentions(message.text ?? '', isOwn)}
+                {renderTextWithMentions(message.text ?? '', isOwn, styles)}
               </Text>
             )}
             {!!timeLabel && (
@@ -286,6 +293,8 @@ export default function ChatScreen() {
   const { showToast } = useToast();
   const uid = auth.currentUser?.uid || '';
   const { isPro } = useSubscription();
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const ROOM_ID = planId || 'global';
   const headerTitle = planTitle ? `${planTitle}` : 'Global Chat';
@@ -822,7 +831,7 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
