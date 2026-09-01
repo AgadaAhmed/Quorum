@@ -852,11 +852,6 @@ export default function PlanDetailScreen() {
             <Text style={styles.detailsBoxKey}>SPOTS</Text>
             <Text style={styles.detailsBoxValue}>{plan.maxParticipants || 'Unlimited'}</Text>
           </View>
-          <View style={styles.detailsBoxDivider} />
-          <View style={styles.detailsBoxRow}>
-            <Text style={styles.detailsBoxKey}>ENTRY</Text>
-            <Text style={styles.detailsBoxValue}>Free</Text>
-          </View>
           {plan.category ? (
             <>
               <View style={styles.detailsBoxDivider} />

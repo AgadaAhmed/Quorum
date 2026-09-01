@@ -303,7 +303,7 @@ export default function ChatScreen() {
   useEffect(() => {
     if (uid) {
       getDoc(doc(db, 'users', uid))
-        .then((snap) => setSenderName(snap.data()?.displayName || 'Anonymous'))
+        .then((snap) => setSenderName(snap.data()?.username || snap.data()?.displayName || 'Anonymous'))
         .catch(() => setSenderName('Anonymous'));
     }
 
@@ -370,7 +370,7 @@ export default function ChatScreen() {
         if (cancelled) return;
         const newNames: Record<string, string> = {};
         docs.forEach((d) => {
-          if (d.exists()) newNames[d.id] = d.data()?.displayName || 'Someone';
+          if (d.exists()) newNames[d.id] = d.data()?.username || d.data()?.displayName || 'Someone';
         });
         if (Object.keys(newNames).length) {
           setTypingNames((prev) => ({ ...prev, ...newNames }));

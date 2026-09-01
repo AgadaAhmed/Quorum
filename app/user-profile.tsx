@@ -104,16 +104,32 @@ export default function UserProfileScreen() {
 
     (async () => {
       try {
-        const [profileSnap, plansSnap, mySnap] = await Promise.all([
+        const [profileSnap, mySnap] = await Promise.all([
           getDoc(doc(db, 'users', userId)),
-          getDocs(query(collection(db, 'plans'), where('participants', 'array-contains', userId))),
           uid ? getDoc(doc(db, 'users', uid)) : Promise.resolve(null),
         ]);
         if (cancelled) return;
 
         const profileData = profileSnap.exists() ? (profileSnap.data() as Profile) : null;
         setProfile(profileData);
-        setPlanCount(plansSnap.size);
+
+        // Plan count is best-effort: security rules reject a broad participants
+        // query for another user's plans (it can't guarantee the viewer may read
+        // them), so scope it to public plans and never let a failure here block
+        // the profile from loading.
+        getDocs(
+          query(
+            collection(db, 'plans'),
+            where('participants', 'array-contains', userId),
+            where('isPublic', '==', true)
+          )
+        )
+          .then((plansSnap) => {
+            if (!cancelled) setPlanCount(plansSnap.size);
+          })
+          .catch(() => {
+            if (!cancelled) setPlanCount(0);
+          });
 
         const myData = mySnap?.data();
         const myFriends: string[] = myData?.friends ?? [];

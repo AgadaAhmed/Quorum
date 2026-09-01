@@ -177,7 +177,7 @@ export default function TabsLayout() {
 
 const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   barWrap: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
@@ -231,9 +231,9 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: '#ffffff',
+    borderColor: Colors.background,
   },
-  badgeText: { color: '#fff', fontSize: 8, fontWeight: '800' },
+  badgeText: { color: Colors.background, fontSize: 8, fontWeight: '800' },
   createBtnWrap: {
     width: 60,
     alignItems: 'center',
