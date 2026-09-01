@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize } from '../../lib/theme';
+import { FontSize, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { ChecklistItem, HIT_SLOP } from './shared';
 
 const ChecklistRow = React.memo(function ChecklistRow({
@@ -14,6 +15,8 @@ const ChecklistRow = React.memo(function ChecklistRow({
   onToggle: (id: string, completedBy: string | null) => void;
   onDelete: (id: string) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const isDone = !!item.completedBy;
   return (
     <TouchableOpacity
@@ -45,7 +48,7 @@ const ChecklistRow = React.memo(function ChecklistRow({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   flex1: { flex: 1 },
   noBorderBottom: { borderBottomWidth: 0 },
   checklistItem: {

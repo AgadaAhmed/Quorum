@@ -1,12 +1,14 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Colors, FontSize, Radius } from '../../lib/theme';
+import { FontSize, Radius, type ThemePalette } from '../../lib/theme';
+import { useThemedStyles } from '../../lib/ThemeContext';
 
 const ReactionButton = React.memo(function ReactionButton({
   emoji, count, reacted, onPress,
 }: {
   emoji: string; count: number; reacted: boolean; onPress: (emoji: string) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       style={[styles.reactionBtn, reacted && styles.reactionBtnActive]}
@@ -21,7 +23,7 @@ const ReactionButton = React.memo(function ReactionButton({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   reactionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Radius.md, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
