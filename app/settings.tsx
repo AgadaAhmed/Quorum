@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { auth, db } from '../lib/firebase';
 import { useSubscription } from '../hooks/useSubscription';
 import PaywallModal from '../components/PaywallModal';
+import ThemePicker from '../components/ThemePicker';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { FontSize, FontWeight, Spacing, Radius, Fonts, type ThemePalette } from '../lib/theme';
 import { useTheme, useThemedStyles } from '../lib/ThemeContext';
@@ -265,6 +266,12 @@ export default function SettingsScreen() {
               />
             </>
           )}
+        </View>
+
+        {/* Appearance */}
+        <Text style={styles.sectionLabel}>Appearance</Text>
+        <View style={styles.section}>
+          <ThemePicker onLockedPress={() => setShowPaywall(true)} />
         </View>
 
         {/* Notifications */}
