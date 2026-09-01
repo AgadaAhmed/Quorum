@@ -24,6 +24,7 @@ import { useToast } from '../../components/Toast';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
 import PlanBanner from '../../components/PlanBanner';
+import Avatar from '../../components/Avatar';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
 type UserProfile = {
@@ -472,13 +473,15 @@ export default function ProfileScreen() {
             accessibilityState={{ disabled: uploadingAvatar, busy: uploadingAvatar }}
           >
             <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
-              {profile?.avatarUrl ? (
-                <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarInitial}>{initials}</Text>
-                </View>
-              )}
+              <Avatar
+                testID="profile-avatar"
+                name={profile?.displayName || auth.currentUser?.email || undefined}
+                uploadUrl={profile?.avatarUrl}
+                animated
+                imageStyle={styles.avatarImage}
+                fallbackStyle={styles.avatarFallback}
+                initialStyle={styles.avatarInitial}
+              />
               {uploadingAvatar && (
                 <View style={styles.avatarOverlay}>
                   <Ionicons name="cloud-upload-outline" size={18} color={Colors.background} />
