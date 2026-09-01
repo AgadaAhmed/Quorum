@@ -33,7 +33,8 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
 import { useToast } from '../components/Toast';
-import { Colors, Fonts, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { Fonts, FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import { useCelebration } from '../hooks/useCelebration';
@@ -83,6 +84,7 @@ const Avatar = React.memo(function Avatar({
   tint?: string;
   tintBg?: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.avatarWrap}>
       <View style={[styles.avatar, tintBg ? { backgroundColor: tintBg } : null]}>
@@ -102,7 +104,7 @@ const IconButton = React.memo(function IconButton({
   onPress,
   label,
   size = 22,
-  color = Colors.textMuted,
+  color,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
@@ -110,6 +112,8 @@ const IconButton = React.memo(function IconButton({
   size?: number;
   color?: string;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       style={styles.iconHit}
@@ -119,7 +123,7 @@ const IconButton = React.memo(function IconButton({
       accessibilityLabel={label}
       hitSlop={HIT_SLOP}
     >
-      <Ionicons name={name} size={size} color={color} />
+      <Ionicons name={name} size={size} color={color ?? Colors.textMuted} />
     </TouchableOpacity>
   );
 });
@@ -133,6 +137,8 @@ const EmptyState = React.memo(function EmptyState({
   title: string;
   hint?: string;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.emptyState}>
       <View style={styles.emptyIconWrap}>
@@ -165,6 +171,8 @@ export default function SocialScreen() {
   const [tab, setTab] = useState<Tab>('friends');
   const [joinCode, setJoinCode] = useState('');
   const [joiningByCode, setJoiningByCode] = useState(false);
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
@@ -604,7 +612,7 @@ export default function SocialScreen() {
         </AnimatedCard>
       );
     },
-    [friendIdSet, sentRequests, viewProfile, cancelRequest, sendFriendRequest, blockUser]
+    [friendIdSet, sentRequests, viewProfile, cancelRequest, sendFriendRequest, blockUser, Colors, styles]
   );
 
   const renderRequestItem = useCallback(
@@ -646,7 +654,7 @@ export default function SocialScreen() {
         </View>
       </AnimatedCard>
     ),
-    [viewProfile, blockUser, declineRequest, acceptRequest]
+    [viewProfile, blockUser, declineRequest, acceptRequest, Colors, styles]
   );
 
   const renderFriendItem = useCallback(
@@ -688,7 +696,7 @@ export default function SocialScreen() {
         </View>
       </AnimatedCard>
     ),
-    [viewProfile, blockUser, unfriend]
+    [viewProfile, blockUser, unfriend, Colors, styles]
   );
 
   const blockedFooter = useMemo(() => {
@@ -719,7 +727,7 @@ export default function SocialScreen() {
         ))}
       </View>
     );
-  }, [blockedProfiles, unblockUser]);
+  }, [blockedProfiles, unblockUser, Colors, styles]);
 
   // ── UI ──────────────────────────────────────────────────────────────────────
   return (
@@ -929,7 +937,7 @@ export default function SocialScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
