@@ -29,7 +29,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
-import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../lib/theme';
+import { FontSize, FontWeight, Spacing, Radius, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ const FilterPill = React.memo(function FilterPill({
   active: boolean;
   onPress: (f: FilterKey) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const label = filter.charAt(0).toUpperCase() + filter.slice(1);
   return (
     <TouchableOpacity
@@ -150,6 +152,8 @@ const HighlightCard = React.memo(function HighlightCard({
   item: ActivityItem;
   onPress: (item: ActivityItem) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       style={styles.highlightCard}
@@ -190,6 +194,7 @@ const RequestCard = React.memo(function RequestCard({
   onAccept: (req: FriendRequest) => void;
   onDecline: (req: FriendRequest) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const initial = (req.fromName || '?').charAt(0).toUpperCase();
   return (
     <View style={styles.requestCard}>
@@ -243,6 +248,8 @@ const ActivityRow = React.memo(function ActivityRow({
   item: ActivityItem;
   onPress: (item: ActivityItem) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const iconName = getIconName(item.type);
   const pressable = !!item.planId && item.type !== 'plan_cancelled';
   return (
@@ -278,6 +285,7 @@ const SkeletonCard = React.memo(function SkeletonCard({
 }: {
   shimmer: Animated.AnimatedInterpolation<number>;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.skeletonCard} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={styles.skeletonRow}>
@@ -326,6 +334,8 @@ function useShimmer(active: boolean) {
 
 export default function ActivityScreen() {
   const router = useRouter();
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
   useEffect(() => {
@@ -768,7 +778,7 @@ export default function ActivityScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     paddingBottom: 120,
