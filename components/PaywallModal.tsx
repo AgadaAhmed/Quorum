@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -13,7 +13,8 @@ import * as Haptics from 'expo-haptics';
 import Purchases from 'react-native-purchases';
 import { RC_MONTHLY_PRODUCT_ID, RC_ANNUAL_PRODUCT_ID } from '../lib/subscription';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 interface Props {
   visible: boolean;
@@ -32,10 +33,9 @@ const FEATURES = [
   'Unlimited templates',
 ] as const;
 
-// Monochrome backdrop gradient.
-const BACKDROP_GRADIENT = [Colors.surface, Colors.surfaceRaised] as const;
-
 const FeatureRow = React.memo(function FeatureRow({ label }: { label: string }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.featureRow}>
       <Ionicons name="checkmark" size={16} color={Colors.secondary} />
@@ -45,6 +45,10 @@ const FeatureRow = React.memo(function FeatureRow({ label }: { label: string }) 
 });
 
 export default function PaywallModal({ visible, onClose, reason }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  // Monochrome backdrop gradient.
+  const backdropGradient = useMemo(() => [Colors.surface, Colors.surfaceRaised] as const, [Colors]);
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan>('annual');
 
@@ -100,7 +104,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <LinearGradient colors={BACKDROP_GRADIENT} style={styles.container}>
+      <LinearGradient colors={backdropGradient} style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -182,7 +186,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
   },

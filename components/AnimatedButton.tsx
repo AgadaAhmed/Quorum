@@ -9,7 +9,8 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 type Variant = 'primary' | 'secondary' | 'gold' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
@@ -46,13 +47,15 @@ const SIZE_SPECS: Record<Size, SizeSpec> = {
   lg: { paddingVertical: 18, paddingHorizontal: 28, fontSize: FontSize.lg },
 };
 
-const VARIANT_SPECS: Record<Variant, VariantSpec> = {
-  primary: { backgroundColor: Colors.primary, color: Colors.background, borderColor: 'transparent', borderWidth: 0 },
-  gold: { backgroundColor: Colors.gold, color: Colors.background, borderColor: 'transparent', borderWidth: 0 },
-  secondary: { backgroundColor: Colors.surfaceRaised, color: Colors.text, borderColor: Colors.borderStrong, borderWidth: 1.5 },
-  ghost: { backgroundColor: 'transparent', color: Colors.primary, borderColor: Colors.primary, borderWidth: 1.5 },
-  danger: { backgroundColor: Colors.tertiaryDim, color: Colors.tertiary, borderColor: Colors.tertiary, borderWidth: 1.5 },
-};
+function buildVariantSpecs(Colors: ThemePalette): Record<Variant, VariantSpec> {
+  return {
+    primary: { backgroundColor: Colors.primary, color: Colors.background, borderColor: 'transparent', borderWidth: 0 },
+    gold: { backgroundColor: Colors.gold, color: Colors.background, borderColor: 'transparent', borderWidth: 0 },
+    secondary: { backgroundColor: Colors.surfaceRaised, color: Colors.text, borderColor: Colors.borderStrong, borderWidth: 1.5 },
+    ghost: { backgroundColor: 'transparent', color: Colors.primary, borderColor: Colors.primary, borderWidth: 1.5 },
+    danger: { backgroundColor: Colors.tertiaryDim, color: Colors.tertiary, borderColor: Colors.tertiary, borderWidth: 1.5 },
+  };
+}
 
 function AnimatedButton({
   label,
@@ -66,6 +69,8 @@ function AnimatedButton({
   icon,
   accessibilityLabel,
 }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {
@@ -79,7 +84,8 @@ function AnimatedButton({
   const isDisabled = Boolean(disabled || loading);
 
   const sizeSpec = SIZE_SPECS[size];
-  const variantSpec = VARIANT_SPECS[variant];
+  const variantSpecs = useMemo(() => buildVariantSpecs(Colors), [Colors]);
+  const variantSpec = variantSpecs[variant];
 
   const containerStyle = useMemo(
     () => ({
@@ -127,7 +133,7 @@ function AnimatedButton({
 
 export default React.memo(AnimatedButton);
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   button: {
     borderRadius: Radius.md,
     overflow: 'hidden',

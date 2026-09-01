@@ -11,7 +11,8 @@ import {
   type ViewToken,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -24,38 +25,41 @@ type Slide = {
   color: string;
 };
 
-const SLIDES: Slide[] = [
-  {
-    icon: 'people-circle-outline',
-    title: 'Welcome to Quorum',
-    subtitle: 'The app that turns group indecision into confirmed plans.',
-    color: Colors.primary,
-  },
-  {
-    icon: 'thumbs-up-outline',
-    title: 'Vote to Confirm',
-    subtitle: "Plans are confirmed once enough people vote. No more 'I'm down if everyone else is.'",
-    color: Colors.text,
-  },
-  {
-    icon: 'calendar-outline',
-    title: 'Invite & Discover',
-    subtitle: 'Invite friends, join public events, and connect with your social circle.',
-    color: Colors.text,
-  },
-  {
-    icon: 'rocket-outline',
-    title: "Let's Go!",
-    subtitle: 'Create your first plan and start making things happen together.',
-    color: Colors.primary,
-  },
-];
+function buildSlides(Colors: ThemePalette): Slide[] {
+  return [
+    {
+      icon: 'people-circle-outline',
+      title: 'Welcome to Quorum',
+      subtitle: 'The app that turns group indecision into confirmed plans.',
+      color: Colors.primary,
+    },
+    {
+      icon: 'thumbs-up-outline',
+      title: 'Vote to Confirm',
+      subtitle: "Plans are confirmed once enough people vote. No more 'I'm down if everyone else is.'",
+      color: Colors.text,
+    },
+    {
+      icon: 'calendar-outline',
+      title: 'Invite & Discover',
+      subtitle: 'Invite friends, join public events, and connect with your social circle.',
+      color: Colors.text,
+    },
+    {
+      icon: 'rocket-outline',
+      title: "Let's Go!",
+      subtitle: 'Create your first plan and start making things happen together.',
+      color: Colors.primary,
+    },
+  ];
+}
 
 const VIEWABILITY_CONFIG = { viewAreaCoveragePercentThreshold: 50 };
 
 type Props = { visible: boolean; onDone: () => void };
 
 const SlideItem = React.memo(function SlideItem({ slide }: { slide: Slide }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.slide}>
       <Ionicons name={slide.icon} size={48} color={slide.color} style={styles.slideIcon} />
@@ -66,6 +70,9 @@ const SlideItem = React.memo(function SlideItem({ slide }: { slide: Slide }) {
 });
 
 export default function OnboardingSlider({ visible, onDone }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const slides = useMemo(() => buildSlides(Colors), [Colors]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList<Slide>>(null);
 
@@ -77,11 +84,11 @@ export default function OnboardingSlider({ visible, onDone }: Props) {
 
   const handleNext = useCallback(() => {
     setCurrentIndex((prev) => {
-      const next = Math.min(prev + 1, SLIDES.length - 1);
+      const next = Math.min(prev + 1, slides.length - 1);
       flatListRef.current?.scrollToIndex({ index: next, animated: true });
       return next;
     });
-  }, []);
+  }, [slides.length]);
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -106,18 +113,18 @@ export default function OnboardingSlider({ visible, onDone }: Props) {
     []
   );
 
-  const isLast = currentIndex === SLIDES.length - 1;
+  const isLast = currentIndex === slides.length - 1;
   const handlePrimary = isLast ? handleDone : handleNext;
 
   const dots = useMemo(
     () =>
-      SLIDES.map((_, i) => (
+      slides.map((_, i) => (
         <View
           key={i}
           style={[styles.dot, i === currentIndex ? styles.dotActive : styles.dotInactive]}
         />
       )),
-    [currentIndex]
+    [currentIndex, slides, styles]
   );
 
   return (
@@ -138,7 +145,7 @@ export default function OnboardingSlider({ visible, onDone }: Props) {
 
         <FlatList
           ref={flatListRef}
-          data={SLIDES}
+          data={slides}
           keyExtractor={(_, i) => String(i)}
           horizontal
           pagingEnabled
@@ -168,7 +175,7 @@ export default function OnboardingSlider({ visible, onDone }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
