@@ -191,7 +191,6 @@ const RequestCard = React.memo(function RequestCard({
   onAccept: (req: FriendRequest) => void;
   onDecline: (req: FriendRequest) => void;
 }) {
-  const initial = (req.fromName || '?').charAt(0).toUpperCase();
   return (
     <View style={styles.requestCard}>
       <View style={styles.requestRow}>
