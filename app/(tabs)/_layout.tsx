@@ -28,6 +28,7 @@ function CustomTabBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [badge, setBadge] = useState(0);
+  const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   // Track auth state rather than reading auth.currentUser once: on a cold
@@ -86,7 +87,7 @@ function CustomTabBar() {
           accessibilityRole="button"
         >
           <View style={styles.createBtn}>
-            <Ionicons name="add" size={26} color="#fff" />
+            <Ionicons name="add" size={26} color={Colors.background} />
           </View>
         </TouchableOpacity>
 
