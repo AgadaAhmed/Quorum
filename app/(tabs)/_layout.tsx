@@ -13,7 +13,8 @@ import * as Haptics from 'expo-haptics';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
-import { Colors, Spacing } from '../../lib/theme';
+import { Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
 const TABS = [
   { name: 'index',    label: 'Home',     icon: 'home-outline' as const,          iconActive: 'home' as const },
@@ -27,6 +28,7 @@ function CustomTabBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [badge, setBadge] = useState(0);
+  const styles = useThemedStyles(makeStyles);
 
   // Track auth state rather than reading auth.currentUser once: on a cold
   // start the session restores asynchronously, and a one-shot read would
@@ -114,6 +116,8 @@ function TabBtn({
   badge: number;
   onPress: () => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const indicatorOpacity = useRef(new Animated.Value(isActive ? 1 : 0)).current;
 
@@ -171,7 +175,7 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   barWrap: {
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
