@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
-import { Colors, Radius, Spacing } from '../lib/theme';
+import { Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 interface Props {
   children: React.ReactNode;
@@ -30,6 +31,8 @@ function GlassCard({
   noAnimate = false,
   accessibilityLabel,
 }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const opacity = useRef(new Animated.Value(noAnimate ? 1 : 0)).current;
   const translateY = useRef(new Animated.Value(noAnimate ? 0 : 16)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -86,7 +89,7 @@ function GlassCard({
 
 export default React.memo(GlassCard);
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   card: {
     backgroundColor: Colors.backgroundAlt,
     borderRadius: Radius.md,

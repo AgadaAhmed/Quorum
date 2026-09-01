@@ -9,7 +9,8 @@ import {
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import AnimatedButton from './AnimatedButton';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 // Lazy require — avoids DevicePushTokenAutoRegistration.fx.js side-effect crash in Expo Go
@@ -46,6 +47,7 @@ const DurationPill = React.memo(function DurationPill({
   active,
   onSelect,
 }: DurationPillProps) {
+  const styles = useThemedStyles(makeStyles);
   const handlePress = useCallback(() => onSelect(option), [onSelect, option]);
   return (
     <TouchableOpacity
@@ -67,6 +69,8 @@ export default function SafetyTimerModal({
   planTitle,
   planId,
 }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [selectedDuration, setSelectedDuration] = useState<DurationOption>(DURATION_OPTIONS[1]);
   const [starting, setStarting] = useState(false);
 
@@ -150,7 +154,7 @@ export default function SafetyTimerModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
