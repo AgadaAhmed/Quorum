@@ -19,7 +19,8 @@ import { auth, db } from '../lib/firebase';
 import { useSubscription } from '../hooks/useSubscription';
 import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
-import { Colors, FontSize, FontWeight, Spacing, Radius, Fonts } from '../lib/theme';
+import { FontSize, FontWeight, Spacing, Radius, Fonts, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -42,6 +43,8 @@ export default function SettingsScreen() {
   const [privateProfile, setPrivateProfile] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const user = auth.currentUser;
   const uid = user?.uid ?? '';
@@ -399,6 +402,14 @@ const SettingRow = React.memo(function SettingRow({
   onValueChange: (v: boolean) => void;
   icon?: IconName;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  // Off = visible grey track with light thumb; On = solid black track with white
+  // thumb. Gives a clear, legible two-state read without relying on hue.
+  const switchTrack = useMemo(
+    () => ({ false: Colors.surfaceBright, true: Colors.primary }),
+    [Colors]
+  );
   return (
     <View style={styles.settingRow}>
       {icon && <Ionicons name={icon} size={20} color={Colors.textSecondary} style={styles.rowIcon} />}
@@ -409,7 +420,7 @@ const SettingRow = React.memo(function SettingRow({
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={SWITCH_TRACK}
+        trackColor={switchTrack}
         thumbColor={value ? Colors.background : Colors.surfaceRaised}
         ios_backgroundColor={Colors.surfaceBright}
         accessibilityLabel={label}
@@ -417,10 +428,6 @@ const SettingRow = React.memo(function SettingRow({
     </View>
   );
 });
-
-// Off = visible grey track with light thumb; On = solid black track with white
-// thumb. Gives a clear, legible two-state read without relying on hue.
-const SWITCH_TRACK = { false: Colors.surfaceBright, true: Colors.primary } as const;
 
 const ActionRow = React.memo(function ActionRow({
   icon,
@@ -439,6 +446,8 @@ const ActionRow = React.memo(function ActionRow({
   emphasize?: boolean;
   danger?: boolean;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const tint = danger ? Colors.error : emphasize ? Colors.primary : Colors.textSecondary;
   const labelStyle = danger || emphasize ? [styles.actionLabel, { color: tint }] : styles.actionLabel;
   return (
@@ -466,7 +475,7 @@ const ActionRow = React.memo(function ActionRow({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
