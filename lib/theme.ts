@@ -124,10 +124,10 @@ export const palettes = {
 
 export type ThemeName = keyof typeof palettes;
 
-export const THEME_META: Record<ThemeName, { label: string; pro: boolean }> = {
-  light: { label: 'Light', pro: false },
-  midnight: { label: 'Midnight', pro: false },
-  amoled: { label: 'AMOLED', pro: true },
+export const THEME_META: Record<ThemeName, { label: string; pro: boolean; dark: boolean }> = {
+  light: { label: 'Light', pro: false, dark: false },
+  midnight: { label: 'Midnight', pro: false, dark: true },
+  amoled: { label: 'AMOLED', pro: true, dark: true },
 };
 
 // Default export stays the Light palette so any file that still imports the
