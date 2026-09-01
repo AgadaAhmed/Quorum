@@ -34,6 +34,7 @@ import { useToast } from '../components/Toast';
 import { Colors, Fonts, FontSize, FontWeight, Radius, Shadow, Spacing } from '../lib/theme';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import { useCelebration } from '../hooks/useCelebration';
+import Avatar from '../components/Avatar';
 
 type Profile = {
   displayName: string;
@@ -305,15 +306,14 @@ export default function UserProfileScreen() {
         {/* Avatar + identity */}
         <Animated.View style={[styles.avatarSection, { opacity: contentOpacity }]}>
           <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
-            {profile.avatarUrl ? (
-              <Image
-                source={{ uri: profile.avatarUrl }}
-                style={styles.avatarImage}
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <Text style={styles.avatarText}>{initials}</Text>
-            )}
+            <Avatar
+              testID="user-avatar"
+              name={profile.displayName}
+              uploadUrl={profile.avatarUrl}
+              animated
+              imageStyle={styles.avatarImage}
+              initialStyle={styles.avatarText}
+            />
           </Animated.View>
 
           <Text style={styles.displayName} numberOfLines={1}>
