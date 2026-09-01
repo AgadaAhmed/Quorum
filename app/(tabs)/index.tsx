@@ -49,12 +49,15 @@ import {
   FriendPlan,
   getGreeting,
 } from '../../components/home/shared';
-import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Shadow, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { showToast } = useToast();
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -602,7 +605,7 @@ export default function HomeScreen() {
 // Styles — Monochrome design system
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: Spacing.container,
