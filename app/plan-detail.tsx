@@ -48,7 +48,8 @@ import StarRating from '../components/StarRating';
 import SafetyTimerModal from '../components/SafetyTimerModal';
 import MomentsGallery from '../components/MomentsGallery';
 import { hasScamKeywords } from '../lib/scamDetection';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import ReactionButton from '../components/plan-detail/ReactionButton';
 import ChecklistRow from '../components/plan-detail/ChecklistRow';
@@ -92,6 +93,8 @@ export default function PlanDetailScreen() {
   const [creatorName, setCreatorName] = useState('');
   const [creatorUsername, setCreatorUsername] = useState('');
   const [activeTab, setActiveTab] = useState<DetailTab>('Overview');
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const visibleTabs = useMemo(() => {
     const tabs: VisibleTab[] = [{ key: 'Overview', label: 'Overview' }];
@@ -1545,7 +1548,7 @@ export default function PlanDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   loadingHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
