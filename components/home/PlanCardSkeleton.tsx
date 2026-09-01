@@ -1,10 +1,12 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SkeletonItem } from '../SkeletonLoader';
-import { Colors, Radius, Spacing } from '../../lib/theme';
+import { Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useThemedStyles } from '../../lib/ThemeContext';
 
 // Plan card skeleton (matches the real card: cover + body + progress)
 const PlanCardSkeleton = React.memo(function PlanCardSkeleton() {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.skeletonCard}>
       <SkeletonItem width="100%" height={180} borderRadius={0} />
@@ -21,7 +23,7 @@ const PlanCardSkeleton = React.memo(function PlanCardSkeleton() {
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   skeletonCard: {
     backgroundColor: Colors.backgroundAlt,
     borderRadius: Radius.md,

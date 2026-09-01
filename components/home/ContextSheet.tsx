@@ -1,7 +1,8 @@
 import React from 'react';
 import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { Plan } from './shared';
 
 type ContextSheetProps = {
@@ -37,6 +38,8 @@ export default function ContextSheet({
   onDelete,
   onLeave,
 }: ContextSheetProps) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={!!plan} transparent animationType="none" onRequestClose={onClose}>
       <TouchableOpacity style={styles.contextOverlay} activeOpacity={1} onPress={onClose}>
@@ -148,7 +151,7 @@ export default function ContextSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   contextOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
