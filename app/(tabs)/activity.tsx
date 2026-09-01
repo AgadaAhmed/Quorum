@@ -31,6 +31,7 @@ import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../lib/theme';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from '../../components/Avatar';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -194,13 +195,14 @@ const RequestCard = React.memo(function RequestCard({
   return (
     <View style={styles.requestCard}>
       <View style={styles.requestRow}>
-        {req.fromAvatar ? (
-          <Image source={{ uri: req.fromAvatar }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarFallback}>
-            <Text style={styles.avatarInitial}>{initial}</Text>
-          </View>
-        )}
+        <Avatar
+          testID="request-avatar"
+          name={req.fromName}
+          uploadUrl={req.fromAvatar || undefined}
+          imageStyle={styles.avatar}
+          fallbackStyle={styles.avatarFallback}
+          initialStyle={styles.avatarInitial}
+        />
 
         <View style={styles.requestInfo}>
           <Text style={styles.requestName} numberOfLines={1}>
