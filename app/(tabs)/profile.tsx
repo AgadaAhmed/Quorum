@@ -439,6 +439,7 @@ export default function ProfileScreen() {
   const openEdit = useCallback(() => setEditing(true), []);
   const closeEdit = useCallback(() => setEditing(false), []);
   const goToSettings = useCallback(() => router.push('/settings' as any), [router]);
+  const goToCustomize = useCallback(() => router.push('/customize-profile' as any), [router]);
   const goToFriends = useCallback(() => router.push('/social' as any), [router]);
   const openPlan = useCallback(
     (id: string) => router.push({ pathname: '/plan-detail', params: { id } } as any),
@@ -659,6 +660,15 @@ export default function ProfileScreen() {
             variant="ghost"
             size="sm"
             style={styles.actionBtn}
+          />
+          <AnimatedButton
+            label="Customize"
+            onPress={goToCustomize}
+            variant="ghost"
+            size="sm"
+            style={styles.actionBtn}
+            icon={<Ionicons name="color-wand-outline" size={14} color={Colors.primary} />}
+            accessibilityLabel="Customize profile"
           />
           <AnimatedButton
             label="Friends"
