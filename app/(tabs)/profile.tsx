@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -25,6 +26,11 @@ import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
 import PlanBanner from '../../components/PlanBanner';
 import Avatar from '../../components/Avatar';
+import GifPicker from '../../components/GifPicker';
+import ProfileBanner from '../../components/ProfileBanner';
+import PaywallModal from '../../components/PaywallModal';
+import { useSubscription } from '../../hooks/useSubscription';
+import { TenorResult } from '../../lib/tenor';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
 type UserProfile = {
@@ -37,6 +43,10 @@ type UserProfile = {
   friends?: string[];
   bio?: string;
   avatarUrl?: string;
+  avatarGifUrl?: string;
+  avatarStillUrl?: string;
+  bannerGifUrl?: string;
+  bannerStillUrl?: string;
   emergencyContact?: { name: string; phone: string };
   planCount?: number;
   voteCount?: number;
@@ -170,6 +180,9 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { showToast } = useToast();
+  const { isPro } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [gifTarget, setGifTarget] = useState<null | 'avatar' | 'banner'>(null);
   const avatarScale = useRef(new Animated.Value(0)).current;
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
@@ -351,6 +364,48 @@ export default function ProfileScreen() {
     }
   }, [uid, uploadingAvatar, showToast]);
 
+  // Free users get the existing upload path; Pro users choose upload vs animated GIF.
+  const onAvatarPress = useCallback(() => {
+    if (uploadingAvatar) return;
+    if (!isPro) {
+      handleAvatarPick();
+      return;
+    }
+    Alert.alert('Change avatar', undefined, [
+      { text: 'Upload photo', onPress: () => handleAvatarPick() },
+      { text: 'Pick a GIF', onPress: () => setGifTarget('avatar') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [isPro, uploadingAvatar, handleAvatarPick]);
+
+  const onEditBanner = useCallback(() => {
+    if (!isPro) {
+      setShowPaywall(true);
+      return;
+    }
+    setGifTarget('banner');
+  }, [isPro]);
+
+  const onGifSelected = useCallback(
+    async (result: TenorResult) => {
+      if (!uid || !gifTarget) return;
+      const fields =
+        gifTarget === 'avatar'
+          ? { avatarGifUrl: result.gifUrl, avatarStillUrl: result.stillUrl }
+          : { bannerGifUrl: result.gifUrl, bannerStillUrl: result.stillUrl };
+      try {
+        await updateDoc(doc(db, 'users', uid), fields);
+        setProfile((p) => (p ? { ...p, ...fields } : p));
+        showToast(gifTarget === 'avatar' ? 'Avatar updated!' : 'Banner updated!');
+      } catch {
+        showToast('Failed to update', 'error');
+      } finally {
+        setGifTarget(null);
+      }
+    },
+    [uid, gifTarget, showToast]
+  );
+
   const handleSignOut = useCallback(async () => {
     try {
       await auth.signOut();
@@ -461,68 +516,90 @@ export default function ProfileScreen() {
 
         {/* ── Hero Banner ── */}
         <View style={styles.heroContainer}>
-          {/* Avatar */}
-          <TouchableOpacity
-            onPress={handleAvatarPick}
-            disabled={uploadingAvatar}
-            style={styles.avatarWrapper}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel="Change profile photo"
-            accessibilityState={{ disabled: uploadingAvatar, busy: uploadingAvatar }}
-          >
-            <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
-              <Avatar
-                testID="profile-avatar"
-                name={profile?.displayName || auth.currentUser?.email || undefined}
-                uploadUrl={profile?.avatarUrl}
-                animated
-                imageStyle={styles.avatarImage}
-                fallbackStyle={styles.avatarFallback}
-                initialStyle={styles.avatarInitial}
-              />
-              {uploadingAvatar && (
-                <View style={styles.avatarOverlay}>
-                  <Ionicons name="cloud-upload-outline" size={18} color={Colors.background} />
-                </View>
-              )}
-            </Animated.View>
-            <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={13} color={Colors.background} />
-            </View>
-          </TouchableOpacity>
-
-          {/* Name, handle, bio, consensus — beside avatar */}
-          <View style={styles.heroInfo}>
-            <Text style={styles.heroName} numberOfLines={1}>
-              {profile?.displayName || (loading ? 'Loading…' : 'Unnamed')}
-            </Text>
-            {profile?.username ? (
-              <Text style={styles.heroHandle}>@{profile.username}</Text>
-            ) : null}
-            {profile?.bio ? (
-              <Text style={styles.heroBio} numberOfLines={2}>
-                {profile.bio}
-              </Text>
-            ) : null}
-            {hasLocation ? (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
-                <Text style={styles.locationText} numberOfLines={1}>
-                  {locationLabel}
-                </Text>
-              </View>
-            ) : null}
-            {/* Consensus bar */}
-            <View
-              style={styles.consensusRow}
-              accessible
-              accessibilityLabel={`${consensusPct} percent consensus`}
+          {/* Banner — renders null for free users / no banner set; the edit
+              affordance is always visible so free users can discover Pro. */}
+          <View style={styles.heroBannerWrap}>
+            <ProfileBanner
+              gifUrl={profile?.bannerGifUrl}
+              stillUrl={profile?.bannerStillUrl}
+              animated
+            />
+            <TouchableOpacity
+              onPress={onEditBanner}
+              style={styles.bannerEditButton}
+              accessibilityLabel="Edit banner"
+              hitSlop={8}
             >
-              <Text style={styles.consensusLabel}>{consensusPct}% Consensus</Text>
-              <View style={styles.consensusTrack}>
-                <View style={[styles.consensusFill, { width: `${consensusPct}%` }]} />
+              <Ionicons name="image-outline" size={16} color={Colors.background} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.heroRow}>
+            {/* Avatar */}
+            <TouchableOpacity
+              onPress={onAvatarPress}
+              disabled={uploadingAvatar}
+              style={styles.avatarWrapper}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Change profile photo"
+              accessibilityState={{ disabled: uploadingAvatar, busy: uploadingAvatar }}
+            >
+              <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
+                <Avatar
+                  testID="profile-avatar"
+                  name={profile?.displayName || auth.currentUser?.email || undefined}
+                  uploadUrl={profile?.avatarUrl}
+                  gifUrl={profile?.avatarGifUrl}
+                  stillUrl={profile?.avatarStillUrl}
+                  animated
+                  imageStyle={styles.avatarImage}
+                  fallbackStyle={styles.avatarFallback}
+                  initialStyle={styles.avatarInitial}
+                />
+                {uploadingAvatar && (
+                  <View style={styles.avatarOverlay}>
+                    <Ionicons name="cloud-upload-outline" size={18} color={Colors.background} />
+                  </View>
+                )}
+              </Animated.View>
+              <View style={styles.cameraBadge}>
+                <Ionicons name="camera" size={13} color={Colors.background} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Name, handle, bio, consensus — beside avatar */}
+            <View style={styles.heroInfo}>
+              <Text style={styles.heroName} numberOfLines={1}>
+                {profile?.displayName || (loading ? 'Loading…' : 'Unnamed')}
+              </Text>
+              {profile?.username ? (
+                <Text style={styles.heroHandle}>@{profile.username}</Text>
+              ) : null}
+              {profile?.bio ? (
+                <Text style={styles.heroBio} numberOfLines={2}>
+                  {profile.bio}
+                </Text>
+              ) : null}
+              {hasLocation ? (
+                <View style={styles.locationRow}>
+                  <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                  <Text style={styles.locationText} numberOfLines={1}>
+                    {locationLabel}
+                  </Text>
+                </View>
+              ) : null}
+              {/* Consensus bar */}
+              <View
+                style={styles.consensusRow}
+                accessible
+                accessibilityLabel={`${consensusPct} percent consensus`}
+              >
+                <Text style={styles.consensusLabel}>{consensusPct}% Consensus</Text>
+                <View style={styles.consensusTrack}>
+                  <View style={[styles.consensusFill, { width: `${consensusPct}%` }]} />
+                </View>
               </View>
             </View>
           </View>
@@ -771,6 +848,17 @@ export default function ProfileScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <GifPicker
+        visible={gifTarget !== null}
+        onSelect={onGifSelected}
+        onClose={() => setGifTarget(null)}
+      />
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        reason="Upgrade to Pro for animated avatars and custom banners."
+      />
     </ScreenWrapper>
   );
 }
@@ -782,14 +870,32 @@ const styles = StyleSheet.create({
 
   // Hero
   heroContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
-    paddingHorizontal: Spacing.container,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
+  },
+  // Reserves room for the banner-edit affordance even when no banner is set
+  // (free users / Pro users who haven't picked one yet), so the button never
+  // overlaps the avatar row below it.
+  heroBannerWrap: {
+    position: 'relative',
+    minHeight: 40,
+  },
+  bannerEditButton: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999,
+    padding: Spacing.xs,
+    zIndex: 2,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.container,
     gap: Spacing.sm,
   },
   avatarWrapper: {
