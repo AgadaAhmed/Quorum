@@ -35,6 +35,7 @@ import { Colors, Fonts, FontSize, FontWeight, Radius, Shadow, Spacing } from '..
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import { useCelebration } from '../hooks/useCelebration';
 import Avatar from '../components/Avatar';
+import ProfileBanner from '../components/ProfileBanner';
 
 type Profile = {
   displayName: string;
@@ -44,6 +45,10 @@ type Profile = {
   country?: string;
   friends?: string[];
   avatarUrl?: string;
+  avatarGifUrl?: string;
+  avatarStillUrl?: string;
+  bannerGifUrl?: string;
+  bannerStillUrl?: string;
 };
 
 type FriendRequest = { fromId: string; fromName?: string };
@@ -303,6 +308,13 @@ export default function UserProfileScreen() {
       <ProfileHeader title={headerTitle} onBack={goBack} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ProfileBanner
+          gifUrl={profile.bannerGifUrl}
+          stillUrl={profile.bannerStillUrl}
+          animated
+          style={styles.profileBanner}
+        />
+
         {/* Avatar + identity */}
         <Animated.View style={[styles.avatarSection, { opacity: contentOpacity }]}>
           <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
@@ -310,6 +322,8 @@ export default function UserProfileScreen() {
               testID="user-avatar"
               name={profile.displayName}
               uploadUrl={profile.avatarUrl}
+              gifUrl={profile.avatarGifUrl}
+              stillUrl={profile.avatarStillUrl}
               animated
               imageStyle={styles.avatarImage}
               initialStyle={styles.avatarText}
@@ -565,6 +579,15 @@ const styles = StyleSheet.create({
   },
 
   content: { padding: Spacing.container, paddingBottom: Spacing.xxl },
+
+  // ── Banner ──────────────────────────────────────────────────────────────────
+  // Cancels styles.content's padding so the banner reaches the scroll edges,
+  // matching the edge-to-edge treatment used on the user's own profile screen.
+  profileBanner: {
+    marginTop: -Spacing.container,
+    marginHorizontal: -Spacing.container,
+    borderRadius: 0,
+  },
 
   // ── Avatar + identity ───────────────────────────────────────────────────────
   avatarSection: { alignItems: 'center', paddingTop: Spacing.lg, paddingBottom: Spacing.md },
