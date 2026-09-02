@@ -19,6 +19,7 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, lim
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../../lib/firebase';
 import { useToast } from '../../components/Toast';
@@ -32,7 +33,7 @@ import PaywallModal from '../../components/PaywallModal';
 import ColorSwatchRow from '../../components/ColorSwatchRow';
 import { useSubscription } from '../../hooks/useSubscription';
 import { TenorResult } from '../../lib/tenor';
-import { bioMaxFor, TAGLINE_MAX } from '../../lib/profileCustomization';
+import { bioMaxFor, TAGLINE_MAX, resolveColor, accentGradient } from '../../lib/profileCustomization';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
 type UserProfile = {
@@ -455,6 +456,9 @@ export default function ProfileScreen() {
     [profile?.city, profile?.country]
   );
 
+  const accentValue = resolveColor(profile?.profileAccent);
+  const nameColorValue = resolveColor(profile?.nameColor);
+
   const consensusPct = useMemo(
     () => getConsensusPercent(voteCount, planCount),
     [voteCount, planCount]
@@ -556,6 +560,15 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.heroRow}>
+            {accentValue ? (
+              <LinearGradient
+                colors={accentGradient(accentValue)}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+            ) : null}
             {/* Avatar */}
             <TouchableOpacity
               onPress={onAvatarPress}
@@ -592,14 +605,19 @@ export default function ProfileScreen() {
 
             {/* Name, handle, bio, consensus — beside avatar */}
             <View style={styles.heroInfo}>
-              <Text style={styles.heroName} numberOfLines={1}>
+              <Text style={[styles.heroName, nameColorValue ? { color: nameColorValue } : null]} numberOfLines={1}>
                 {profile?.displayName || (loading ? 'Loading…' : 'Unnamed')}
               </Text>
               {profile?.username ? (
                 <Text style={styles.heroHandle}>@{profile.username}</Text>
               ) : null}
+              {profile?.tagline ? (
+                <Text style={[styles.heroTagline, accentValue ? { color: accentValue } : null]} numberOfLines={1}>
+                  {profile.tagline}
+                </Text>
+              ) : null}
               {profile?.bio ? (
-                <Text style={styles.heroBio} numberOfLines={2}>
+                <Text style={[styles.heroBio, accentValue ? { color: accentValue } : null]} numberOfLines={2}>
                   {profile.bio}
                 </Text>
               ) : null}
@@ -946,6 +964,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingHorizontal: Spacing.container,
     gap: Spacing.sm,
+    position: 'relative',
+    overflow: 'hidden',
   },
   avatarWrapper: {
     position: 'relative',
@@ -1011,6 +1031,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: FontWeight.semibold,
     marginTop: 2,
+  },
+  heroTagline: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   heroBio: {
     fontSize: FontSize.sm,
