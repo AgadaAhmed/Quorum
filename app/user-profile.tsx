@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   doc,
   getDoc,
@@ -36,6 +37,7 @@ import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles'
 import { useCelebration } from '../hooks/useCelebration';
 import Avatar from '../components/Avatar';
 import ProfileBanner from '../components/ProfileBanner';
+import { resolveColor, accentGradient } from '../lib/profileCustomization';
 
 type Profile = {
   displayName: string;
@@ -49,6 +51,9 @@ type Profile = {
   avatarStillUrl?: string;
   bannerGifUrl?: string;
   bannerStillUrl?: string;
+  tagline?: string;
+  profileAccent?: string;
+  nameColor?: string;
 };
 
 type FriendRequest = { fromId: string; fromName?: string };
@@ -272,6 +277,8 @@ export default function UserProfileScreen() {
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const initials = useMemo(() => getInitial(profile?.displayName), [profile?.displayName]);
+  const accentValue = resolveColor(profile?.profileAccent);
+  const nameColorValue = resolveColor(profile?.nameColor);
   const friendCount = profile?.friends?.length ?? 0;
   const locationLabel = useMemo(
     () => [profile?.city, profile?.country].filter(Boolean).join(', '),
@@ -317,45 +324,68 @@ export default function UserProfileScreen() {
 
         {/* Avatar + identity */}
         <Animated.View style={[styles.avatarSection, { opacity: contentOpacity }]}>
-          <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
-            <Avatar
-              testID="user-avatar"
-              name={profile.displayName}
-              uploadUrl={profile.avatarUrl}
-              gifUrl={profile.avatarGifUrl}
-              stillUrl={profile.avatarStillUrl}
-              animated
-              imageStyle={styles.avatarImage}
-              initialStyle={styles.avatarText}
-            />
-          </Animated.View>
+          <View style={styles.identityWrap}>
+            {accentValue ? (
+              <LinearGradient
+                colors={accentGradient(accentValue)}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+            ) : null}
 
-          <Text style={styles.displayName} numberOfLines={1}>
-            {profile.displayName}
-          </Text>
-          {!!profile.username && <Text style={styles.usernameHandle}>@{profile.username}</Text>}
+            <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
+              <Avatar
+                testID="user-avatar"
+                name={profile.displayName}
+                uploadUrl={profile.avatarUrl}
+                gifUrl={profile.avatarGifUrl}
+                stillUrl={profile.avatarStillUrl}
+                animated
+                imageStyle={styles.avatarImage}
+                initialStyle={styles.avatarText}
+              />
+            </Animated.View>
 
-          {(!!locationLabel || mutualCount > 0) && (
-            <View style={styles.metaGroup}>
-              {!!locationLabel && (
-                <View style={styles.metaRow}>
-                  <Ionicons name="location-outline" size={14} color={Colors.textMuted} />
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    {locationLabel}
-                  </Text>
-                </View>
-              )}
+            <Text
+              style={[styles.displayName, nameColorValue ? { color: nameColorValue } : null]}
+              numberOfLines={1}
+            >
+              {profile.displayName}
+            </Text>
+            {!!profile.tagline && (
+              <Text
+                style={[styles.tagline, accentValue ? { color: accentValue } : null]}
+                numberOfLines={1}
+              >
+                {profile.tagline}
+              </Text>
+            )}
+            {!!profile.username && <Text style={styles.usernameHandle}>@{profile.username}</Text>}
 
-              {mutualCount > 0 && (
-                <View style={styles.metaRow}>
-                  <Ionicons name="people-outline" size={14} color={Colors.textMuted} />
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    {mutualCount} mutual friend{mutualCount !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
+            {(!!locationLabel || mutualCount > 0) && (
+              <View style={styles.metaGroup}>
+                {!!locationLabel && (
+                  <View style={styles.metaRow}>
+                    <Ionicons name="location-outline" size={14} color={Colors.textMuted} />
+                    <Text style={styles.metaText} numberOfLines={1}>
+                      {locationLabel}
+                    </Text>
+                  </View>
+                )}
+
+                {mutualCount > 0 && (
+                  <View style={styles.metaRow}>
+                    <Ionicons name="people-outline" size={14} color={Colors.textMuted} />
+                    <Text style={styles.metaText} numberOfLines={1}>
+                      {mutualCount} mutual friend{mutualCount !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
 
           {/* Relationship actions */}
           {relation !== 'self' && (
@@ -428,7 +458,9 @@ export default function UserProfileScreen() {
               <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors.primary} />
               <Text style={styles.sectionTitle}>Bio</Text>
             </View>
-            <Text style={styles.bioText}>{profile.bio}</Text>
+            <Text style={[styles.bioText, accentValue ? { color: accentValue } : null]}>
+              {profile.bio}
+            </Text>
           </AnimatedCard>
         )}
 
@@ -591,6 +623,12 @@ const styles = StyleSheet.create({
 
   // ── Avatar + identity ───────────────────────────────────────────────────────
   avatarSection: { alignItems: 'center', paddingTop: Spacing.lg, paddingBottom: Spacing.md },
+  identityWrap: {
+    width: '100%',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
   avatarCircle: {
     width: 96,
     height: 96,
@@ -626,6 +664,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodyMedium,
     color: Colors.textMuted,
     fontWeight: FontWeight.medium,
+    marginTop: 2,
+  },
+  tagline: {
+    fontSize: FontSize.sm,
+    fontFamily: Fonts.body,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
     marginTop: 2,
   },
   metaGroup: { alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
