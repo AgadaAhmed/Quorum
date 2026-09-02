@@ -29,8 +29,10 @@ import Avatar from '../../components/Avatar';
 import GifPicker from '../../components/GifPicker';
 import ProfileBanner from '../../components/ProfileBanner';
 import PaywallModal from '../../components/PaywallModal';
+import ColorSwatchRow from '../../components/ColorSwatchRow';
 import { useSubscription } from '../../hooks/useSubscription';
 import { TenorResult } from '../../lib/tenor';
+import { bioMaxFor, TAGLINE_MAX } from '../../lib/profileCustomization';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
 type UserProfile = {
@@ -51,6 +53,9 @@ type UserProfile = {
   planCount?: number;
   voteCount?: number;
   ratingAvg?: number;
+  tagline?: string;
+  profileAccent?: string;
+  nameColor?: string;
 };
 
 type Plan = {
@@ -166,6 +171,9 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [profileAccent, setProfileAccent] = useState<string | undefined>(undefined);
+  const [nameColor, setNameColor] = useState<string | undefined>(undefined);
   const [username, setUsername] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
@@ -198,6 +206,9 @@ export default function ProfileScreen() {
       setProfile(data);
       setBio(data.bio || '');
       setDisplayName(data.displayName || '');
+      setTagline(data.tagline || '');
+      setProfileAccent(data.profileAccent || undefined);
+      setNameColor(data.nameColor || undefined);
       setUsername(data.username || '');
       setCity(data.city || '');
       setCountry(data.country || '');
@@ -296,6 +307,11 @@ export default function ProfileScreen() {
       updates.username = trimmedUsername;
       updates.usernameLower = trimmedUsername.toLowerCase();
     }
+    if (isPro) {
+      updates.tagline = tagline.trim();
+      updates.profileAccent = profileAccent ?? '';
+      updates.nameColor = nameColor ?? '';
+    }
     try {
       await updateDoc(doc(db, 'users', uid), updates);
       setProfile((p) =>
@@ -308,6 +324,7 @@ export default function ProfileScreen() {
               city: trimmedCity,
               country: trimmedCountry,
               emergencyContact: { name: emergencyName.trim(), phone: emergencyPhone.trim() },
+              ...(isPro ? { tagline: tagline.trim(), profileAccent: profileAccent ?? '', nameColor: nameColor ?? '' } : {}),
             }
           : p
       );
@@ -330,6 +347,10 @@ export default function ProfileScreen() {
     emergencyPhone,
     profile?.username,
     showToast,
+    isPro,
+    tagline,
+    profileAccent,
+    nameColor,
   ]);
 
   const handleAvatarPick = useCallback(async () => {
@@ -787,9 +808,37 @@ export default function ProfileScreen() {
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 numberOfLines={3}
-                maxLength={200}
+                maxLength={bioMaxFor(isPro)}
               />
-              <Text style={styles.charCount}>{bio.length}/200</Text>
+              <Text style={styles.charCount}>{bio.length}/{bioMaxFor(isPro)}</Text>
+
+              {isPro ? (
+                <>
+                  <Text style={styles.fieldLabel}>Tagline</Text>
+                  <TextInput
+                    testID="edit-tagline"
+                    style={styles.fieldInput}
+                    value={tagline}
+                    onChangeText={setTagline}
+                    placeholder="A short line under your name"
+                    placeholderTextColor={Colors.textMuted}
+                    maxLength={TAGLINE_MAX}
+                  />
+                  <Text style={styles.fieldLabel}>Name color</Text>
+                  <ColorSwatchRow selectedKey={nameColor} onSelect={setNameColor} />
+                  <Text style={styles.fieldLabel}>Profile accent</Text>
+                  <ColorSwatchRow selectedKey={profileAccent} onSelect={setProfileAccent} />
+                </>
+              ) : (
+                <TouchableOpacity
+                  testID="edit-customize-upsell"
+                  onPress={() => { closeEdit(); setShowPaywall(true); }}
+                  style={styles.upsellRow}
+                >
+                  <Ionicons name="color-palette-outline" size={16} color={Colors.text} />
+                  <Text style={styles.upsellText}>Upgrade to Pro to add a tagline & colors</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Location */}
               <Text style={styles.fieldLabel}>City</Text>
@@ -1165,6 +1214,8 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 2,
   },
+  upsellRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
+  upsellText: { color: Colors.text, fontSize: FontSize.sm },
   saveBtn: {
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,
