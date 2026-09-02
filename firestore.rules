@@ -15,6 +15,12 @@ service cloud.firestore {
       return ['subscriptionTier', 'subscriptionExpiresAt', 'subscriptionUpdatedAt'];
     }
 
+    // Visual customization fields that require an active Pro subscription to change.
+    function proCustomFields() {
+      return ['avatarGifUrl', 'avatarStillUrl', 'bannerGifUrl', 'bannerStillUrl',
+              'decorationId', 'tagline', 'profileAccent', 'nameColor'];
+    }
+
     match /users/{uid} {
       // Any signed-in user can read profiles (needed for friend lookups, chat, user-profile screen)
       allow read: if isAuth();
@@ -32,7 +38,13 @@ service cloud.firestore {
           request.auth.uid == uid &&
           !request.resource.data.diff(resource.data)
             .affectedKeys()
-            .hasAny(lockedEntitlementFields())
+            .hasAny(lockedEntitlementFields()) &&
+          (
+            resource.data.get('subscriptionTier', 'free') == 'pro' ||
+            !request.resource.data.diff(resource.data)
+              .affectedKeys()
+              .hasAny(proCustomFields())
+          )
         ) ||
         // Anyone else may only touch social fields (friend-request flow), and
         // still never the entitlement fields.
