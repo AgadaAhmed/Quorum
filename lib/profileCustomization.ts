@@ -48,3 +48,37 @@ export function initialsFor(name?: string): string {
   const c = name?.trim()?.[0];
   return (c || 'U').toUpperCase();
 }
+
+/** Curated profile colors. Chosen mid-saturation so display-name text stays
+ *  legible on both light and (future) dark profile surfaces — the readability
+ *  floor. Users pick from these keys; we never store arbitrary hex. */
+export type ProfileColor = { key: string; label: string; value: string };
+
+export const PROFILE_COLORS: ProfileColor[] = [
+  { key: 'crimson', label: 'Crimson', value: '#D64545' },
+  { key: 'amber', label: 'Amber', value: '#B8860B' },
+  { key: 'emerald', label: 'Emerald', value: '#1E9E52' },
+  { key: 'teal', label: 'Teal', value: '#0E9AA7' },
+  { key: 'azure', label: 'Azure', value: '#2E6FD6' },
+  { key: 'indigo', label: 'Indigo', value: '#5B54D6' },
+  { key: 'violet', label: 'Violet', value: '#8B46C7' },
+  { key: 'rose', label: 'Rose', value: '#C6417F' },
+  { key: 'slate', label: 'Slate', value: '#5A6472' },
+];
+
+/** Hex for a palette key, or undefined if unset/unknown. */
+export function resolveColor(key?: string): string | undefined {
+  return PROFILE_COLORS.find((c) => c.key === key)?.value;
+}
+
+export const BIO_MAX = { free: 150, pro: 300 } as const;
+export function bioMaxFor(isPro: boolean): number {
+  return isPro ? BIO_MAX.pro : BIO_MAX.free;
+}
+
+export const TAGLINE_MAX = 60;
+
+/** A subtle accent->transparent vertical gradient pair (8-digit hex alpha). */
+export function accentGradient(hex: string): [string, string] {
+  return [`${hex}2E`, `${hex}00`]; // ~18% -> 0%
+}
