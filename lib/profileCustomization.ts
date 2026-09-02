@@ -11,8 +11,8 @@ export const DECORATIONS: Partial<Record<DecorationId, { asset: number; animated
 /** All optional profile-customization fields stored on the Firestore user doc. */
 export type ProfileCustomization = {
   avatarUrl?: string;        // existing static upload (free tier)
-  avatarGifUrl?: string;     // Tenor animated pfp (Pro)
-  avatarStillUrl?: string;   // Tenor preview still for lists
+  avatarGifUrl?: string;     // Klipy animated pfp (Pro)
+  avatarStillUrl?: string;   // Klipy preview still for lists
   bannerGifUrl?: string;
   bannerStillUrl?: string;
   decorationId?: DecorationId | null;

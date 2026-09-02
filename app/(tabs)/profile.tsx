@@ -32,7 +32,7 @@ import ProfileBanner from '../../components/ProfileBanner';
 import PaywallModal from '../../components/PaywallModal';
 import ColorSwatchRow from '../../components/ColorSwatchRow';
 import { useSubscription } from '../../hooks/useSubscription';
-import { TenorResult } from '../../lib/tenor';
+import { GifResult } from '../../lib/gifProvider';
 import { bioMaxFor, TAGLINE_MAX, resolveColor, accentGradient } from '../../lib/profileCustomization';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
 
@@ -409,7 +409,7 @@ export default function ProfileScreen() {
   }, [isPro]);
 
   const onGifSelected = useCallback(
-    async (result: TenorResult) => {
+    async (result: GifResult) => {
       if (!uid || !gifTarget) return;
       const fields =
         gifTarget === 'avatar'

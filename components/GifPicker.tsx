@@ -12,11 +12,11 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, Radius, Spacing } from '../lib/theme';
-import { searchGifs, trendingGifs, TenorResult } from '../lib/tenor';
+import { searchGifs, trendingGifs, GifResult } from '../lib/gifProvider';
 
 type Props = {
   visible: boolean;
-  onSelect: (result: TenorResult) => void;
+  onSelect: (result: GifResult) => void;
   onClose: () => void;
 };
 
@@ -25,7 +25,7 @@ const PAGE_SIZE = 24;
 
 export default function GifPicker({ visible, onSelect, onClose }: Props) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<TenorResult[]>([]);
+  const [results, setResults] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async (q: string) => {
@@ -42,7 +42,7 @@ export default function GifPicker({ visible, onSelect, onClose }: Props) {
   }, [visible, load]);
 
   const handlePick = useCallback(
-    (item: TenorResult) => {
+    (item: GifResult) => {
       onSelect(item);
       onClose();
     },
@@ -88,7 +88,7 @@ export default function GifPicker({ visible, onSelect, onClose }: Props) {
                   onPress={() => handlePick(item)}
                   accessibilityLabel="Select GIF"
                 >
-                  <Image source={{ uri: item.stillUrl }} style={styles.thumb} contentFit="cover" />
+                  <Image source={{ uri: item.stillUrl }} style={styles.thumb} contentFit="cover" autoplay={false} />
                 </TouchableOpacity>
               )}
             />

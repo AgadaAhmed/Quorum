@@ -12,7 +12,7 @@ import ProfilePreviewCard, { ProfileDraft } from '../components/ProfilePreviewCa
 import GifPicker from '../components/GifPicker';
 import ColorSwatchRow from '../components/ColorSwatchRow';
 import PaywallModal from '../components/PaywallModal';
-import { TenorResult } from '../lib/tenor';
+import { GifResult } from '../lib/gifProvider';
 import { TAGLINE_MAX } from '../lib/profileCustomization';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
@@ -49,7 +49,7 @@ export default function CustomizeProfileScreen() {
   }, []);
 
   const onGifSelected = useCallback(
-    (result: TenorResult) => {
+    (result: GifResult) => {
       setDraft((prev) =>
         gifTarget === 'avatar'
           ? { ...prev, avatarGifUrl: result.gifUrl, avatarStillUrl: result.stillUrl }
