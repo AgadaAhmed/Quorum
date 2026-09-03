@@ -7,7 +7,7 @@
 // who already have the app get a one-tap join via the `quorum://` deep link.
 
 export const PLAY_STORE_URL =
-  'https://play.google.com/store/apps/details?id=com.quorum.app';
+  'https://play.google.com/store/apps/details?id=quorums.co.za';
 
 /** Deep link an installed app opens to auto-join a plan. Maps to app/join/[code].tsx. */
 export function inviteDeepLink(code: string): string {

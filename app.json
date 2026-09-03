@@ -10,7 +10,7 @@
     "backgroundColor": "#080608",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.quorum.app"
+      "bundleIdentifier": "quorums.co.za"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +25,7 @@
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
       ],
-      "package": "com.quorum.app"
+      "package": "quorums.co.za"
     },
     "web": {
       "output": "static",
