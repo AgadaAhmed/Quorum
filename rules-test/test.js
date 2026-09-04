@@ -229,6 +229,18 @@ async function check(name, promise) {
   await check('outsider CANNOT add themselves to a private plan',
     assertFails(updateDoc(doc(dave, 'plans/adminplan'), { participants: ['alice', 'bob', 'carol', 'dave'] })));
 
+  // ───────────────────────── Users: plan invites ─────────────────────────
+  console.log('\nUsers — plan invites:');
+  await seed();
+  await check('someone can send a plan invite onto another user (planInvites)',
+    assertSucceeds(updateDoc(doc(alice, 'users/bob'), { planInvites: [{ planId: 'pub1', planTitle: 'Public Plan', inviteCode: 'ABC', fromId: 'alice', fromName: 'Alice' }] })));
+  await seed();
+  await check('owner can clear their own plan invites',
+    assertSucceeds(updateDoc(doc(bob, 'users/bob'), { planInvites: [] })));
+  await seed();
+  await check('CANNOT smuggle a tier change alongside a plan invite',
+    assertFails(updateDoc(doc(alice, 'users/bob'), { planInvites: [], subscriptionTier: 'pro' })));
+
   await testEnv.cleanup();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

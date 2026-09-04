@@ -40,7 +40,7 @@ service cloud.firestore {
           request.auth.uid != uid &&
           request.resource.data.diff(resource.data)
             .affectedKeys()
-            .hasOnly(['friendRequests', 'friends', 'blockedUsers'])
+            .hasOnly(['friendRequests', 'friends', 'blockedUsers', 'planInvites'])
         )
       );
 
