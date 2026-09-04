@@ -71,6 +71,12 @@ async function check(name, promise) {
         createdBy: 'alice', isPublic: true, participants: ['alice'], votes: ['alice'],
         requiredVotes: 3, status: 'pending', title: 'No Quorum',
       });
+      // Private plan with an admin (bob) plus the creator (alice) and a member (carol).
+      await setDoc(doc(db, 'plans/adminplan'), {
+        createdBy: 'alice', isPublic: false,
+        participants: ['alice', 'bob', 'carol'], admins: ['bob'], votes: ['alice'],
+        requiredVotes: 3, status: 'pending', title: 'Admin Plan',
+      });
     });
   }
 
@@ -198,6 +204,30 @@ async function check(name, promise) {
   await seed();
   await check('outsider CANNOT add a moment to a private plan',
     assertFails(addDoc(collection(carol, 'plans/priv2/moments'), { url: 'x', uploadedBy: 'carol' })));
+
+  // ───────────────────────── Plans: admin roster ─────────────────────────
+  console.log('\nPlans — admin roster:');
+  await seed();
+  await check('admin can add a participant',
+    assertSucceeds(updateDoc(doc(bob, 'plans/adminplan'), { participants: ['alice', 'bob', 'carol', 'dave'] })));
+  await seed();
+  await check('admin can remove a member',
+    assertSucceeds(updateDoc(doc(bob, 'plans/adminplan'), { participants: ['alice', 'bob'] })));
+  await seed();
+  await check('admin CANNOT remove the creator',
+    assertFails(updateDoc(doc(bob, 'plans/adminplan'), { participants: ['bob', 'carol'] })));
+  await seed();
+  await check('non-admin member CANNOT remove another member',
+    assertFails(updateDoc(doc(carol, 'plans/adminplan'), { participants: ['alice', 'carol'] })));
+  await seed();
+  await check('creator can promote a member to admin',
+    assertSucceeds(updateDoc(doc(alice, 'plans/adminplan'), { admins: ['bob', 'carol'] })));
+  await seed();
+  await check('admin CANNOT smuggle a title change via the roster branch',
+    assertFails(updateDoc(doc(bob, 'plans/adminplan'), { participants: ['alice', 'bob', 'carol', 'dave'], title: 'Hijacked' })));
+  await seed();
+  await check('outsider CANNOT add themselves to a private plan',
+    assertFails(updateDoc(doc(dave, 'plans/adminplan'), { participants: ['alice', 'bob', 'carol', 'dave'] })));
 
   await testEnv.cleanup();
   console.log(`\n${passed} passed, ${failed} failed`);

@@ -56,6 +56,8 @@ service cloud.firestore {
 
       function isCreator() { return existing().createdBy == uid(); }
       function isParticipant() { return uid() in existing().participants; }
+      // The creator is always an admin; extra admins live in the optional `admins` array.
+      function isAdmin() { return isCreator() || (uid() in existing().get('admins', [])); }
       // Who may touch the plan at all: public, or a participant, or the creator.
       function canAccess() {
         return existing().isPublic == true || isParticipant() || isCreator();
@@ -126,7 +128,16 @@ service cloud.firestore {
         (isParticipant() && changedKeys().hasOnly([
           'reactions', 'poll', 'archivedBy', 'photos',
           'hostRatings', 'checklist', 'comments'
-        ]))
+        ])) ||
+
+        // 7. Roster & roles: the creator and admins add/remove participants,
+        //    promote/demote admins, and cascade a removed member's vote. Touches
+        //    only these fields, and the creator can never be removed from
+        //    participants. (Mobile never sets `admins`, so this is creator-only
+        //    there and grants nothing new.)
+        (isAdmin()
+          && changedKeys().hasOnly(['participants', 'admins', 'votes'])
+          && existing().createdBy in incoming().participants)
       );
 
       allow delete: if isAuth() && isCreator();
