@@ -20,13 +20,62 @@
  */
 
 const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const { Expo } = require('expo-server-sdk');
 
 admin.initializeApp();
 const db = admin.firestore();
+
+const expo = new Expo();
+
+/**
+ * Send an Expo push to a set of user UIDs. Looks up each recipient's stored
+ * `pushToken`, skips anyone who has notifications disabled or no valid token,
+ * de-dupes, and chunks the send. Never throws into the trigger.
+ */
+async function pushToUids(uids, { title, body, data, collapseId }) {
+  const unique = [...new Set(uids)].filter(Boolean);
+  if (unique.length === 0) return;
+  const snaps = await db.getAll(...unique.map((u) => db.collection('users').doc(u)));
+  const messages = [];
+  for (const snap of snaps) {
+    if (!snap.exists) continue;
+    const d = snap.data() || {};
+    if (d.notificationsEnabled === false) continue; // absent = enabled
+    const token = d.pushToken;
+    if (!token || !Expo.isExpoPushToken(token)) continue;
+    messages.push({
+      to: token,
+      sound: 'default',
+      title,
+      body,
+      data: data || {},
+      channelId: 'default',
+      ...(collapseId ? { collapseId } : {}),
+    });
+  }
+  if (messages.length === 0) return;
+  for (const chunk of expo.chunkPushNotifications(messages)) {
+    try {
+      await expo.sendPushNotificationsAsync(chunk);
+    } catch (err) {
+      logger.error('Expo push send failed', err);
+    }
+  }
+}
+
+async function displayNameOf(uid) {
+  try {
+    const s = await db.collection('users').doc(uid).get();
+    return (s.exists && s.data().displayName) || 'Someone';
+  } catch {
+    return 'Someone';
+  }
+}
 
 const REVENUECAT_WEBHOOK_AUTH = defineSecret('REVENUECAT_WEBHOOK_AUTH');
 
@@ -190,5 +239,107 @@ exports.revenuecatWebhook = onRequest(
       logger.error('Failed to update user tier', e);
       res.status(500).send('error');
     }
+  }
+);
+
+// ── Push notifications ──────────────────────────────────────────────────────
+// Firestore-triggered senders (Admin SDK) that push to recipients' Expo tokens.
+// Client stores the token at users/{uid}.pushToken and a notificationsEnabled
+// preference; pushToUids() honors both. Tap-routing payloads carry `type` and,
+// where relevant, `planId` (see the response listener in app/_layout.tsx).
+
+// users/{uid} update → friend request received / accepted.
+exports.onUserUpdate = onDocumentUpdated('users/{uid}', async (event) => {
+  const before = (event.data.before && event.data.before.data()) || {};
+  const after = (event.data.after && event.data.after.data()) || {};
+  const uid = event.params.uid;
+
+  // A new friend request lands in the RECIPIENT's friendRequests array.
+  const beforeReqIds = new Set((before.friendRequests || []).map((r) => r && r.fromId));
+  const newReqs = (after.friendRequests || []).filter((r) => r && !beforeReqIds.has(r.fromId));
+  for (const r of newReqs) {
+    await pushToUids([uid], {
+      title: 'New friend request',
+      body: `${r.fromName || 'Someone'} sent you a friend request`,
+      data: { type: 'friend_request' },
+    });
+  }
+
+  // Friends gained WITHOUT a request being removed in the same write means this
+  // doc's owner is the original sender and the other side just accepted. (The
+  // accepter's own write removes a request, so they're correctly skipped.)
+  const beforeFriends = new Set(before.friends || []);
+  const addedFriends = (after.friends || []).filter((f) => !beforeFriends.has(f));
+  const removedARequest =
+    (after.friendRequests || []).length < (before.friendRequests || []).length;
+  if (addedFriends.length > 0 && !removedARequest) {
+    for (const f of addedFriends) {
+      const name = await displayNameOf(f);
+      await pushToUids([uid], {
+        title: 'Friend request accepted',
+        body: `${name} accepted your friend request`,
+        data: { type: 'friend_accepted' },
+      });
+    }
+  }
+});
+
+// plans/{planId} update → quorum reached (all participants) / someone joined (creator).
+exports.onPlanUpdate = onDocumentUpdated('plans/{planId}', async (event) => {
+  const before = (event.data.before && event.data.before.data()) || {};
+  const after = (event.data.after && event.data.after.data()) || {};
+  const planId = event.params.planId;
+  const title = after.title || 'Your plan';
+
+  if (before.status !== 'confirmed' && after.status === 'confirmed') {
+    await pushToUids(after.participants || [], {
+      title: 'Quorum reached!',
+      body: `"${title}" has enough votes — it's confirmed!`,
+      data: { type: 'plan_confirmed', planId },
+      collapseId: `plan-${planId}`,
+    });
+  }
+
+  const beforeP = new Set(before.participants || []);
+  const addedP = (after.participants || []).filter((p) => !beforeP.has(p));
+  const creator = after.createdBy;
+  if (creator) {
+    for (const p of addedP) {
+      if (p === creator) continue;
+      const name = await displayNameOf(p);
+      await pushToUids([creator], {
+        title: 'Someone joined your plan',
+        body: `${name} joined "${title}"`,
+        data: { type: 'plan_join', planId },
+      });
+    }
+  }
+});
+
+// chats/{roomId}/messages/{id} created → notify plan participants except sender.
+// roomId is the planId (chat.tsx: ROOM_ID = planId || 'global'). collapseId keeps
+// a busy chat from stacking one notification per message.
+exports.onChatMessage = onDocumentCreated(
+  'chats/{roomId}/messages/{messageId}',
+  async (event) => {
+    const roomId = event.params.roomId;
+    if (!roomId || roomId === 'global') return;
+    const msg = event.data && event.data.data();
+    if (!msg) return;
+    const senderId = msg.senderId;
+
+    const planSnap = await db.collection('plans').doc(roomId).get();
+    if (!planSnap.exists) return;
+    const plan = planSnap.data() || {};
+    const recipients = (plan.participants || []).filter((u) => u !== senderId);
+    if (recipients.length === 0) return;
+
+    const text = String(msg.text || '').slice(0, 140);
+    await pushToUids(recipients, {
+      title: plan.title || 'New message',
+      body: `${msg.senderName || 'Someone'}: ${text}`,
+      data: { type: 'chat', planId: roomId },
+      collapseId: `chat-${roomId}`,
+    });
   }
 );
