@@ -1401,7 +1401,7 @@ export default function PlanDetailScreen() {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <Ionicons name="chevron-back" size={22} color={Colors.background} />
+              <Ionicons name="chevron-back" size={22} color={Colors.onDark} />
             </TouchableOpacity>
             <View style={styles.floatActions}>
               <TouchableOpacity
@@ -1412,7 +1412,7 @@ export default function PlanDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Emergency SOS"
               >
-                <Ionicons name="shield-outline" size={20} color={Colors.background} />
+                <Ionicons name="shield-outline" size={20} color={Colors.onDark} />
               </TouchableOpacity>
               {plan && uid !== plan.createdBy && (
                 <TouchableOpacity
@@ -1423,7 +1423,7 @@ export default function PlanDetailScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Report this plan"
                 >
-                  <Ionicons name="flag-outline" size={20} color={Colors.background} />
+                  <Ionicons name="flag-outline" size={20} color={Colors.onDark} />
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -1434,7 +1434,7 @@ export default function PlanDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Share plan"
               >
-                <Ionicons name="share-outline" size={22} color={Colors.background} />
+                <Ionicons name="share-outline" size={22} color={Colors.onDark} />
               </TouchableOpacity>
             </View>
           </View>

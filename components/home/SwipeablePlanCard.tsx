@@ -176,13 +176,13 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
           </View>
           {countdown && (
             <View style={styles.countdownBadge}>
-              <Ionicons name="time-outline" size={12} color={Colors.background} />
+              <Ionicons name="time-outline" size={12} color={Colors.onDark} />
               <Text style={styles.countdownText}>{countdown}</Text>
             </View>
           )}
           {isPinned && (
             <View style={styles.pinnedBadge}>
-              <Ionicons name="bookmark" size={12} color={Colors.background} />
+              <Ionicons name="bookmark" size={12} color={Colors.onDark} />
             </View>
           )}
         </View>
@@ -256,10 +256,10 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     backgroundColor: Colors.overlay,
   },
   imageBadgeConfirmed: {
-    backgroundColor: Colors.secondary,
+    backgroundColor: 'rgba(0,0,0,0.78)',
   },
   imageBadgeText: {
-    color: Colors.background,
+    color: Colors.onDark,
     fontSize: 11,
     fontWeight: FontWeight.bold,
     letterSpacing: 0.3,
@@ -277,7 +277,7 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     backgroundColor: Colors.overlay,
   },
   countdownText: {
-    color: Colors.background,
+    color: Colors.onDark,
     fontSize: 12,
     fontWeight: FontWeight.bold,
     letterSpacing: 0.2,

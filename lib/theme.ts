@@ -68,6 +68,12 @@ const lightColors = {
   overlay:      'rgba(0,0,0,0.50)',
   overlayLight: 'rgba(0,0,0,0.28)',
 
+  // Foreground for text/icons that sit on a CONSTANT-dark surface (modal-style
+  // overlays, dark image banners). Unlike `background` — which inverts to dark
+  // in dark themes and is only safe on `primary` fills — this stays light in
+  // every palette, so it never turns invisible on a non-flipping dark surface.
+  onDark:       '#ffffff',
+
   // ── Accent (celebrations ONLY — the one hue in the app) ────────────────────
   accent:      '#1E9E52',              // success green — celebrations ONLY
   accentGlow:  'rgba(30,158,82,0.35)', // accent glow for the celebration pulse
@@ -103,6 +109,7 @@ const midnightColors: ThemePalette = {
   error: '#e0e0e0', errorDim: 'rgba(255,255,255,0.08)',
   border: 'rgba(255,255,255,0.12)', borderStrong: 'rgba(255,255,255,0.30)',
   overlay: 'rgba(0,0,0,0.60)', overlayLight: 'rgba(0,0,0,0.40)',
+  onDark: '#ffffff',
   accent: '#1E9E52', accentGlow: 'rgba(30,158,82,0.35)',
   card: '#1f1f1f', cardElevated: '#272727',
   primaryLegacyRose: '#e0e0e0',

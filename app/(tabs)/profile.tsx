@@ -562,7 +562,7 @@ export default function ProfileScreen() {
               accessibilityLabel="Edit banner"
               hitSlop={8}
             >
-              <Ionicons name="image-outline" size={16} color={Colors.background} />
+              <Ionicons name="image-outline" size={16} color={Colors.onDark} />
             </TouchableOpacity>
           </View>
 
@@ -601,7 +601,7 @@ export default function ProfileScreen() {
                 />
                 {uploadingAvatar && (
                   <View style={styles.avatarOverlay}>
-                    <Ionicons name="cloud-upload-outline" size={18} color={Colors.background} />
+                    <Ionicons name="cloud-upload-outline" size={18} color={Colors.onDark} />
                   </View>
                 )}
               </Animated.View>

@@ -173,7 +173,7 @@ const HighlightCard = React.memo(function HighlightCard({
       </View>
       <View style={styles.highlightOverlay}>
         <View style={styles.highlightMetaRow}>
-          <Ionicons name="checkmark-circle" size={14} color={Colors.background} />
+          <Ionicons name="checkmark-circle" size={14} color={Colors.onDark} />
           <Text style={styles.highlightSub}>QUORUM REACHED</Text>
         </View>
         <Text style={styles.highlightTitle} numberOfLines={2}>
@@ -898,14 +898,14 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   highlightTitle: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.heavy,
-    color: Colors.background,
+    color: Colors.onDark,
     letterSpacing: -0.3,
     lineHeight: 21,
   },
   highlightSub: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.heavy,
-    color: Colors.background,
+    color: Colors.onDark,
     letterSpacing: 1.2,
   },
 
