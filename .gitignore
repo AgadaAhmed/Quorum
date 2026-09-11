@@ -51,3 +51,13 @@ app-example
 # ruflo swarm bookkeeping
 .claude-flow/
 .swarm/
+ruvector.db
+
+# firebase emulator debug logs
+firestore-debug.log
+firebase-debug.log
+*-debug.log
+
+# local claude config artifacts
+.claude/proven-config.json
+.claude/.proven-config-version
