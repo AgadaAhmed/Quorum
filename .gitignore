@@ -61,3 +61,7 @@ firebase-debug.log
 # local claude config artifacts
 .claude/proven-config.json
 .claude/.proven-config-version
+
+# android signing (local credentials — never commit)
+credentials.json
+credentials/
