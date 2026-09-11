@@ -11,7 +11,8 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../lib/firebase';
 import { useToast } from './Toast';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 const REASONS = [
   'Scam / Fraud',
@@ -40,6 +41,7 @@ const ReasonOption = React.memo(function ReasonOption({
   selected,
   onSelect,
 }: ReasonOptionProps) {
+  const styles = useThemedStyles(makeStyles);
   const handlePress = useCallback(() => onSelect(reason), [onSelect, reason]);
   return (
     <TouchableOpacity
@@ -58,6 +60,8 @@ const ReasonOption = React.memo(function ReasonOption({
 });
 
 export default function ReportModal({ visible, planId, planTitle, onClose }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { showToast } = useToast();
@@ -142,7 +146,7 @@ export default function ReportModal({ visible, planId, planTitle, onClose }: Pro
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: Colors.overlay,

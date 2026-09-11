@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useThemedStyles } from '../lib/ThemeContext';
 
 interface Pill {
   label: string;
@@ -20,6 +21,7 @@ interface PillItemProps {
 }
 
 const PillItem = React.memo(function PillItem({ pill, active, onSelect }: PillItemProps) {
+  const styles = useThemedStyles(makeStyles);
   const handlePress = useCallback(() => onSelect(pill.value), [onSelect, pill.value]);
 
   return (
@@ -37,6 +39,7 @@ const PillItem = React.memo(function PillItem({ pill, active, onSelect }: PillIt
 });
 
 function CategoryPillRow({ pills, selected, onSelect }: Props) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <ScrollView
       horizontal
@@ -52,7 +55,7 @@ function CategoryPillRow({ pills, selected, onSelect }: Props) {
 
 export default React.memo(CategoryPillRow);
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   row: {
     paddingHorizontal: Spacing.container,
     gap: Spacing.sm,

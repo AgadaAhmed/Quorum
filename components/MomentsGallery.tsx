@@ -12,7 +12,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { addDoc, collection, FirestoreError, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
@@ -32,12 +33,15 @@ interface Moment {
 }
 
 function MomentImage({ uri }: { uri: string }) {
+  const styles = useThemedStyles(makeStyles);
   return <Image source={{ uri }} style={styles.img} resizeMode="cover" accessibilityIgnoresInvertColors />;
 }
 
 const MemoMomentImage = memo(MomentImage);
 
 function MomentsGallery({ planId, isParticipant }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [moments, setMoments] = useState<Moment[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -147,7 +151,7 @@ function MomentsGallery({ planId, isParticipant }: Props) {
 
 export default memo(MomentsGallery);
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: { padding: Spacing.md, gap: Spacing.md },
   uploadBtn: {
     flexDirection: 'row',

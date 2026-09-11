@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { ThemeProvider, useTheme, useThemeControls, useThemedStyles } from '../lib/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,7 +10,7 @@ import Constants from 'expo-constants';
 import { doc, updateDoc } from 'firebase/firestore';
 import Purchases from 'react-native-purchases';
 import { auth, db } from '../lib/firebase';
-import { Colors } from '../lib/theme';
+import { THEME_META, type ThemePalette } from '../lib/theme';
 import { ToastProvider } from '../components/Toast';
 import { RC_API_KEY_IOS, RC_API_KEY_ANDROID } from '../lib/subscription';
 
@@ -60,6 +61,8 @@ async function registerPushToken(uid: string) {
 }
 
 function SplashScreen() {
+  const Colors = useTheme();
+  const splashStyles = useThemedStyles(makeSplashStyles);
   const scale = useRef(new Animated.Value(0.72)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const ringScale = useRef(new Animated.Value(0.85)).current;
@@ -81,7 +84,7 @@ function SplashScreen() {
         <View style={splashStyles.glow} />
         {/* Icon circle */}
         <View style={splashStyles.circle}>
-          <Text style={splashStyles.letter}>Q</Text>
+          <Text style={[splashStyles.letter, { color: Colors.background }]}>Q</Text>
         </View>
       </Animated.View>
       <Animated.View style={[{ alignItems: 'center', gap: 6 }, { opacity }]}>
@@ -92,7 +95,7 @@ function SplashScreen() {
   );
 }
 
-const splashStyles = StyleSheet.create({
+const makeSplashStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', gap: 28 },
   logoWrap: { alignItems: 'center', justifyContent: 'center', width: 120, height: 120 },
   outerRing: {
@@ -110,12 +113,14 @@ const splashStyles = StyleSheet.create({
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.55, shadowRadius: 24, elevation: 14,
   },
-  letter: { fontSize: 44, fontWeight: '900', color: '#fff', letterSpacing: -1 },
+  letter: { fontSize: 44, fontWeight: '900', letterSpacing: -1 },
   appName: { fontSize: 30, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   tagline: { fontSize: 14, color: Colors.textMuted, fontWeight: '500', letterSpacing: 0.1 },
 });
 
-export default function RootLayout() {
+function RootNavigator() {
+  const Colors = useTheme();
+  const { name } = useThemeControls();
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const router = useRouter();
   const segments = useSegments();
@@ -172,23 +177,33 @@ export default function RootLayout() {
   if (user === undefined) return <SplashScreen />;
 
   return (
+    <>
+      <StatusBar style={THEME_META[name].dark ? 'light' : 'dark'} backgroundColor={Colors.background} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background }, animation: 'slide_from_right' }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="plan-detail" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+        <Stack.Screen name="create-plan" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+        <Stack.Screen name="chat" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="social" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="user-profile" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="join/[code]" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+      </Stack>
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ToastProvider>
-          <StatusBar style="dark" backgroundColor={Colors.background} />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background }, animation: 'slide_from_right' }}>
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="plan-detail" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-            <Stack.Screen name="create-plan" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-            <Stack.Screen name="chat" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="social" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="user-profile" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="join/[code]" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-          </Stack>
-        </ToastProvider>
-      </SafeAreaProvider>
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <ToastProvider>
+            <RootNavigator />
+          </ToastProvider>
+        </SafeAreaProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

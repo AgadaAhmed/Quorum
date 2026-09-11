@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, ViewStyle } from 'react-native';
 import { Edge, SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../lib/theme';
+import { type ThemePalette } from '../lib/theme';
+import { useThemedStyles } from '../lib/ThemeContext';
 
 const DEFAULT_EDGES: readonly Edge[] = ['top', 'left', 'right'];
 
@@ -12,6 +13,7 @@ interface Props {
 }
 
 function ScreenWrapper({ children, style, edges = DEFAULT_EDGES }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -35,7 +37,7 @@ function ScreenWrapper({ children, style, edges = DEFAULT_EDGES }: Props) {
 
 export default React.memo(ScreenWrapper);
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   fill: { flex: 1 },
 });

@@ -14,7 +14,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useToast } from '../Toast';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { CATEGORIES } from './shared';
 
 export default function EditPlanModal({
@@ -25,6 +26,8 @@ export default function EditPlanModal({
   plan: any;
   uid: string;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { showToast } = useToast();
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
@@ -209,7 +212,7 @@ export default function EditPlanModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   dim: { opacity: 0.4 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalContent: {

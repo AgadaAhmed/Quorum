@@ -31,7 +31,8 @@ import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
 import { SkeletonProfile } from '../components/SkeletonLoader';
 import { useToast } from '../components/Toast';
-import { Colors, Fonts, FontSize, FontWeight, Radius, Shadow, Spacing } from '../lib/theme';
+import { Fonts, FontSize, FontWeight, Radius, Shadow, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import { useCelebration } from '../hooks/useCelebration';
 
@@ -86,6 +87,8 @@ export default function UserProfileScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [mutualCount, setMutualCount] = useState(0);
   const [theirPlans, setTheirPlans] = useState<PlanSummary[]>([]);
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const avatarScale = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -101,16 +104,32 @@ export default function UserProfileScreen() {
 
     (async () => {
       try {
-        const [profileSnap, plansSnap, mySnap] = await Promise.all([
+        const [profileSnap, mySnap] = await Promise.all([
           getDoc(doc(db, 'users', userId)),
-          getDocs(query(collection(db, 'plans'), where('participants', 'array-contains', userId))),
           uid ? getDoc(doc(db, 'users', uid)) : Promise.resolve(null),
         ]);
         if (cancelled) return;
 
         const profileData = profileSnap.exists() ? (profileSnap.data() as Profile) : null;
         setProfile(profileData);
-        setPlanCount(plansSnap.size);
+
+        // Plan count is best-effort: security rules reject a broad participants
+        // query for another user's plans (it can't guarantee the viewer may read
+        // them), so scope it to public plans and never let a failure here block
+        // the profile from loading.
+        getDocs(
+          query(
+            collection(db, 'plans'),
+            where('participants', 'array-contains', userId),
+            where('isPublic', '==', true)
+          )
+        )
+          .then((plansSnap) => {
+            if (!cancelled) setPlanCount(plansSnap.size);
+          })
+          .catch(() => {
+            if (!cancelled) setPlanCount(0);
+          });
 
         const myData = mySnap?.data();
         const myFriends: string[] = myData?.friends ?? [];
@@ -456,6 +475,8 @@ const ProfileHeader = React.memo(function ProfileHeader({
   title: string;
   onBack: () => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.header}>
       <TouchableOpacity
@@ -476,6 +497,7 @@ const ProfileHeader = React.memo(function ProfileHeader({
 });
 
 const StatBox = React.memo(function StatBox({ label, value }: { label: string; value: number }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statBox}>
       <Text style={styles.statValue} numberOfLines={1} allowFontScaling={false}>
@@ -495,6 +517,8 @@ const PlanRow = React.memo(function PlanRow({
   index?: number;
   onPress: (id: string) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const dateLabel = formatPlanDate(plan.date);
   const status = plan.status ?? 'draft';
   return (
@@ -527,7 +551,7 @@ const PlanRow = React.memo(function PlanRow({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -5,7 +5,7 @@
 // Fonts: Plus Jakarta Sans (headings) + Inter (body)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const Colors = {
+const lightColors = {
   // ── Base backgrounds ──────────────────────────────────────────────────────
   background:     '#ffffff',
   backgroundAlt:  '#ffffff',
@@ -79,6 +79,60 @@ export const Colors = {
   /** @deprecated use primary */
   primaryLegacyRose: '#1a1a1a',
 };
+
+// The shape every theme palette shares.
+export type ThemePalette = typeof lightColors;
+
+// Dark palettes. Backgrounds darken, foregrounds/text lighten, black-based
+// rgba overlays/borders flip to white-based, and `primary` (the strong CTA
+// color) inverts to near-white. `overlay`/`overlayLight` stay dark (modal
+// backdrops). `accent`/`accentGlow` are constant — the one deliberate hue.
+// FIRST-CUT values — refine on device (some tokens are semantically entangled).
+const midnightColors: ThemePalette = {
+  background: '#121212', backgroundAlt: '#161616', surface: '#161616',
+  surfaceRaised: '#1f1f1f', surfaceOverlay: '#272727', surfaceBright: '#333333',
+  glass: 'rgba(24,24,24,0.8)', glassMid: 'rgba(255,255,255,0.05)', glassStrong: 'rgba(255,255,255,0.09)',
+  glassBorder: 'rgba(255,255,255,0.15)', glassBorderStrong: 'rgba(255,255,255,0.25)', glassHighlight: 'rgba(255,255,255,0.08)',
+  primary: '#ffffff', primaryLight: '#eaeaea', primaryContainer: '#f0f0f0',
+  primaryDim: 'rgba(255,255,255,0.10)', primaryGlow: 'rgba(255,255,255,0.15)', primaryBorder: 'rgba(255,255,255,0.55)',
+  secondary: '#d6d6d6', secondaryLight: '#a8a8a8', secondaryDim: 'rgba(255,255,255,0.08)', secondaryBorder: 'rgba(255,255,255,0.22)',
+  tertiary: '#e0e0e0', tertiaryLight: '#b0b0b0', tertiaryDim: 'rgba(255,255,255,0.08)', tertiaryBorder: 'rgba(255,255,255,0.22)',
+  gold: '#b0b0b0', goldLight: '#8f8f8f', goldDim: 'rgba(255,255,255,0.08)', goldGlow: 'rgba(255,255,255,0.12)', goldBorder: 'rgba(255,255,255,0.22)',
+  text: '#f2f2f2', textSecondary: '#c2bfc0', textMuted: '#9a9797', textDisabled: '#5c5657',
+  success: '#d6d6d6', successDim: 'rgba(255,255,255,0.08)', successGlow: 'rgba(255,255,255,0.12)',
+  error: '#e0e0e0', errorDim: 'rgba(255,255,255,0.08)',
+  border: 'rgba(255,255,255,0.12)', borderStrong: 'rgba(255,255,255,0.30)',
+  overlay: 'rgba(0,0,0,0.60)', overlayLight: 'rgba(0,0,0,0.40)',
+  accent: '#1E9E52', accentGlow: 'rgba(30,158,82,0.35)',
+  card: '#1f1f1f', cardElevated: '#272727',
+  primaryLegacyRose: '#e0e0e0',
+};
+
+const amoledColors: ThemePalette = {
+  ...midnightColors,
+  background: '#000000', backgroundAlt: '#000000', surface: '#000000',
+  surfaceRaised: '#0d0d0d', surfaceOverlay: '#161616', surfaceBright: '#242424',
+  glass: 'rgba(0,0,0,0.85)',
+  card: '#0d0d0d', cardElevated: '#161616',
+};
+
+export const palettes = {
+  light: lightColors,
+  midnight: midnightColors,
+  amoled: amoledColors,
+} as const;
+
+export type ThemeName = keyof typeof palettes;
+
+export const THEME_META: Record<ThemeName, { label: string; pro: boolean; dark: boolean }> = {
+  light: { label: 'Light', pro: false, dark: false },
+  midnight: { label: 'Midnight', pro: false, dark: true },
+  amoled: { label: 'AMOLED', pro: true, dark: true },
+};
+
+// Default export stays the Light palette so any file that still imports the
+// static `Colors` keeps compiling and renders in Light — migration is incremental.
+export const Colors = lightColors;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Spacing  (4px base rhythm)

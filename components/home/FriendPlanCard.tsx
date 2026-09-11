@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import GlassCard from '../GlassCard';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useThemedStyles } from '../../lib/ThemeContext';
 import { FriendPlan } from './shared';
 
 type FriendPlanCardProps = {
@@ -13,6 +14,7 @@ const FriendPlanCard = React.memo(function FriendPlanCard({
   item,
   onPress,
 }: FriendPlanCardProps) {
+  const styles = useThemedStyles(makeStyles);
   const confirmed = item.status === 'confirmed';
   return (
     <GlassCard noAnimate style={styles.friendCard} onPress={() => onPress(item.id)}>
@@ -29,7 +31,7 @@ const FriendPlanCard = React.memo(function FriendPlanCard({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   friendCard: {
     width: 160,
     minHeight: 110,

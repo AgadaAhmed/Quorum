@@ -24,7 +24,8 @@ import { useToast } from '../../components/Toast';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
 import PlanBanner from '../../components/PlanBanner';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
 type UserProfile = {
   displayName: string;
@@ -75,6 +76,7 @@ const ProfileStatItem = React.memo(function ProfileStatItem({
   value: string | number;
   sub?: string;
 }) {
+  const profileStatStyles = useThemedStyles(makeProfileStatStyles);
   return (
     <View style={profileStatStyles.badge} accessible accessibilityLabel={`${value} ${label}`}>
       <Text style={profileStatStyles.value}>{value}</Text>
@@ -84,7 +86,7 @@ const ProfileStatItem = React.memo(function ProfileStatItem({
   );
 });
 
-const profileStatStyles = StyleSheet.create({
+const makeProfileStatStyles = (Colors: ThemePalette) => StyleSheet.create({
   badge: { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm },
   value: {
     fontSize: FontSize.xl,
@@ -113,6 +115,8 @@ const PlanRow = React.memo(function PlanRow({
   plan: Plan;
   onPress: (id: string) => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const handlePress = useCallback(() => onPress(plan.id), [onPress, plan.id]);
   const dateLabel =
     plan.date?.seconds != null
@@ -151,6 +155,8 @@ const PlanRow = React.memo(function PlanRow({
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState('');
@@ -772,7 +778,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },

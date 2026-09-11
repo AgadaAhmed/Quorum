@@ -24,7 +24,8 @@ import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Label, SectionHeading, PickerModal } from '../components/create-plan/FormBits';
 import TemplatesModal from '../components/create-plan/TemplatesModal';
@@ -46,6 +47,8 @@ export default function CreatePlanScreen() {
   const { isPro } = useSubscription();
   const confettiRef = useRef<ConfettiRef>(null);
   const { celebrate, glowStyle } = useCelebration();
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -795,7 +798,7 @@ export default function CreatePlanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   flex: { flex: 1 },
   mr4: { marginRight: 4 },
   mr6: { marginRight: 6 },

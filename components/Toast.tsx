@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -27,6 +28,8 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [current, setCurrent] = useState<ToastItem | null>(null);
   const queue = useRef<ToastItem[]>([]);
   const opacity = useRef(new Animated.Value(0)).current;
@@ -106,7 +109,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   toast: {
     position: 'absolute',
     bottom: Spacing.xl,

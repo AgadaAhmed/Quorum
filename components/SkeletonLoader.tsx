@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { Animated, DimensionValue, StyleSheet, View, ViewStyle } from 'react-native';
-import { Colors, Radius, Spacing } from '../lib/theme';
+import { Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useThemedStyles } from '../lib/ThemeContext';
 
 interface SkeletonProps {
   width?: DimensionValue;
@@ -10,6 +11,7 @@ interface SkeletonProps {
 }
 
 function SkeletonItemBase({ width = '100%', height = 16, borderRadius = Radius.sm, style }: SkeletonProps) {
+  const styles = useThemedStyles(makeStyles);
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -42,6 +44,7 @@ function SkeletonItemBase({ width = '100%', height = 16, borderRadius = Radius.s
 export const SkeletonItem = memo(SkeletonItemBase);
 
 function SkeletonCardBase() {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.card}>
       <SkeletonItem width="60%" height={14} style={styles.mb10} />
@@ -56,6 +59,7 @@ const SkeletonCard = memo(SkeletonCardBase);
 export default SkeletonCard;
 
 function SkeletonChatBubbleBase({ own = false }: { own?: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.chatBubbleRow, own ? styles.chatBubbleOwn : styles.chatBubbleOther]}>
       {!own && <SkeletonItem width={30} height={30} borderRadius={15} style={styles.noShrink} />}
@@ -70,6 +74,7 @@ function SkeletonChatBubbleBase({ own = false }: { own?: boolean }) {
 export const SkeletonChatBubble = memo(SkeletonChatBubbleBase);
 
 function SkeletonActivityItemBase() {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.activityItem}>
       <SkeletonItem width={44} height={44} borderRadius={22} style={styles.noShrink} />
@@ -85,6 +90,7 @@ function SkeletonActivityItemBase() {
 export const SkeletonActivityItem = memo(SkeletonActivityItemBase);
 
 function SkeletonProfileBase() {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.profileSkeleton}>
       <View style={styles.profileHeader}>
@@ -111,7 +117,7 @@ function SkeletonProfileBase() {
 
 export const SkeletonProfile = memo(SkeletonProfileBase);
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   skeletonBase: {
     backgroundColor: Colors.surfaceBright,
     overflow: 'hidden',

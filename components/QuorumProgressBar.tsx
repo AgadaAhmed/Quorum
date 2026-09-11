@@ -1,7 +1,8 @@
 import React, { memo, useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, FontSize, FontWeight, Radius } from '../lib/theme';
+import { FontSize, FontWeight, Radius, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 interface Props {
   votes: number;
@@ -10,6 +11,8 @@ interface Props {
 }
 
 function QuorumProgressBar({ votes, required, label }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const progress = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
 
@@ -106,7 +109,7 @@ function QuorumProgressBar({ votes, required, label }: Props) {
 const GRADIENT_START = { x: 0, y: 0 };
 const GRADIENT_END = { x: 1, y: 0 };
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: { gap: 6 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   label: { flexShrink: 1, fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.medium },

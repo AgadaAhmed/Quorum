@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import GlassCard from '../GlassCard';
 import PlanBanner from '../PlanBanner';
 import QuorumProgressBar from '../QuorumProgressBar';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { getCountdown, Plan, quorumPercent } from './shared';
 
 type SwipeCardProps = {
@@ -39,6 +40,8 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
   onPin,
   onUnpin,
 }: SwipeCardProps) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const swipeRef = useRef<Swipeable>(null);
   const isCreator = item.createdBy === uid;
   const countdown = getCountdown(item.dateTimestamp);
@@ -232,7 +235,7 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   // Plan card
   coverWrap: { position: 'relative' },
   coverImage: {

@@ -6,9 +6,12 @@ import { arrayRemove, arrayUnion, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import AnimatedCard from '../AnimatedCard';
 import { useToast } from '../Toast';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
 export default function PollTab({ plan, uid }: { plan: any; uid: string }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { showToast } = useToast();
 
   const handlePollVote = async (option: string) => {
@@ -86,7 +89,7 @@ export default function PollTab({ plan, uid }: { plan: any; uid: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   iconMr6: { marginRight: 6 },
   tabEmptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: Spacing.xl },
   tabEmptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: 6 },

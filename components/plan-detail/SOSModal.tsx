@@ -2,7 +2,8 @@ import React from 'react';
 import { Linking, Modal, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../Toast';
-import { Colors, FontSize, Radius, Spacing } from '../../lib/theme';
+import { FontSize, Radius, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
 export default function SOSModal({
   visible, onClose, plan, emergencyContact,
@@ -12,6 +13,8 @@ export default function SOSModal({
   plan: any;
   emergencyContact: { name: string; phone: string } | null;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { showToast } = useToast();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -78,7 +81,7 @@ export default function SOSModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   dim: { opacity: 0.4 },
   iconMr8: { marginRight: 8 },
   overlay: {

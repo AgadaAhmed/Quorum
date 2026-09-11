@@ -1,23 +1,8 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { Colors } from '../lib/theme';
+import { useTheme } from '../lib/ThemeContext';
 
 const PARTICLE_COUNT = 28;
-
-// Monochrome confetti — blacks, greys and white only (no hue).
-const COLORS = [
-  Colors.primary, // #000000
-  Colors.secondary, // dark grey
-  Colors.textSecondary,
-  Colors.textMuted,
-  Colors.gold, // mid grey
-  Colors.goldLight,
-  Colors.surfaceBright,
-  '#ffffff',
-] as const;
-
-// Accent celebration palette — the ONLY place hue is used in confetti.
-const ACCENT_COLORS = [Colors.accent, '#3FB56C', '#137A3D', '#ffffff', Colors.accent] as const;
 
 type Particle = {
   tx: Animated.Value;
@@ -33,6 +18,30 @@ type Particle = {
 export type ConfettiRef = { fire: (opts?: { accent?: boolean }) => void };
 
 const ConfettiParticles = forwardRef<ConfettiRef>((_, ref) => {
+  const Colors = useTheme();
+
+  // Monochrome confetti — blacks, greys and white only (no hue).
+  const COLORS = useMemo(
+    () =>
+      [
+        Colors.primary, // #000000
+        Colors.secondary, // dark grey
+        Colors.textSecondary,
+        Colors.textMuted,
+        Colors.gold, // mid grey
+        Colors.goldLight,
+        Colors.surfaceBright,
+        '#ffffff',
+      ] as const,
+    [Colors]
+  );
+
+  // Accent celebration palette — the ONLY place hue is used in confetti.
+  const ACCENT_COLORS = useMemo(
+    () => [Colors.accent, '#3FB56C', '#137A3D', '#ffffff', Colors.accent] as const,
+    [Colors]
+  );
+
   const particles = useRef<Particle[]>(
     Array.from({ length: PARTICLE_COUNT }, () => ({
       tx: new Animated.Value(0),

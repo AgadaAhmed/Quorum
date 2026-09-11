@@ -1,7 +1,8 @@
 import React, { memo, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing } from '../lib/theme';
+import { Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 interface Props {
   value: number;
@@ -13,6 +14,8 @@ interface Props {
 const STARS = [1, 2, 3, 4, 5] as const;
 
 function StarRating({ value, onChange, size = 28, readonly = false }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const handlePress = useCallback(
     (star: number) => {
       if (!readonly) onChange?.(star);
@@ -53,7 +56,7 @@ function StarRating({ value, onChange, size = 28, readonly = false }: Props) {
 // Min 44px touch target without enlarging the visual icon.
 const hitSlop = { top: 8, bottom: 8, left: 6, right: 6 };
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   row: { flexDirection: 'row', gap: Spacing.xs },
 });
 

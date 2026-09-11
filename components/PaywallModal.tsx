@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Purchases from 'react-native-purchases';
+import Purchases, { type PurchasesStoreProduct } from 'react-native-purchases';
 import { RC_MONTHLY_PRODUCT_ID, RC_ANNUAL_PRODUCT_ID } from '../lib/subscription';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
+import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
+import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 
 interface Props {
   visible: boolean;
@@ -23,19 +24,18 @@ interface Props {
 
 type Plan = 'monthly' | 'annual';
 
-// Only perks that are actually built and enforced. (Themes will be added here
-// once the monochrome dark-mode / theme feature ships.)
+// Only perks that are actually built and enforced.
 const FEATURES = [
   'Unlimited active plans',
   'Unlimited moments',
   'Full chat history',
   'Unlimited templates',
+  'Themes',
 ] as const;
 
-// Monochrome backdrop gradient.
-const BACKDROP_GRADIENT = [Colors.surface, Colors.surfaceRaised] as const;
-
 const FeatureRow = React.memo(function FeatureRow({ label }: { label: string }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.featureRow}>
       <Ionicons name="checkmark" size={16} color={Colors.secondary} />
@@ -45,8 +45,43 @@ const FeatureRow = React.memo(function FeatureRow({ label }: { label: string }) 
 });
 
 export default function PaywallModal({ visible, onClose, reason }: Props) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  // Monochrome backdrop gradient.
+  const backdropGradient = useMemo(() => [Colors.surface, Colors.surfaceRaised] as const, [Colors]);
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan>('annual');
+  const [monthlyProduct, setMonthlyProduct] = useState<PurchasesStoreProduct | null>(null);
+  const [annualProduct, setAnnualProduct] = useState<PurchasesStoreProduct | null>(null);
+
+  // Fetch localized, region-specific prices from RevenueCat when the sheet opens.
+  // `priceString` is already formatted for the user's store region + currency
+  // (e.g. "R15,00" in ZA), so pricing is regional automatically — no hardcoding.
+  useEffect(() => {
+    if (!visible) return;
+    let alive = true;
+    Purchases.getProducts([RC_MONTHLY_PRODUCT_ID, RC_ANNUAL_PRODUCT_ID])
+      .then((products) => {
+        if (!alive) return;
+        setMonthlyProduct(products.find((p) => p.identifier === RC_MONTHLY_PRODUCT_ID) ?? null);
+        setAnnualProduct(products.find((p) => p.identifier === RC_ANNUAL_PRODUCT_ID) ?? null);
+      })
+      .catch(() => {
+        // RevenueCat not configured (e.g. Expo Go) or offline — prices show as a dash.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [visible]);
+
+  const annualPrice = annualProduct?.priceString ?? '—';
+  const monthlyPrice = monthlyProduct?.priceString ?? '—';
+  // "One month free" annual → savings computed from the real prices, not hardcoded.
+  const savingsPct = useMemo(() => {
+    if (!monthlyProduct || !annualProduct || monthlyProduct.price <= 0) return null;
+    const pct = Math.round((1 - annualProduct.price / (monthlyProduct.price * 12)) * 100);
+    return pct > 0 ? pct : null;
+  }, [monthlyProduct, annualProduct]);
 
   // NOTE: the tier is NOT written from the client. After a successful purchase,
   // RevenueCat fires the webhook Cloud Function, which writes `subscriptionTier`
@@ -100,7 +135,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <LinearGradient colors={BACKDROP_GRADIENT} style={styles.container}>
+      <LinearGradient colors={backdropGradient} style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -131,21 +166,21 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               onPress={selectAnnual}
               accessibilityRole="radio"
               accessibilityState={{ selected: selectedPlan === 'annual' }}
-              accessibilityLabel="Annual plan, $44.99 per year, save 37%"
+              accessibilityLabel={`Annual plan, ${annualPrice} per year${savingsPct ? `, save ${savingsPct} percent` : ''}`}
             >
               <Text style={styles.planLabel}>Annual</Text>
-              <Text style={styles.planPrice}>$44.99 / yr</Text>
-              <Text style={styles.planSavings}>Save 37%</Text>
+              <Text style={styles.planPrice}>{annualPrice} / yr</Text>
+              <Text style={styles.planSavings}>{savingsPct ? `Save ${savingsPct}%` : 'Best value'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.planOption, selectedPlan === 'monthly' && styles.planOptionSelected]}
               onPress={selectMonthly}
               accessibilityRole="radio"
               accessibilityState={{ selected: selectedPlan === 'monthly' }}
-              accessibilityLabel="Monthly plan, $5.99 per month"
+              accessibilityLabel={`Monthly plan, ${monthlyPrice} per month`}
             >
               <Text style={styles.planLabel}>Monthly</Text>
-              <Text style={styles.planPrice}>$5.99 / mo</Text>
+              <Text style={styles.planPrice}>{monthlyPrice} / mo</Text>
             </TouchableOpacity>
           </View>
 
@@ -182,7 +217,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   container: {
     flex: 1,
   },

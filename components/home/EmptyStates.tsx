@@ -2,7 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GlassCard from '../GlassCard';
-import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '../../lib/theme';
+import { FontSize, FontWeight, Radius, Shadow, Spacing, type ThemePalette } from '../../lib/theme';
+import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { ONBOARDING_STEPS, StatusFilter } from './shared';
 
 export const FirstRunEmptyState = React.memo(function FirstRunEmptyState({
@@ -10,6 +11,8 @@ export const FirstRunEmptyState = React.memo(function FirstRunEmptyState({
 }: {
   onCreate: () => void;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.onboarding}>
       <Ionicons
@@ -54,6 +57,8 @@ export const FilteredEmptyState = React.memo(function FilteredEmptyState({
   search: string;
   filter: StatusFilter;
 }) {
+  const Colors = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const title = search
     ? `No results for "${search}"`
     : filter === 'confirmed'
@@ -77,7 +82,7 @@ export const FilteredEmptyState = React.memo(function FilteredEmptyState({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   flex1: { flex: 1 },
   dimIcon: { opacity: 0.5, marginBottom: Spacing.xs },
   btnIcon: { marginLeft: 6 },
