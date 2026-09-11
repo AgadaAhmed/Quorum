@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
   KeyboardTypeOptions,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -22,7 +24,15 @@ import {
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../../lib/firebase';
+import {
+  signInWithGoogle,
+  isGoogleAuthAvailable,
+  GoogleAuthError,
+  googleErrorMessage,
+} from '../../lib/googleAuth';
+import { supportMailto } from '../../lib/support';
 import { getCities } from '../../lib/cities';
+import TermsCheckbox from '../../components/TermsCheckbox';
 import { Fonts, FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import AnimatedButton from '../../components/AnimatedButton';
@@ -214,9 +224,11 @@ export default function LoginScreen() {
   const [city, setCity] = useState('');
   const [showCities, setShowCities] = useState(false);
   const [citySearch, setCitySearch] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // State
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState('');
   const [resetSent, setResetSent] = useState(false);
@@ -301,6 +313,10 @@ export default function LoginScreen() {
         setError('Please select your country');
         return;
       }
+      if (!agreedToTerms) {
+        setError('Please agree to the Terms and Privacy Policy to continue');
+        return;
+      }
     }
 
     setLoading(true);
@@ -333,6 +349,7 @@ export default function LoginScreen() {
           countryCode,
           city,
           createdAt: serverTimestamp(),
+          acceptedTermsAt: serverTimestamp(),
           friends: [],
         });
       }
@@ -361,7 +378,7 @@ export default function LoginScreen() {
     } finally {
       if (isMounted.current) setLoading(false);
     }
-  }, [loading, email, username, displayName, password, mode, country, countryCode, city, router]);
+  }, [loading, email, username, displayName, password, mode, country, countryCode, city, agreedToTerms, router]);
 
   const handleForgotPassword = useCallback(async () => {
     if (resetting) return;
@@ -405,6 +422,29 @@ export default function LoginScreen() {
     }
   }, [resetting, email]);
 
+  const handleGoogleSignIn = useCallback(async () => {
+    if (loading || googleLoading) return;
+    setError('');
+    setGoogleLoading(true);
+    try {
+      // On success, onAuthStateChanged in app/_layout.tsx drives routing: a
+      // first-time Google user (no users/{uid} doc) is sent to complete-profile,
+      // an existing one straight into the app. No manual navigation here.
+      await signInWithGoogle();
+    } catch (e) {
+      const code = e instanceof GoogleAuthError ? e.code : 'unknown';
+      const msg = googleErrorMessage(code);
+      // A null message means the user simply cancelled — stay silent.
+      if (msg && isMounted.current) setError(msg);
+    } finally {
+      if (isMounted.current) setGoogleLoading(false);
+    }
+  }, [loading, googleLoading]);
+
+  const handleNeedHelp = useCallback(() => {
+    Linking.openURL(supportMailto('Quorum — Need help signing in')).catch(() => {});
+  }, []);
+
   const handleSelectMode = useCallback((m: 'login' | 'register') => {
     setMode(m);
     setError('');
@@ -417,9 +457,11 @@ export default function LoginScreen() {
     setCitySearch('');
     setShowCities(false);
     setShowPassword(false);
+    setAgreedToTerms(false);
   }, []);
 
   const toggleShowPassword = useCallback(() => setShowPassword((v) => !v), []);
+  const toggleAgreedToTerms = useCallback(() => setAgreedToTerms((v) => !v), []);
   const handleUsernameChange = useCallback(
     (t: string) => setUsername(t.replace(/[^a-zA-Z0-9_]/g, '')),
     []
@@ -614,7 +656,7 @@ export default function LoginScreen() {
                       color={Colors.success}
                       style={styles.resetSentIcon}
                     />
-                    <Text style={styles.resetSentText}>Reset email sent. Check your inbox.</Text>
+                    <Text style={styles.resetSentText}>Reset email sent. Check your inbox or spam.</Text>
                   </View>
                 ) : (
                   <AnimatedButton
@@ -661,8 +703,15 @@ export default function LoginScreen() {
                 <View style={styles.hiddenPicker}>
                   <CountryPicker
                     countryCode={countryCode}
+                    // withEmoji loads the library's BUNDLED local country dataset
+                    // (assets/data/countries-emoji.json). Without it the picker
+                    // defaults to FlagType.FLAT, which fetches country data from a
+                    // dead remote URL and renders an empty list. withFlag={false}
+                    // suppresses the colourful emoji-flag glyphs to keep the picker
+                    // monochrome / emoji-free — rows still show country names.
+                    withEmoji
                     withFilter
-                    withFlag
+                    withFlag={false}
                     withCountryNameButton
                     withAlphaFilter
                     visible={countryPickerVisible}
@@ -774,6 +823,10 @@ export default function LoginScreen() {
               </>
             )}
 
+            {mode === 'register' && (
+              <TermsCheckbox checked={agreedToTerms} onToggle={toggleAgreedToTerms} />
+            )}
+
             {/* Error display */}
             {error ? (
               <View style={styles.errorRow} accessibilityLiveRegion="polite">
@@ -793,10 +846,51 @@ export default function LoginScreen() {
               variant="primary"
               size="lg"
               loading={loading}
-              disabled={loading}
+              disabled={loading || googleLoading}
               style={styles.submitBtn}
             />
+
+            {/* Google Sign-In — hidden in Expo Go (native module unavailable). */}
+            {isGoogleAuthAvailable && (
+              <>
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.googleBtn}
+                  onPress={handleGoogleSignIn}
+                  activeOpacity={0.8}
+                  disabled={loading || googleLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Continue with Google"
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color={Colors.text} />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-google" size={18} color={Colors.text} />
+                      <Text style={styles.googleBtnText}>Continue with Google</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
+
+          {/* Need help? — opens a support email. */}
+          <TouchableOpacity
+            style={styles.needHelpRow}
+            onPress={handleNeedHelp}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Contact support"
+          >
+            <Ionicons name="help-buoy-outline" size={14} color={Colors.textMuted} />
+            <Text style={styles.needHelpText}>Need help? Contact support</Text>
+          </TouchableOpacity>
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -934,6 +1028,60 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     borderColor: Colors.border,
     gap: Spacing.sm,
     marginBottom: Spacing.md,
+  },
+
+  // ── Divider + Google button ──
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    minHeight: 52,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceRaised,
+    paddingHorizontal: Spacing.gutter,
+  },
+  googleBtnText: {
+    fontFamily: Fonts.bodySemibold,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text,
+    letterSpacing: 0.2,
+  },
+
+  // ── Need help ──
+  needHelpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs + 2,
+    paddingVertical: Spacing.sm,
+  },
+  needHelpText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    letterSpacing: 0.2,
   },
 
   // ── Misc form elements ──

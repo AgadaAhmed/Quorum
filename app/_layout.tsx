@@ -7,12 +7,18 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import Constants from 'expo-constants';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import Purchases from 'react-native-purchases';
 import { auth, db } from '../lib/firebase';
 import { THEME_META, type ThemePalette } from '../lib/theme';
 import { ToastProvider } from '../components/Toast';
+import ErrorBoundary from '../components/ErrorBoundary';
+import OfflineBanner from '../components/OfflineBanner';
+import { initErrorReporting } from '../lib/sentry';
 import { RC_API_KEY_IOS, RC_API_KEY_ANDROID } from '../lib/subscription';
+
+// Initialize crash reporting as early as possible (inert without a DSN).
+initErrorReporting();
 
 // Push notifications were removed from Expo Go in SDK 53.
 // Only load expo-notifications in standalone/production builds.
@@ -122,6 +128,10 @@ function RootNavigator() {
   const Colors = useTheme();
   const { name } = useThemeControls();
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  // Whether the signed-in user has a completed profile doc. `undefined` = still
+  // loading (or signed out). Drives the complete-profile gate for social/phone
+  // sign-ins, which authenticate before a users/{uid} doc exists.
+  const [profileComplete, setProfileComplete] = useState<boolean | undefined>(undefined);
   const router = useRouter();
   const segments = useSegments();
 
@@ -147,34 +157,68 @@ function RootNavigator() {
     return unsub;
   }, []);
 
+  // Track whether the signed-in user has a profile doc with a username. Live via
+  // onSnapshot so completing the profile promotes them into the app immediately.
+  useEffect(() => {
+    if (!user) {
+      setProfileComplete(undefined);
+      return;
+    }
+    setProfileComplete(undefined);
+    const unsub = onSnapshot(
+      doc(db, 'users', user.uid),
+      (snap) => setProfileComplete(snap.exists() && !!snap.data()?.username),
+      // On a read error, don't strand the user on a blank splash — treat as
+      // incomplete so the complete-profile screen can recover them.
+      () => setProfileComplete(false),
+    );
+    return unsub;
+  }, [user]);
+
   useEffect(() => {
     if (user === undefined) return;
     const inAuth = segments[0] === '(auth)';
     const inTabs = segments[0] === '(tabs)';
+    const onCompleteProfile = inAuth && (segments[1] as string) === 'complete-profile';
     // These are valid authenticated routes — don't redirect away from them
     const inModal = ['plan-detail', 'create-plan', 'chat', 'social', 'settings', 'user-profile', 'join', 'customize-profile'].includes(segments[0] as string);
 
-    if (!user && !inAuth) {
-      router.replace('/(auth)/login');
-    } else if (user && inAuth) {
+    if (!user) {
+      if (!inAuth) router.replace('/(auth)/login');
+      return;
+    }
+    // Signed in — wait until we know whether a profile doc exists.
+    if (profileComplete === undefined) return;
+    if (!profileComplete) {
+      if (!onCompleteProfile) router.replace('/(auth)/complete-profile' as any);
+      return;
+    }
+    // Signed in with a complete profile.
+    if (inAuth) {
       router.replace('/(tabs)');
-    } else if (user && !inTabs && !inAuth && !inModal) {
+    } else if (!inTabs && !inModal) {
       router.replace('/(tabs)');
     }
-  }, [user, segments, router]);
+  }, [user, profileComplete, segments, router]);
 
   useEffect(() => {
     if (isExpoGo) return;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Notifications = require('expo-notifications');
     const sub = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      const planId = response.notification.request.content.data?.planId as string | undefined;
-      if (planId) router.push({ pathname: '/plan-detail', params: { id: planId } });
+      const data = response.notification.request.content.data || {};
+      const planId = data.planId as string | undefined;
+      const type = data.type as string | undefined;
+      if (planId) {
+        router.push({ pathname: '/plan-detail', params: { id: planId } });
+      } else if (type === 'friend_request' || type === 'friend_accepted') {
+        router.push('/social' as any);
+      }
     });
     return () => sub.remove();
   }, [router]);
 
-  if (user === undefined) return <SplashScreen />;
+  if (user === undefined || (user && profileComplete === undefined)) return <SplashScreen />;
 
   return (
     <>
@@ -191,20 +235,23 @@ function RootNavigator() {
         <Stack.Screen name="customize-profile" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="join/[code]" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
       </Stack>
+      <OfflineBanner />
     </>
   );
 }
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <SafeAreaProvider>
-          <ToastProvider>
-            <RootNavigator />
-          </ToastProvider>
-        </SafeAreaProvider>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider>
+          <SafeAreaProvider>
+            <ToastProvider>
+              <RootNavigator />
+            </ToastProvider>
+          </SafeAreaProvider>
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

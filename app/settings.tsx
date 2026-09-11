@@ -23,11 +23,11 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { FontSize, FontWeight, Spacing, Radius, Fonts, type ThemePalette } from '../lib/theme';
 import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL, supportMailto } from '../lib/support';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 const APP_VERSION = 'Quorum v1.0.0';
-const SUPPORT_EMAIL = 'support@quorum.app';
 
 // Shared inline-style replacements (declared once, not per-render).
 const FLEX_1 = { flex: 1 } as const;
@@ -202,9 +202,9 @@ export default function SettingsScreen() {
   const handleBack = useCallback(() => router.back(), [router]);
   const openPaywall = useCallback(() => setShowPaywall(true), []);
   const closePaywall = useCallback(() => setShowPaywall(false), []);
-  const contactSupport = useCallback(() => openUrl(`mailto:${SUPPORT_EMAIL}`), [openUrl]);
-  const openPrivacy = useCallback(() => openUrl('https://quorum.app/privacy'), [openUrl]);
-  const openTerms = useCallback(() => openUrl('https://quorum.app/terms'), [openUrl]);
+  const contactSupport = useCallback(() => openUrl(supportMailto('Quorum Support')), [openUrl]);
+  const openPrivacy = useCallback(() => openUrl(PRIVACY_URL), [openUrl]);
+  const openTerms = useCallback(() => openUrl(TERMS_URL), [openUrl]);
 
   const shortUid = useMemo(() => (uid ? `${uid.slice(0, 16)}…` : '—'), [uid]);
 

@@ -18,6 +18,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, query, where, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { isAtPlanLimit } from '../lib/subscription';
+import { moderatePlanText } from '../lib/scamDetection';
 import { useSubscription } from '../hooks/useSubscription';
 import { useCelebration } from '../hooks/useCelebration';
 import PaywallModal from '../components/PaywallModal';
@@ -167,6 +168,14 @@ export default function CreatePlanScreen() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError('Title is required');
+      return;
+    }
+    // Moderate user-generated text (hate speech / explicit content) before it can
+    // be posted — public plans especially are UGC surfaces. Human reporting
+    // (ReportModal) remains the primary safety net; this is a floor.
+    const moderation = moderatePlanText(trimmedTitle, description, location, pollQuestion);
+    if (!moderation.ok) {
+      setError(moderation.reason);
       return;
     }
     if (showPoll) {
