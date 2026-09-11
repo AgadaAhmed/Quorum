@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -18,12 +19,21 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, lim
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../../lib/firebase';
 import { useToast } from '../../components/Toast';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import AnimatedButton from '../../components/AnimatedButton';
 import PlanBanner from '../../components/PlanBanner';
+import Avatar from '../../components/Avatar';
+import GifPicker from '../../components/GifPicker';
+import ProfileBanner from '../../components/ProfileBanner';
+import PaywallModal from '../../components/PaywallModal';
+import ColorSwatchRow from '../../components/ColorSwatchRow';
+import { useSubscription } from '../../hooks/useSubscription';
+import { GifResult } from '../../lib/gifProvider';
+import { bioMaxFor, TAGLINE_MAX, resolveColor, accentGradient } from '../../lib/profileCustomization';
 import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
@@ -37,10 +47,17 @@ type UserProfile = {
   friends?: string[];
   bio?: string;
   avatarUrl?: string;
+  avatarGifUrl?: string;
+  avatarStillUrl?: string;
+  bannerGifUrl?: string;
+  bannerStillUrl?: string;
   emergencyContact?: { name: string; phone: string };
   planCount?: number;
   voteCount?: number;
   ratingAvg?: number;
+  tagline?: string;
+  profileAccent?: string;
+  nameColor?: string;
 };
 
 type Plan = {
@@ -161,6 +178,9 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [profileAccent, setProfileAccent] = useState<string | undefined>(undefined);
+  const [nameColor, setNameColor] = useState<string | undefined>(undefined);
   const [username, setUsername] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
@@ -175,6 +195,9 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { showToast } = useToast();
+  const { isPro } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [gifTarget, setGifTarget] = useState<null | 'avatar' | 'banner'>(null);
   const avatarScale = useRef(new Animated.Value(0)).current;
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
@@ -190,6 +213,9 @@ export default function ProfileScreen() {
       setProfile(data);
       setBio(data.bio || '');
       setDisplayName(data.displayName || '');
+      setTagline(data.tagline || '');
+      setProfileAccent(data.profileAccent || undefined);
+      setNameColor(data.nameColor || undefined);
       setUsername(data.username || '');
       setCity(data.city || '');
       setCountry(data.country || '');
@@ -288,6 +314,11 @@ export default function ProfileScreen() {
       updates.username = trimmedUsername;
       updates.usernameLower = trimmedUsername.toLowerCase();
     }
+    if (isPro) {
+      updates.tagline = tagline.trim();
+      updates.profileAccent = profileAccent ?? '';
+      updates.nameColor = nameColor ?? '';
+    }
     try {
       await updateDoc(doc(db, 'users', uid), updates);
       setProfile((p) =>
@@ -300,6 +331,7 @@ export default function ProfileScreen() {
               city: trimmedCity,
               country: trimmedCountry,
               emergencyContact: { name: emergencyName.trim(), phone: emergencyPhone.trim() },
+              ...(isPro ? { tagline: tagline.trim(), profileAccent: profileAccent ?? '', nameColor: nameColor ?? '' } : {}),
             }
           : p
       );
@@ -322,6 +354,10 @@ export default function ProfileScreen() {
     emergencyPhone,
     profile?.username,
     showToast,
+    isPro,
+    tagline,
+    profileAccent,
+    nameColor,
   ]);
 
   const handleAvatarPick = useCallback(async () => {
@@ -356,6 +392,48 @@ export default function ProfileScreen() {
     }
   }, [uid, uploadingAvatar, showToast]);
 
+  // Free users get the existing upload path; Pro users choose upload vs animated GIF.
+  const onAvatarPress = useCallback(() => {
+    if (uploadingAvatar) return;
+    if (!isPro) {
+      handleAvatarPick();
+      return;
+    }
+    Alert.alert('Change avatar', undefined, [
+      { text: 'Upload photo', onPress: () => handleAvatarPick() },
+      { text: 'Pick a GIF', onPress: () => setGifTarget('avatar') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [isPro, uploadingAvatar, handleAvatarPick]);
+
+  const onEditBanner = useCallback(() => {
+    if (!isPro) {
+      setShowPaywall(true);
+      return;
+    }
+    setGifTarget('banner');
+  }, [isPro]);
+
+  const onGifSelected = useCallback(
+    async (result: GifResult) => {
+      if (!uid || !gifTarget) return;
+      const fields =
+        gifTarget === 'avatar'
+          ? { avatarGifUrl: result.gifUrl, avatarStillUrl: result.stillUrl }
+          : { bannerGifUrl: result.gifUrl, bannerStillUrl: result.stillUrl };
+      try {
+        await updateDoc(doc(db, 'users', uid), fields);
+        setProfile((p) => (p ? { ...p, ...fields } : p));
+        showToast(gifTarget === 'avatar' ? 'Avatar updated!' : 'Banner updated!');
+      } catch {
+        showToast('Failed to update', 'error');
+      } finally {
+        setGifTarget(null);
+      }
+    },
+    [uid, gifTarget, showToast]
+  );
+
   const handleSignOut = useCallback(async () => {
     try {
       await auth.signOut();
@@ -367,6 +445,7 @@ export default function ProfileScreen() {
   const openEdit = useCallback(() => setEditing(true), []);
   const closeEdit = useCallback(() => setEditing(false), []);
   const goToSettings = useCallback(() => router.push('/settings' as any), [router]);
+  const goToCustomize = useCallback(() => router.push('/customize-profile' as any), [router]);
   const goToFriends = useCallback(() => router.push('/social' as any), [router]);
   const openPlan = useCallback(
     (id: string) => router.push({ pathname: '/plan-detail', params: { id } } as any),
@@ -383,6 +462,9 @@ export default function ProfileScreen() {
     () => [profile?.city, profile?.country].filter(Boolean).join(', '),
     [profile?.city, profile?.country]
   );
+
+  const accentValue = resolveColor(profile?.profileAccent);
+  const nameColorValue = resolveColor(profile?.nameColor);
 
   const consensusPct = useMemo(
     () => getConsensusPercent(voteCount, planCount),
@@ -466,66 +548,104 @@ export default function ProfileScreen() {
 
         {/* ── Hero Banner ── */}
         <View style={styles.heroContainer}>
-          {/* Avatar */}
-          <TouchableOpacity
-            onPress={handleAvatarPick}
-            disabled={uploadingAvatar}
-            style={styles.avatarWrapper}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel="Change profile photo"
-            accessibilityState={{ disabled: uploadingAvatar, busy: uploadingAvatar }}
-          >
-            <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
-              {profile?.avatarUrl ? (
-                <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarInitial}>{initials}</Text>
-                </View>
-              )}
-              {uploadingAvatar && (
-                <View style={styles.avatarOverlay}>
-                  <Ionicons name="cloud-upload-outline" size={18} color={Colors.background} />
-                </View>
-              )}
-            </Animated.View>
-            <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={13} color={Colors.background} />
-            </View>
-          </TouchableOpacity>
-
-          {/* Name, handle, bio, consensus — beside avatar */}
-          <View style={styles.heroInfo}>
-            <Text style={styles.heroName} numberOfLines={1}>
-              {profile?.displayName || (loading ? 'Loading…' : 'Unnamed')}
-            </Text>
-            {profile?.username ? (
-              <Text style={styles.heroHandle}>@{profile.username}</Text>
-            ) : null}
-            {profile?.bio ? (
-              <Text style={styles.heroBio} numberOfLines={2}>
-                {profile.bio}
-              </Text>
-            ) : null}
-            {hasLocation ? (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
-                <Text style={styles.locationText} numberOfLines={1}>
-                  {locationLabel}
-                </Text>
-              </View>
-            ) : null}
-            {/* Consensus bar */}
-            <View
-              style={styles.consensusRow}
-              accessible
-              accessibilityLabel={`${consensusPct} percent consensus`}
+          {/* Banner — renders null for free users / no banner set; the edit
+              affordance is always visible so free users can discover Pro. */}
+          <View style={styles.heroBannerWrap}>
+            <ProfileBanner
+              gifUrl={profile?.bannerGifUrl}
+              stillUrl={profile?.bannerStillUrl}
+              animated
+            />
+            <TouchableOpacity
+              onPress={onEditBanner}
+              style={styles.bannerEditButton}
+              accessibilityLabel="Edit banner"
+              hitSlop={8}
             >
-              <Text style={styles.consensusLabel}>{consensusPct}% Consensus</Text>
-              <View style={styles.consensusTrack}>
-                <View style={[styles.consensusFill, { width: `${consensusPct}%` }]} />
+              <Ionicons name="image-outline" size={16} color={Colors.background} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.heroRow}>
+            {accentValue ? (
+              <LinearGradient
+                colors={accentGradient(accentValue)}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+            ) : null}
+            {/* Avatar */}
+            <TouchableOpacity
+              onPress={onAvatarPress}
+              disabled={uploadingAvatar}
+              style={styles.avatarWrapper}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Change profile photo"
+              accessibilityState={{ disabled: uploadingAvatar, busy: uploadingAvatar }}
+            >
+              <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
+                <Avatar
+                  testID="profile-avatar"
+                  name={profile?.displayName || auth.currentUser?.email || undefined}
+                  uploadUrl={profile?.avatarUrl}
+                  gifUrl={profile?.avatarGifUrl}
+                  stillUrl={profile?.avatarStillUrl}
+                  animated
+                  imageStyle={styles.avatarImage}
+                  fallbackStyle={styles.avatarFallback}
+                  initialStyle={styles.avatarInitial}
+                />
+                {uploadingAvatar && (
+                  <View style={styles.avatarOverlay}>
+                    <Ionicons name="cloud-upload-outline" size={18} color={Colors.background} />
+                  </View>
+                )}
+              </Animated.View>
+              <View style={styles.cameraBadge}>
+                <Ionicons name="camera" size={13} color={Colors.background} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Name, handle, bio, consensus — beside avatar */}
+            <View style={styles.heroInfo}>
+              <Text style={[styles.heroName, nameColorValue ? { color: nameColorValue } : null]} numberOfLines={1}>
+                {profile?.displayName || (loading ? 'Loading…' : 'Unnamed')}
+              </Text>
+              {profile?.username ? (
+                <Text style={styles.heroHandle}>@{profile.username}</Text>
+              ) : null}
+              {profile?.tagline ? (
+                <Text style={[styles.heroTagline, accentValue ? { color: accentValue } : null]} numberOfLines={1}>
+                  {profile.tagline}
+                </Text>
+              ) : null}
+              {profile?.bio ? (
+                <Text style={[styles.heroBio, accentValue ? { color: accentValue } : null]} numberOfLines={2}>
+                  {profile.bio}
+                </Text>
+              ) : null}
+              {hasLocation ? (
+                <View style={styles.locationRow}>
+                  <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                  <Text style={styles.locationText} numberOfLines={1}>
+                    {locationLabel}
+                  </Text>
+                </View>
+              ) : null}
+              {/* Consensus bar */}
+              <View
+                style={styles.consensusRow}
+                accessible
+                accessibilityLabel={`${consensusPct} percent consensus`}
+              >
+                <Text style={styles.consensusLabel}>{consensusPct}% Consensus</Text>
+                <View style={styles.consensusTrack}>
+                  <View style={[styles.consensusFill, { width: `${consensusPct}%` }]} />
+                </View>
               </View>
             </View>
           </View>
@@ -546,6 +666,15 @@ export default function ProfileScreen() {
             variant="ghost"
             size="sm"
             style={styles.actionBtn}
+          />
+          <AnimatedButton
+            label="Customize"
+            onPress={goToCustomize}
+            variant="ghost"
+            size="sm"
+            style={styles.actionBtn}
+            icon={<Ionicons name="color-wand-outline" size={14} color={Colors.primary} />}
+            accessibilityLabel="Customize profile"
           />
           <AnimatedButton
             label="Friends"
@@ -713,9 +842,37 @@ export default function ProfileScreen() {
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 numberOfLines={3}
-                maxLength={200}
+                maxLength={bioMaxFor(isPro)}
               />
-              <Text style={styles.charCount}>{bio.length}/200</Text>
+              <Text style={styles.charCount}>{bio.length}/{bioMaxFor(isPro)}</Text>
+
+              {isPro ? (
+                <>
+                  <Text style={styles.fieldLabel}>Tagline</Text>
+                  <TextInput
+                    testID="edit-tagline"
+                    style={styles.fieldInput}
+                    value={tagline}
+                    onChangeText={setTagline}
+                    placeholder="A short line under your name"
+                    placeholderTextColor={Colors.textMuted}
+                    maxLength={TAGLINE_MAX}
+                  />
+                  <Text style={styles.fieldLabel}>Name color</Text>
+                  <ColorSwatchRow selectedKey={nameColor} onSelect={setNameColor} />
+                  <Text style={styles.fieldLabel}>Profile accent</Text>
+                  <ColorSwatchRow selectedKey={profileAccent} onSelect={setProfileAccent} />
+                </>
+              ) : (
+                <TouchableOpacity
+                  testID="edit-customize-upsell"
+                  onPress={() => { closeEdit(); setShowPaywall(true); }}
+                  style={styles.upsellRow}
+                >
+                  <Ionicons name="color-palette-outline" size={16} color={Colors.text} />
+                  <Text style={styles.upsellText}>Upgrade to Pro to add a tagline & colors</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Location */}
               <Text style={styles.fieldLabel}>City</Text>
@@ -774,6 +931,17 @@ export default function ProfileScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <GifPicker
+        visible={gifTarget !== null}
+        onSelect={onGifSelected}
+        onClose={() => setGifTarget(null)}
+      />
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        reason="Upgrade to Pro for animated avatars and custom banners."
+      />
     </ScreenWrapper>
   );
 }
@@ -785,15 +953,35 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
 
   // Hero
   heroContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
-    paddingHorizontal: Spacing.container,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
+  },
+  // Reserves room for the banner-edit affordance even when no banner is set
+  // (free users / Pro users who haven't picked one yet), so the button never
+  // overlaps the avatar row below it.
+  heroBannerWrap: {
+    position: 'relative',
+    minHeight: 40,
+  },
+  bannerEditButton: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999,
+    padding: Spacing.xs,
+    zIndex: 2,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.container,
     gap: Spacing.sm,
+    position: 'relative',
+    overflow: 'hidden',
   },
   avatarWrapper: {
     position: 'relative',
@@ -859,6 +1047,12 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: FontWeight.semibold,
     marginTop: 2,
+  },
+  heroTagline: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   heroBio: {
     fontSize: FontSize.sm,
@@ -1062,6 +1256,8 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     textAlign: 'right',
     marginTop: 2,
   },
+  upsellRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
+  upsellText: { color: Colors.text, fontSize: FontSize.sm },
   saveBtn: {
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,

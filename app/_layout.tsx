@@ -152,7 +152,7 @@ function RootNavigator() {
     const inAuth = segments[0] === '(auth)';
     const inTabs = segments[0] === '(tabs)';
     // These are valid authenticated routes — don't redirect away from them
-    const inModal = ['plan-detail', 'create-plan', 'chat', 'social', 'settings', 'user-profile', 'join'].includes(segments[0] as string);
+    const inModal = ['plan-detail', 'create-plan', 'chat', 'social', 'settings', 'user-profile', 'join', 'customize-profile'].includes(segments[0] as string);
 
     if (!user && !inAuth) {
       router.replace('/(auth)/login');
@@ -188,6 +188,7 @@ function RootNavigator() {
         <Stack.Screen name="social" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="user-profile" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="customize-profile" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="join/[code]" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
       </Stack>
     </>

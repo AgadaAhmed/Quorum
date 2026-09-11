@@ -37,6 +37,7 @@ async function check(name, promise) {
   const bob = testEnv.authenticatedContext('bob').firestore();     // participant
   const carol = testEnv.authenticatedContext('carol').firestore(); // outsider
   const dave = testEnv.authenticatedContext('dave').firestore();
+  const prouser = testEnv.authenticatedContext('prouser').firestore();
 
   // Reset all docs to a known state (admin context bypasses rules).
   async function seed() {
@@ -46,6 +47,9 @@ async function check(name, promise) {
         displayName: 'Alice', subscriptionTier: 'free', friends: [], friendRequests: [], blockedUsers: [],
       });
       await setDoc(doc(db, 'users/bob'), { displayName: 'Bob', subscriptionTier: 'free', friends: [] });
+      await setDoc(doc(db, 'users/prouser'), {
+        displayName: 'Pro', subscriptionTier: 'pro', friends: [], friendRequests: [], blockedUsers: [],
+      });
       // Public plan, alice creator, votes seeded with alice.
       await setDoc(doc(db, 'plans/pub1'), {
         createdBy: 'alice', isPublic: true, participants: ['alice'], votes: ['alice'],
@@ -97,6 +101,29 @@ async function check(name, promise) {
     assertFails(setDoc(doc(carol, 'users/carol'), { displayName: 'Carol', subscriptionTier: 'pro' })));
   await check('can create own doc as free',
     assertSucceeds(setDoc(doc(dave, 'users/dave'), { displayName: 'Dave', subscriptionTier: 'free' })));
+
+  // ───────────────────────── Pro customization lockdown ─────────────────────────
+  console.log('\nPro customization lockdown:');
+  await seed();
+  await check('free owner CANNOT set nameColor',
+    assertFails(updateDoc(doc(alice, 'users/alice'), { nameColor: 'crimson' })));
+  await check('free owner CANNOT set avatarGifUrl',
+    assertFails(updateDoc(doc(alice, 'users/alice'), { avatarGifUrl: 'https://t/x.gif' })));
+  await check('free owner CANNOT set tagline',
+    assertFails(updateDoc(doc(alice, 'users/alice'), { tagline: 'hi' })));
+  await check('free owner CAN still edit bio (free field)',
+    assertSucceeds(updateDoc(doc(alice, 'users/alice'), { bio: 'hello' })));
+  await check('free owner CAN still edit displayName',
+    assertSucceeds(updateDoc(doc(alice, 'users/alice'), { displayName: 'Alice A.' })));
+  await check('pro owner CAN set nameColor + accent + tagline',
+    assertSucceeds(updateDoc(doc(prouser, 'users/prouser'),
+      { nameColor: 'crimson', profileAccent: 'teal', tagline: 'here for it' })));
+  await check('pro owner CAN set avatar/banner gif fields',
+    assertSucceeds(updateDoc(doc(prouser, 'users/prouser'),
+      { avatarGifUrl: 'https://t/a.gif', avatarStillUrl: 'https://t/a.png',
+        bannerGifUrl: 'https://t/b.gif', bannerStillUrl: 'https://t/b.png' })));
+  await check('nobody can self-assign subscriptionTier',
+    assertFails(updateDoc(doc(alice, 'users/alice'), { subscriptionTier: 'pro' })));
 
   // ───────────────────────── Plans: read ─────────────────────────
   console.log('\nPlans — read:');

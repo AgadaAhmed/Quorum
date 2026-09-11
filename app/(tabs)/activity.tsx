@@ -32,6 +32,7 @@ import AnimatedButton from '../../components/AnimatedButton';
 import { FontSize, FontWeight, Spacing, Radius, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from '../../components/Avatar';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -195,17 +196,17 @@ const RequestCard = React.memo(function RequestCard({
   onDecline: (req: FriendRequest) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const initial = (req.fromName || '?').charAt(0).toUpperCase();
   return (
     <View style={styles.requestCard}>
       <View style={styles.requestRow}>
-        {req.fromAvatar ? (
-          <Image source={{ uri: req.fromAvatar }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarFallback}>
-            <Text style={styles.avatarInitial}>{initial}</Text>
-          </View>
-        )}
+        <Avatar
+          testID="request-avatar"
+          name={req.fromName}
+          uploadUrl={req.fromAvatar || undefined}
+          imageStyle={styles.avatar}
+          fallbackStyle={styles.avatarFallback}
+          initialStyle={styles.avatarInitial}
+        />
 
         <View style={styles.requestInfo}>
           <Text style={styles.requestName} numberOfLines={1}>

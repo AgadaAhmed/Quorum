@@ -52,6 +52,7 @@ import {
 import { FontSize, FontWeight, Radius, Shadow, Spacing, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from '../../components/Avatar';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -480,13 +481,14 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open profile"
           >
-            {photoURL ? (
-              <Image source={{ uri: photoURL }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarLetter}>{avatarLetter}</Text>
-              </View>
-            )}
+            <Avatar
+              testID="home-avatar"
+              name={displayName}
+              uploadUrl={photoURL || undefined}
+              imageStyle={styles.avatarImage}
+              fallbackStyle={styles.avatarFallback}
+              initialStyle={styles.avatarLetter}
+            />
           </TouchableOpacity>
         </View>
       </View>
