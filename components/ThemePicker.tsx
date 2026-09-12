@@ -9,7 +9,7 @@ import { FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
  * Horizontal row of theme swatches. Each swatch previews the theme using that
  * theme's OWN palette. All themes are unlocked now that the app is fully free.
  */
-export default function ThemePicker({ onLockedPress }: { onLockedPress?: () => void }) {
+export default function ThemePicker() {
   const Colors = useTheme();
   const { name, setTheme } = useThemeControls();
   const styles = useThemedStyles(makeStyles);
@@ -24,15 +24,14 @@ export default function ThemePicker({ onLockedPress }: { onLockedPress?: () => v
       {names.map((n) => {
         const p = palettes[n];
         const meta = THEME_META[n];
-        const locked = false;
         const selected = n === name;
         return (
           <TouchableOpacity
             key={n}
             activeOpacity={0.8}
-            onPress={() => (locked ? onLockedPress?.() : setTheme(n))}
+            onPress={() => setTheme(n)}
             accessibilityRole="button"
-            accessibilityLabel={`${meta.label} theme${locked ? ', Pro' : ''}${selected ? ', selected' : ''}`}
+            accessibilityLabel={`${meta.label} theme${selected ? ', selected' : ''}`}
             style={styles.item}
           >
             <View
@@ -52,11 +51,6 @@ export default function ThemePicker({ onLockedPress }: { onLockedPress?: () => v
               {selected && (
                 <View style={[styles.badge, { backgroundColor: p.primary }]}>
                   <Ionicons name="checkmark" size={12} color={p.background} />
-                </View>
-              )}
-              {locked && (
-                <View style={[styles.badge, styles.lockBadge, { backgroundColor: p.surfaceRaised }]}>
-                  <Ionicons name="lock-closed" size={11} color={p.text} />
                 </View>
               )}
             </View>
@@ -94,7 +88,6 @@ const makeStyles = (Colors: ThemePalette) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    lockBadge: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
     label: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
     labelSelected: { color: Colors.text, fontWeight: FontWeight.bold },
   });

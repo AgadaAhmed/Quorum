@@ -1227,8 +1227,6 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     textAlign: 'right',
     marginTop: 2,
   },
-  upsellRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
-  upsellText: { color: Colors.text, fontSize: FontSize.sm },
   saveBtn: {
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,

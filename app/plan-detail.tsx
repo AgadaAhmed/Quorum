@@ -1520,7 +1520,6 @@ export default function PlanDetailScreen() {
         plan={plan}
         emergencyContact={emergencyContact}
       />
-
     </ScreenWrapper>
   );
 }

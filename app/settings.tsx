@@ -591,32 +591,4 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
-
-  // ── Subscription plan value + upgrade badge (the one accent) ────────────
-  planValue: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    marginTop: 3,
-    letterSpacing: 0.3,
-  },
-  planValuePro: { color: Colors.primary, fontWeight: FontWeight.bold },
-  upgradeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.gutter,
-    paddingVertical: 9,
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  upgradeBadgeText: {
-    color: Colors.background,
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.heavy,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
 });
