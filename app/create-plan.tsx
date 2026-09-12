@@ -13,11 +13,12 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { moderatePlanText } from '../lib/scamDetection';
+import { titleForTime } from '../lib/places';
 import { useCelebration } from '../hooks/useCelebration';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
@@ -42,10 +43,23 @@ import {
 
 export default function CreatePlanScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ title?: string; placeJson?: string }>();
   const confettiRef = useRef<ConfettiRef>(null);
   const { celebrate, glowStyle } = useCelebration();
   const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
+
+  // Places tab / Discover navigate here with { title, placeJson } to pre-seed
+  // a plan from a venue. Both params are absent for a normal "New Plan" flow.
+  const seededPlace = useMemo(() => {
+    try {
+      return params.placeJson ? JSON.parse(params.placeJson as string) : null;
+    } catch {
+      return null;
+    }
+  }, [params.placeJson]);
+  const seededRef = useRef(false);
+  const titleEditedRef = useRef(false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -99,6 +113,28 @@ export default function CreatePlanScreen() {
   useEffect(() => {
     if (!auth.currentUser) router.replace('/(auth)/login');
   }, [router]);
+
+  // Seed the form once from the incoming venue. Title is intentionally left to
+  // the title-sync effect below (it owns the title while the user hasn't
+  // hand-edited it) so the two effects don't fight over an initial value.
+  useEffect(() => {
+    if (!seededPlace || seededRef.current) return;
+    seededRef.current = true;
+    setLocation(`${seededPlace.name}${seededPlace.address ? ', ' + seededPlace.address : ''}`.slice(0, 150));
+    if (seededPlace.category) {
+      setCategory(seededPlace.category);
+      setUsingCustomCategory(!(CATEGORIES as readonly string[]).includes(seededPlace.category));
+    }
+  }, [seededPlace]);
+
+  // Keep the title in sync with the chosen event time for a seeded plan, until
+  // the user types their own title (titleEditedRef flips on first manual edit).
+  useEffect(() => {
+    if (!seededPlace || titleEditedRef.current) return;
+    const base = date ?? new Date();
+    const when = new Date(base.getFullYear(), base.getMonth(), base.getDate(), time.getHours(), time.getMinutes());
+    setTitle(titleForTime(seededPlace.name, when));
+  }, [date, time, seededPlace]);
 
   const applyTemplate = useCallback((t: Template) => {
     setTitle(t.name || '');
@@ -171,11 +207,15 @@ export default function CreatePlanScreen() {
     try {
       const planRef = doc(collection(db, 'plans'));
 
-      // Geocode location to lat/lng so Discover can show distance.
+      // Geocode location to lat/lng so Discover can show distance. A seeded
+      // venue already has coordinates from Places, so skip the geocode call.
       let lat: number | null = null;
       let lng: number | null = null;
       const trimmedLocation = location.trim();
-      if (trimmedLocation) {
+      if (seededPlace) {
+        lat = seededPlace.lat ?? null;
+        lng = seededPlace.lng ?? null;
+      } else if (trimmedLocation) {
         try {
           const results = await Location.geocodeAsync(trimmedLocation);
           if (results.length > 0) {
@@ -224,6 +264,18 @@ export default function CreatePlanScreen() {
         inviteCode: makeInviteCode(),
         lat,
         lng,
+        place: seededPlace
+          ? {
+              placeId: seededPlace.placeId,
+              name: seededPlace.name,
+              address: seededPlace.address || '',
+              lat: seededPlace.lat,
+              lng: seededPlace.lng,
+              photoRef: seededPlace.photoRef || null,
+              source: 'google',
+              featured: false,
+            }
+          : null,
       });
       celebrate(confettiRef);
       setTimeout(() => {
@@ -254,6 +306,7 @@ export default function CreatePlanScreen() {
     voteDeadline,
     maxParticipants,
     router,
+    seededPlace,
   ]);
 
   const togglePoll = useCallback(() => {
@@ -337,7 +390,10 @@ export default function CreatePlanScreen() {
             placeholder="e.g. Weekend Getaway"
             placeholderTextColor={Colors.textMuted}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={(t) => {
+              titleEditedRef.current = true;
+              setTitle(t);
+            }}
             maxLength={80}
             returnKeyType="next"
           />
