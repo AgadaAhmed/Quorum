@@ -17,9 +17,10 @@ Crucially, the Places surface is where the future money lives: a venue a group c
 ## 2. Goals / Non-Goals
 
 **Goals**
-- Browse venues in the user's city, with photos, filterable by category.
+- Browse venues in the user's city, with photos, filterable by category (the **Places tab**).
 - Tap a venue → land in the existing create-plan flow with venue pre-filled; user only sets time + required votes, then invites via the existing methods (friends / link / group).
 - A map view of those same venues; tap a pin → same auto-quorum flow.
+- **Discover tab enhancement:** a horizontal, swipeable **"places near you" carousel** pinned at the top (venue photos), with the existing **public-quorums feed below it** as the user scrolls, and a **location switcher** so they can change the area and see places + public quorums elsewhere.
 - Do it without leaking the Google API key and without an uncontrolled API bill.
 - Bake in a "featured/sponsored" data slot so the money layer (B) needs no rework.
 
@@ -66,6 +67,30 @@ Chosen as the **free** option (user decision, 2026-09-12). On mobile, Google Map
 - Pins = the same venues returned by the Places search, centered on the user's location/city. Tapping a pin opens a **venue preview card** → "Start a plan here" → the same title popup + auto-quorum as the list.
 - Requires a **Google Maps API key** in native config and an **EAS dev build** (won't run in Expo Go; the existing `android/` project supports it).
 - Monochrome note: the custom map style must be greyscale to match `lib/theme.ts`; pins/markers use vector icons, no emoji, per the project design rules.
+
+### Discover tab integration (user addition, 2026-09-12)
+
+The Places tab is the dedicated destination, but Discover also surfaces places so users bump into them without seeking them out. Discover (`app/(tabs)/discover.tsx`) becomes a single vertically-scrolling screen with this order:
+
+```
+┌─────────────────────────────────────────┐
+│  📍 {City}  ▾   (location switcher)        │  ← header control
+├─────────────────────────────────────────┤
+│  Places near you                          │
+│  [img][img][img][img] →  (horizontal swipe)│  ← Places carousel (pinned near top)
+├─────────────────────────────────────────┤
+│  Public quorums near you                  │
+│  ┌───────────────┐                        │
+│  │ quorum card    │  (existing feed,       │  ← vertical list, appears on scroll
+│  │ quorum card    │   unchanged content)   │
+│  └───────────────┘                        │
+└─────────────────────────────────────────┘
+```
+
+- **Places carousel** — a horizontal `FlatList` of compact venue cards (photo + name + category), swipes left/right, sits above the public-quorums feed. Reuses the same `lib/places.ts` fetch as the Places tab (so one cache serves both). Tapping a card opens the **same time-aware title popup → auto-quorum** as everywhere else. A trailing "See all" card jumps to the Places tab.
+- **Public-quorums feed** — the current Discover list, unchanged in content; it now renders *below* the carousel (as the list body / `ListHeaderComponent` holds the carousel + section headers so the whole thing scrolls as one).
+- **Location switcher** — a header control showing the current city; tapping it opens a picker backed by `lib/cities.ts` (+ optional "Use my location" to snap back to GPS). Changing it **re-centers both** the places carousel and the public-quorums query to that area, letting users scout events/places in another city. Default = the user's GPS city (today's behavior). The chosen location is Discover-local state (not persisted in v1).
+- Implementation note: to avoid a nested-vertical-scroll conflict, the carousel is horizontal only; the screen uses the existing feed's `FlatList` with a `ListHeaderComponent` that contains the location switcher + the horizontal carousel + the "Public quorums near you" heading.
 
 ## 5. Auto-Quorum Flow
 
@@ -136,7 +161,10 @@ A `venues` cache collection (server-managed, TTL) backs the proxy. No client wri
 - `components/places/PlacesList.tsx` — category filter + list of `PlaceCard`.
 - `components/places/PlacesMap.tsx` — `react-native-maps` view, custom greyscale style, venue pins, preview card.
 - `components/places/TitlePopup.tsx` — the time-aware title chooser (chips + custom field) shown on venue tap.
-- `lib/places.ts` — client wrapper calling the proxy; maps Google types → Quorum categories; `titleForTime(venue, date)` helper.
+- `components/places/PlacesCarousel.tsx` — horizontal swipeable venue carousel for Discover (compact cards + "See all" → Places tab).
+- `components/places/LocationSwitcher.tsx` — header control + city picker (backed by `lib/cities.ts`, "Use my location" option); emits the chosen center.
+- `app/(tabs)/discover.tsx` — mount `LocationSwitcher` + `PlacesCarousel` as the feed's `ListHeaderComponent`; drive both the carousel and the existing public-quorums query off the switcher's chosen location.
+- `lib/places.ts` — client wrapper calling the proxy; maps Google types → Quorum categories; `titleForTime(venue, date)` helper. Shared by the Places tab **and** the Discover carousel (one cache).
 - `functions/index.js` — add `placesSearch`, `placeDetails`, `placePhoto` callable/HTTPS functions + Firestore cache + (stub) featured-injection point.
 - `app/create-plan.tsx` — accept `place` + `title` route params; apply via the template-seed pattern; **re-derive the title from the event time on change unless user-edited**; persist `place` on submit.
 - Native/config — Google Maps key; `react-native-maps` install; EAS dev build.
@@ -159,20 +187,22 @@ A `venues` cache collection (server-managed, TTL) backs the proxy. No client wri
 
 ## 10. Testing
 
-- Unit: category mapping (Google types → Quorum categories); cache key + TTL logic; param-seeding of create-plan.
+- Unit: category mapping (Google types → Quorum categories); cache key + TTL logic; param-seeding of create-plan; `titleForTime` at each bucket boundary.
 - Function: proxy returns cached vs. fresh correctly; key never exposed; ceiling enforced.
-- Integration/manual: tap venue (list & map) → create-plan prefilled → plan saved with `place` → appears in Discover with correct distance.
-- Regression: existing free-text location creation still works unchanged.
+- Integration/manual: tap venue (Places list, map, **and Discover carousel**) → title popup → create-plan prefilled → plan saved with `place` → appears in Discover with correct distance.
+- Discover: carousel swipes; **changing the location switcher re-centers both the carousel and the public-quorums feed**; "Use my location" snaps back to GPS.
+- Regression: existing free-text location creation still works unchanged; the existing public-quorums feed content is unchanged (only repositioned below the carousel).
 
 ## 11. Build Sequence (for the plan)
 
 1. Places proxy Cloud Functions + Firestore cache (no UI) — verify with logs.
-2. `lib/places.ts` client wrapper + category mapping.
-3. Discover segmented control + `PlacesList`/`PlaceCard` (list only).
-4. create-plan `place` param seeding + persistence.
-5. `react-native-maps` install, key, dev build; `PlacesMap` + preview card.
-6. `featured` data hook + "featured" ribbon slot (rendered, never true yet).
-7. Tests + cost-ceiling + cache tuning.
+2. `lib/places.ts` client wrapper + category mapping + `titleForTime`.
+3. `PlaceCard` + `TitlePopup` + the dedicated **Places tab** (`app/(tabs)/places.tsx`, list only) + tab registration.
+4. create-plan `place`/`title` param seeding + event-time title re-derivation + persistence.
+5. **Discover integration:** `PlacesCarousel` + `LocationSwitcher` mounted as the feed `ListHeaderComponent`; both carousel + public-quorums query driven by the chosen location.
+6. `react-native-maps` install, key, dev build; `PlacesMap` + preview card; add map toggle to the Places tab.
+7. `featured` data hook + "featured" ribbon slot (rendered, never true yet).
+8. Tests + cost-ceiling + cache tuning.
 
 ## 12. Deferred / Later (not this project)
 
