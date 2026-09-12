@@ -1,7 +1,7 @@
 # Places Tab + Map — Design Spec
 
 **Date:** 2026-09-12
-**Status:** Draft for review (written while user was away — see "Open Decisions" at the end; nothing here is final until Ahmed reviews)
+**Status:** Decisions locked (Ahmed, 2026-09-12 — see "Resolved Decisions"). Ready for user spec-review, then implementation plan.
 **Project scope:** Feature **A** (Places tab → auto-quorum) + Feature **C** (places/events map). Feature **B** (sponsored/referral money layer) is designed-for but not built. Feature **D** (Snapchat-style friend live-location map) is explicitly deferred.
 
 ---
@@ -40,16 +40,9 @@ Crucially, the Places surface is where the future money lives: a venue a group c
 
 ## 4. Approach (chosen)
 
-**Places lives as a mode inside the Discover tab, not a new tab.** Discover gets a top segmented control:
+**Places is its own dedicated tab** (user decision, 2026-09-12) — a 5th tab alongside index / discover / activity / profile. Inside it, a **list ⇄ map toggle** switches between a photo-card list and the map (Feature C); both render the same venue data set.
 
-```
-[ Happening ]   [ Places ]        (Places has a  list ⇄ map  toggle)
-```
-
-- **Happening** = today's Discover feed (public plans nearby). Unchanged.
-- **Places** = new venue browser. A list/map toggle switches between a photo-card list and the map (Feature C). Both render the same venue data set.
-
-Rationale vs. a standalone 5th tab: Discover already owns "find something near me," including location permission and geo math. Reusing it keeps the tab bar at four, avoids duplicate location logic, and keeps "browse plans" and "browse places" side by side where users expect them. (Alternative — a dedicated **Places** tab — is viable if the segmented control feels cramped; noted in Open Decisions.)
+The tab reuses Discover's location plumbing (permission prompt, `expo-location`, haversine distance) via shared helpers rather than duplicating it, but presents as a first-class destination so "find a place → start a plan" is one obvious tap from anywhere, not buried behind a segmented control. Tab bar grows from 4 → 5 items; the center "+" create button is unaffected.
 
 ### Data source: Google Places API (New), proxied
 
@@ -67,10 +60,12 @@ Rationale vs. a standalone 5th tab: Discover already owns "find something near m
 
 ### Map: `react-native-maps`, custom-styled
 
-- `react-native-maps` (Google provider) with a **custom map-style JSON** for a clean, Snapchat-adjacent look (muted palette, reduced clutter, rounded feel).
-- Pins = the same venues returned by the Places search, centered on the user's location/city. Tapping a pin opens a **venue preview card** → "Start a plan here" → auto-quorum.
+Chosen as the **free** option (user decision, 2026-09-12). On mobile, Google Maps **map display via `react-native-maps` is free** (Google no longer charges for mobile map loads); the Places *search/photos* are the only billed part, and that cost is the same regardless of map library. Mapbox's designer look is nicer but its free tier caps at a monthly active-user limit and then bills — so `react-native-maps` wins on "keep it free."
+
+- `react-native-maps` (Google provider) with a **custom map-style JSON** for a clean, Snapchat-adjacent look (muted greyscale palette to honor the monochrome design system, reduced clutter, rounded feel).
+- Pins = the same venues returned by the Places search, centered on the user's location/city. Tapping a pin opens a **venue preview card** → "Start a plan here" → the same title popup + auto-quorum as the list.
 - Requires a **Google Maps API key** in native config and an **EAS dev build** (won't run in Expo Go; the existing `android/` project supports it).
-- (Mapbox is the richer-styling alternative but heavier to wire; start with `react-native-maps`.)
+- Monochrome note: the custom map style must be greyscale to match `lib/theme.ts`; pins/markers use vector icons, no emoji, per the project design rules.
 
 ## 5. Auto-Quorum Flow
 
@@ -79,10 +74,12 @@ Places (list or map)
       │  tap venue / pin
       ▼
 Venue preview card  ──►  "Start a plan here"
-      │  navigate to create-plan with params
+      ▼
+TITLE POPUP  (time-aware — see below)
+      │  user picks/edits a suggested title
       ▼
 create-plan (existing screen), pre-filled:
-   • title        = venue name (editable, e.g. "Drinks at {name}")
+   • title        = chosen title (e.g. "Night at Villa Bar")
    • location     = venue name + address
    • lat / lng    = from place (no geocode needed)
    • category     = mapped from Google place types
@@ -93,7 +90,24 @@ create-plan (existing screen), pre-filled:
 Plan created in Firestore (now carrying structured `place`)
 ```
 
-Seeding reuses the `applyTemplate()` pattern — a venue is passed as route params and applied to form state on mount. No parallel creation path.
+Seeding reuses the `applyTemplate()` pattern — the chosen title + venue are passed as route params and applied to form state on mount. No parallel creation path.
+
+### Time-aware title popup (user decision, 2026-09-12)
+
+Tapping a venue opens a small popup to name the plan. The default is **not** the bare venue name — it's a **time-of-day phrasing** of it, offered as chips:
+
+| Time bucket | Suggested title |
+|---|---|
+| 05:00–11:59 | **Morning at {venue}** |
+| 12:00–16:59 | **Afternoon at {venue}** |
+| 17:00–20:59 | **Evening at {venue}** |
+| 21:00–04:59 | **Night at {venue}** |
+
+- All four chips are shown; the **time-appropriate one is pre-selected**, plus a free-text field to type a custom title.
+- **Which time drives it:** the **event time the user picks**, not the moment of creation (user decision). Since the venue is chosen *before* the date/time in this flow, the popup opens with the phrasing keyed to the **current time**, but the title **re-derives to match the event time once the user sets it** on the create-plan screen — as long as they haven't manually edited it. (If they typed a custom title, we don't overwrite it.)
+- Logic lives in a pure helper `titleForTime(venueName, date)` in `lib/places.ts`, unit-tested at each bucket boundary.
+
+This keeps the "just a venue" simplicity the user wanted, while making the plan title feel written-for-the-moment.
 
 ## 6. Data Model Changes
 
@@ -116,14 +130,18 @@ A `venues` cache collection (server-managed, TTL) backs the proxy. No client wri
 
 ## 7. Components / Files (anticipated)
 
-- `app/(tabs)/discover.tsx` — add segmented control (Happening / Places) + list⇄map toggle.
+- `app/(tabs)/places.tsx` — **new 5th tab**; list⇄map toggle, category filter, owns the venue data fetch.
+- `app/(tabs)/_layout.tsx` — register the `places` tab (icon + `Tabs.Screen`), 4 → 5 tabs.
 - `components/places/PlaceCard.tsx` — photo card (name, category, rating, distance, "featured" ribbon slot).
 - `components/places/PlacesList.tsx` — category filter + list of `PlaceCard`.
-- `components/places/PlacesMap.tsx` — `react-native-maps` view, custom style, venue pins, preview card.
-- `lib/places.ts` — client wrapper calling the proxy; maps Google types → Quorum categories.
+- `components/places/PlacesMap.tsx` — `react-native-maps` view, custom greyscale style, venue pins, preview card.
+- `components/places/TitlePopup.tsx` — the time-aware title chooser (chips + custom field) shown on venue tap.
+- `lib/places.ts` — client wrapper calling the proxy; maps Google types → Quorum categories; `titleForTime(venue, date)` helper.
 - `functions/index.js` — add `placesSearch`, `placeDetails`, `placePhoto` callable/HTTPS functions + Firestore cache + (stub) featured-injection point.
-- `app/create-plan.tsx` — accept `place` route params; apply via the template-seed pattern; persist `place` on submit.
+- `app/create-plan.tsx` — accept `place` + `title` route params; apply via the template-seed pattern; **re-derive the title from the event time on change unless user-edited**; persist `place` on submit.
 - Native/config — Google Maps key; `react-native-maps` install; EAS dev build.
+
+> Depends on the "Go Fully Free" spec (`2026-09-12-go-fully-free-design.md`): the plan-limit paywall in `create-plan.tsx` is being removed there, so the auto-quorum flow has no paywall interaction to design around.
 
 ## 8. Error Handling & Edge Cases
 
@@ -163,10 +181,10 @@ A `venues` cache collection (server-managed, TTL) backs the proxy. No client wri
 
 ---
 
-## Open Decisions (need Ahmed's call on return)
+## Resolved Decisions (Ahmed, 2026-09-12)
 
-1. **Discover-mode vs. dedicated Places tab** — spec assumes a segmented control inside Discover. OK, or do you want Places as its own 5th tab?
-2. **Map library** — `react-native-maps` (assumed) vs. Mapbox (closer to Snapchat's look, more setup).
-3. **Places source** — Google (assumed) vs. Foursquare (friendlier photo terms). Affects cost.
-4. **Existing paywall/plan-limit** — under "everything free," should the `PaywallModal` / `isAtPlanLimit` plan cap be removed now, or left dormant? (Out of this feature's scope but implied by the free decision.)
-5. **Auto-quorum title default** — `"{category} at {venue}"`, just `"{venue}"`, or leave blank for the user?
+1. **Places = its own dedicated tab** (a 5th tab), not a mode inside Discover.
+2. **Map library = `react-native-maps`** — chosen as the free option (mobile Google map display is free; Mapbox bills past a MAU cap).
+3. **Places source = Google** now, with the Cloud-Function proxy built so **Foursquare is a drop-in fallback** if cost bites. Rationale: Google's venue/photo coverage in the target African cities is far better than Foursquare's.
+4. **Paywall removed** — handled in the separate `2026-09-12-go-fully-free-design.md` spec (all Pro features become free; no paywall in the auto-quorum flow).
+5. **Title = time-aware popup**, keyed to the **event time the user picks** (Morning/Afternoon/Evening/Night at {venue}), with chips + custom field. See §5.
