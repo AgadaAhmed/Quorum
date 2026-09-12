@@ -190,10 +190,13 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
 
   const lat = Number(req.data && req.data.lat);
   const lng = Number(req.data && req.data.lng);
-  const category = typeof req.data?.category === 'string' ? req.data.category : '';
+  let category = typeof req.data?.category === 'string' ? req.data.category : '';
   if (!isFinite(lat) || !isFinite(lng)) {
     throw new HttpsError('invalid-argument', 'lat and lng are required numbers.');
   }
+  // Clamp to a known category (or '') BEFORE it reaches the cache key: category
+  // flows into the Firestore doc path, where a stray '/' would corrupt the path.
+  category = CATEGORY_TO_TYPES[category] ? category : '';
 
   const cacheRef = db.doc(`venuesCache/${placesCacheKey(lat, lng, category)}`);
   const cached = await cacheRef.get();
@@ -209,7 +212,9 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
   const usageSnap = await usageRef.get();
   const used = (usageSnap.exists && usageSnap.data().count) || 0;
   if (used >= PLACES_DAILY_CAP) {
-    if (cached.exists) return { places: cached.data().places || [], cached: true, capped: true };
+    if (cached.exists) {
+      return { places: cached.data().places || [], cached: true, capped: true, stale: true };
+    }
     return { places: [], cached: false, capped: true };
   }
 
@@ -220,28 +225,42 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
   };
   if (includedTypes.length) body.includedTypes = includedTypes;
 
-  // Places API (New) Nearby Search. Field mask is REQUIRED.
-  // NOTE: verify these X-Goog-FieldMask paths against ONE real response once a key
-  // exists — a wrong field name makes Google return 400.
-  const resp = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': PLACES_API_KEY.value(),
-      'X-Goog-FieldMask':
-        'places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.photos',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    logger.error('placesSearch google error', resp.status, text.slice(0, 300));
+  // Any failure talking to Google — thrown fetch (timeout/DNS/reset), a non-OK
+  // status, or a JSON parse error — routes through the same stale-cache fallback.
+  let json;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    let resp;
+    try {
+      // Places API (New) Nearby Search. Field mask is REQUIRED.
+      // NOTE: verify these X-Goog-FieldMask paths against ONE real response once a
+      // key exists — a wrong field name makes Google return 400.
+      resp = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': PLACES_API_KEY.value(),
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.photos',
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(t);
+    }
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`google ${resp.status}: ${text.slice(0, 300)}`);
+    }
+    json = await resp.json();
+  } catch (err) {
+    logger.error('placesSearch google error', err && err.message ? err.message : err);
     if (cached.exists) return { places: cached.data().places || [], cached: true, stale: true };
     throw new HttpsError('unavailable', 'Places lookup failed.');
   }
 
-  const json = await resp.json();
   const places = (json.places || []).map((p) => ({
     placeId: p.id,
     name: (p.displayName && p.displayName.text) || 'Unknown place',
@@ -257,7 +276,16 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
   }));
 
   await cacheRef.set({ places, fetchedAt: admin.firestore.FieldValue.serverTimestamp() });
-  await usageRef.set({ count: admin.firestore.FieldValue.increment(1), day: today }, { merge: true });
+  // Best-effort: a failed usage-counter write must not fail a request that
+  // already has valid places.
+  try {
+    await usageRef.set(
+      { count: admin.firestore.FieldValue.increment(1), day: today },
+      { merge: true }
+    );
+  } catch (err) {
+    logger.error('placesSearch usage write failed', err && err.message ? err.message : err);
+  }
 
   return { places, cached: false };
 });
@@ -274,16 +302,52 @@ exports.placePhoto = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
   if (typeof photoRef !== 'string' || !photoRef.startsWith('places/')) {
     throw new HttpsError('invalid-argument', 'photoRef required.');
   }
+
+  // Cache resolved photo URLs so repeats are free. photoRefs come only from
+  // finite search results, so no separate daily cap is needed. '/' is replaced
+  // so the ref becomes a single Firestore doc-path segment.
+  const photoId = photoRef.replace(/\//g, '_');
+  const photoCacheRef = db.doc(`venuePhotoCache/${photoId}`);
+  const photoCached = await photoCacheRef.get();
+  if (photoCached.exists) {
+    const d = photoCached.data();
+    if (d.fetchedAt && Date.now() - d.fetchedAt.toMillis() < PLACES_CACHE_TTL_MS) {
+      return { url: d.url || null };
+    }
+  }
+
   const url =
     `https://places.googleapis.com/v1/${photoRef}/media` +
     `?maxWidthPx=${maxWidthPx}&skipHttpRedirect=true&key=${PLACES_API_KEY.value()}`;
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    logger.error('placePhoto error', resp.status);
+  let json;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    let resp;
+    try {
+      resp = await fetch(url, { signal: ctrl.signal });
+    } finally {
+      clearTimeout(t);
+    }
+    if (!resp.ok) throw new Error(`google ${resp.status}`);
+    json = await resp.json();
+  } catch (err) {
+    logger.error('placePhoto error', err && err.message ? err.message : err);
     throw new HttpsError('unavailable', 'Photo fetch failed.');
   }
-  const json = await resp.json();
-  return { url: json.photoUri || null };
+
+  const photoUri = json.photoUri || null;
+  // Best-effort cache write; a failure here must not fail the request.
+  try {
+    await photoCacheRef.set({
+      url: photoUri,
+      fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    logger.error('placePhoto cache write failed', err && err.message ? err.message : err);
+  }
+
+  return { url: photoUri };
 });
 
 // Event types that grant / keep an active entitlement.
