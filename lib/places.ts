@@ -1,5 +1,8 @@
 // Client-side Places helpers. Pure logic only in this file's top section;
-// the network wrapper (searchPlaces / placePhotoUrl) is added in a later task.
+// the network wrapper (searchPlaces / placePhotoUrl) follows below.
+
+import { httpsCallable } from 'firebase/functions';
+import { functions } from './firebase';
 
 export interface Place {
   placeId: string;
@@ -43,4 +46,43 @@ export function mapGoogleTypesToCategory(types: string[] = []): string {
   if (t.has('library') || t.has('university') || t.has('book_store')) return 'Study';
   if (t.has('tourist_attraction') || t.has('park') || t.has('lodging')) return 'Travel';
   return '';
+}
+
+export interface LatLng { lat: number; lng: number; }
+
+/** Search venues near a point via the Cloud Function proxy. Maps raw proxy rows
+ *  into Place objects (adds the app `category`). Never throws to the UI — returns
+ *  [] on failure so the screen can show an empty state. */
+export async function searchPlaces(center: LatLng, category = ''): Promise<Place[]> {
+  try {
+    const call = httpsCallable(functions, 'placesSearch');
+    const res: any = await call({ lat: center.lat, lng: center.lng, category });
+    const rows: any[] = (res?.data?.places) || [];
+    return rows.map((p) => ({
+      placeId: p.placeId,
+      name: p.name,
+      address: p.address || '',
+      lat: p.lat,
+      lng: p.lng,
+      category: p.category || mapGoogleTypesToCategory(p.types || []),
+      rating: typeof p.rating === 'number' ? p.rating : undefined,
+      photoRef: p.photoRef || undefined,
+      featured: !!p.featured,
+      source: 'google',
+    }));
+  } catch (e) {
+    console.warn('searchPlaces failed', e);
+    return [];
+  }
+}
+
+/** Resolve a Google photo resource name to a displayable URL via the proxy. */
+export async function placePhotoUrl(photoRef: string, maxWidthPx = 600): Promise<string | null> {
+  try {
+    const call = httpsCallable(functions, 'placePhoto');
+    const res: any = await call({ photoRef, maxWidthPx });
+    return res?.data?.url || null;
+  } catch {
+    return null;
+  }
 }

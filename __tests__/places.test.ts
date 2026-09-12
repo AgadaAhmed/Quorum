@@ -3,8 +3,17 @@ import {
   titlePartForDate,
   TIME_TITLE_PARTS,
   mapGoogleTypesToCategory,
+  searchPlaces,
   type Place,
 } from '../lib/places';
+
+// Mock the firebase functions callable layer.
+const mockCallable = jest.fn();
+jest.mock('firebase/functions', () => ({
+  getFunctions: jest.fn(() => ({})),
+  httpsCallable: () => mockCallable,
+}));
+jest.mock('../lib/firebase', () => ({ app: {}, functions: {} }));
 
 describe('titlePartForDate', () => {
   const at = (h: number) => new Date(2026, 0, 1, h, 0, 0);
@@ -47,5 +56,29 @@ describe('mapGoogleTypesToCategory', () => {
     expect(mapGoogleTypesToCategory(['plumber'])).toBe('');
     expect(mapGoogleTypesToCategory([])).toBe('');
     expect(mapGoogleTypesToCategory(undefined as any)).toBe('');
+  });
+});
+
+describe('searchPlaces', () => {
+  beforeEach(() => mockCallable.mockReset());
+
+  it('normalizes proxy places into Place objects with mapped category', async () => {
+    mockCallable.mockResolvedValue({
+      data: {
+        places: [
+          { placeId: 'a', name: 'Villa Bar', address: '1 St', lat: 1, lng: 2, types: ['bar'], rating: 4.3, photoRef: 'places/a/photos/x', source: 'google', featured: false },
+        ],
+      },
+    });
+    const res = await searchPlaces({ lat: 1, lng: 2 }, 'Party');
+    expect(res).toHaveLength(1);
+    expect(res[0].name).toBe('Villa Bar');
+    expect(res[0].category).toBe('Party');
+    expect(res[0].photoRef).toBe('places/a/photos/x');
+  });
+
+  it('returns [] when proxy returns no places', async () => {
+    mockCallable.mockResolvedValue({ data: { places: [] } });
+    expect(await searchPlaces({ lat: 1, lng: 2 })).toEqual([]);
   });
 });
