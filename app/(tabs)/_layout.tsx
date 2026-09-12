@@ -19,6 +19,7 @@ import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 const TABS = [
   { name: 'index',    label: 'Home',     icon: 'home-outline' as const,          iconActive: 'home' as const },
   { name: 'discover', label: 'Discover', icon: 'compass-outline' as const,       iconActive: 'compass' as const },
+  { name: 'places',   label: 'Places',   icon: 'location-outline' as const,      iconActive: 'location' as const },
   { name: 'activity', label: 'Activity', icon: 'notifications-outline' as const, iconActive: 'notifications' as const },
   { name: 'profile',  label: 'Profile',  icon: 'person-outline' as const,        iconActive: 'person' as const },
 ];
@@ -170,6 +171,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="discover" />
+      <Tabs.Screen name="places" />
       <Tabs.Screen name="activity" />
       <Tabs.Screen name="profile" />
     </Tabs>
