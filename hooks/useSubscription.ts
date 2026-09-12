@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { SubscriptionTier } from '../lib/subscription';
+import { SubscriptionTier, computeIsPro } from '../lib/subscription';
 
 export function useSubscription() {
   const [tier, setTier] = useState<SubscriptionTier>('free');
@@ -47,5 +47,5 @@ export function useSubscription() {
     };
   }, []);
 
-  return { tier, isPro: tier === 'pro', loading };
+  return { tier, isPro: computeIsPro(tier), loading };
 }
