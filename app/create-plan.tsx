@@ -15,13 +15,10 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, query, where, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { isAtPlanLimit } from '../lib/subscription';
 import { moderatePlanText } from '../lib/scamDetection';
-import { useSubscription } from '../hooks/useSubscription';
 import { useCelebration } from '../hooks/useCelebration';
-import PaywallModal from '../components/PaywallModal';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
@@ -45,7 +42,6 @@ import {
 
 export default function CreatePlanScreen() {
   const router = useRouter();
-  const { isPro } = useSubscription();
   const confettiRef = useRef<ConfettiRef>(null);
   const { celebrate, glowStyle } = useCelebration();
   const Colors = useTheme();
@@ -74,7 +70,6 @@ export default function CreatePlanScreen() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [pollSubmitted, setPollSubmitted] = useState(false);
   const [accountAgeDays, setAccountAgeDays] = useState<number | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
 
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
@@ -145,24 +140,6 @@ export default function CreatePlanScreen() {
     if (!uid) {
       setError('You must be signed in to create a plan');
       return;
-    }
-
-    if (!isPro) {
-      try {
-        const q = query(
-          collection(db, 'plans'),
-          where('createdBy', '==', uid),
-          where('status', 'in', ['pending', 'confirmed'])
-        );
-        const snap = await getDocs(q);
-        if (isAtPlanLimit(snap.size, 'free')) {
-          setShowPaywall(true);
-          return;
-        }
-      } catch (e: any) {
-        setError(e?.message || 'Could not verify your plan limit. Try again.');
-        return;
-      }
     }
 
     const trimmedTitle = title.trim();
@@ -263,7 +240,6 @@ export default function CreatePlanScreen() {
   }, [
     loading,
     uid,
-    isPro,
     title,
     description,
     showPoll,
@@ -794,12 +770,6 @@ export default function CreatePlanScreen() {
         onClose={() => setShowTemplates(false)}
         onApply={applyTemplate}
         onDelete={deleteTemplate}
-      />
-
-      <PaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        reason="You've reached your 3-plan limit on the free tier."
       />
 
       <ConfettiParticles ref={confettiRef} />

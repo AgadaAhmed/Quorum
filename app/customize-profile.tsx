@@ -7,11 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../lib/firebase';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { useToast } from '../components/Toast';
-import { useSubscription } from '../hooks/useSubscription';
 import ProfilePreviewCard, { ProfileDraft } from '../components/ProfilePreviewCard';
 import GifPicker from '../components/GifPicker';
 import ColorSwatchRow from '../components/ColorSwatchRow';
-import PaywallModal from '../components/PaywallModal';
 import { GifResult } from '../lib/gifProvider';
 import { TAGLINE_MAX } from '../lib/profileCustomization';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
@@ -19,11 +17,9 @@ import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 export default function CustomizeProfileScreen() {
   const router = useRouter();
   const { showToast } = useToast();
-  const { isPro } = useSubscription();
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
   const [draft, setDraft] = useState<ProfileDraft>({});
   const [gifTarget, setGifTarget] = useState<null | 'avatar' | 'banner'>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -61,10 +57,6 @@ export default function CustomizeProfileScreen() {
   );
 
   const onApply = useCallback(async () => {
-    if (!isPro) {
-      setShowPaywall(true);
-      return;
-    }
     if (!uid) return;
     setSaving(true);
     try {
@@ -84,7 +76,7 @@ export default function CustomizeProfileScreen() {
     } finally {
       setSaving(false);
     }
-  }, [isPro, uid, draft, showToast, router]);
+  }, [uid, draft, showToast, router]);
 
   return (
     <ScreenWrapper>
@@ -124,16 +116,11 @@ export default function CustomizeProfileScreen() {
           disabled={saving}
           testID="customize-apply"
         >
-          <Text style={styles.applyText}>{isPro ? 'Apply changes' : 'Unlock with Pro'}</Text>
+          <Text style={styles.applyText}>Apply changes</Text>
         </TouchableOpacity>
       </ScrollView>
 
       <GifPicker visible={gifTarget !== null} onSelect={onGifSelected} onClose={() => setGifTarget(null)} />
-      <PaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        reason="Upgrade to Pro to apply your custom avatar, banner, colors & tagline."
-      />
     </ScreenWrapper>
   );
 }

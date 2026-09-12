@@ -29,7 +29,6 @@ import PlanBanner from '../../components/PlanBanner';
 import Avatar from '../../components/Avatar';
 import GifPicker from '../../components/GifPicker';
 import ProfileBanner from '../../components/ProfileBanner';
-import PaywallModal from '../../components/PaywallModal';
 import ColorSwatchRow from '../../components/ColorSwatchRow';
 import { useSubscription } from '../../hooks/useSubscription';
 import { GifResult } from '../../lib/gifProvider';
@@ -196,7 +195,6 @@ export default function ProfileScreen() {
 
   const { showToast } = useToast();
   const { isPro } = useSubscription();
-  const [showPaywall, setShowPaywall] = useState(false);
   const [gifTarget, setGifTarget] = useState<null | 'avatar' | 'banner'>(null);
   const avatarScale = useRef(new Animated.Value(0)).current;
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
@@ -392,27 +390,18 @@ export default function ProfileScreen() {
     }
   }, [uid, uploadingAvatar, showToast]);
 
-  // Free users get the existing upload path; Pro users choose upload vs animated GIF.
   const onAvatarPress = useCallback(() => {
     if (uploadingAvatar) return;
-    if (!isPro) {
-      handleAvatarPick();
-      return;
-    }
     Alert.alert('Change avatar', undefined, [
       { text: 'Upload photo', onPress: () => handleAvatarPick() },
       { text: 'Pick a GIF', onPress: () => setGifTarget('avatar') },
       { text: 'Cancel', style: 'cancel' },
     ]);
-  }, [isPro, uploadingAvatar, handleAvatarPick]);
+  }, [uploadingAvatar, handleAvatarPick]);
 
   const onEditBanner = useCallback(() => {
-    if (!isPro) {
-      setShowPaywall(true);
-      return;
-    }
     setGifTarget('banner');
-  }, [isPro]);
+  }, []);
 
   const onGifSelected = useCallback(
     async (result: GifResult) => {
@@ -846,33 +835,20 @@ export default function ProfileScreen() {
               />
               <Text style={styles.charCount}>{bio.length}/{bioMaxFor(isPro)}</Text>
 
-              {isPro ? (
-                <>
-                  <Text style={styles.fieldLabel}>Tagline</Text>
-                  <TextInput
-                    testID="edit-tagline"
-                    style={styles.fieldInput}
-                    value={tagline}
-                    onChangeText={setTagline}
-                    placeholder="A short line under your name"
-                    placeholderTextColor={Colors.textMuted}
-                    maxLength={TAGLINE_MAX}
-                  />
-                  <Text style={styles.fieldLabel}>Name color</Text>
-                  <ColorSwatchRow selectedKey={nameColor} onSelect={setNameColor} />
-                  <Text style={styles.fieldLabel}>Profile accent</Text>
-                  <ColorSwatchRow selectedKey={profileAccent} onSelect={setProfileAccent} />
-                </>
-              ) : (
-                <TouchableOpacity
-                  testID="edit-customize-upsell"
-                  onPress={() => { closeEdit(); setShowPaywall(true); }}
-                  style={styles.upsellRow}
-                >
-                  <Ionicons name="color-palette-outline" size={16} color={Colors.text} />
-                  <Text style={styles.upsellText}>Upgrade to Pro to add a tagline & colors</Text>
-                </TouchableOpacity>
-              )}
+              <Text style={styles.fieldLabel}>Tagline</Text>
+              <TextInput
+                testID="edit-tagline"
+                style={styles.fieldInput}
+                value={tagline}
+                onChangeText={setTagline}
+                placeholder="A short line under your name"
+                placeholderTextColor={Colors.textMuted}
+                maxLength={TAGLINE_MAX}
+              />
+              <Text style={styles.fieldLabel}>Name color</Text>
+              <ColorSwatchRow selectedKey={nameColor} onSelect={setNameColor} />
+              <Text style={styles.fieldLabel}>Profile accent</Text>
+              <ColorSwatchRow selectedKey={profileAccent} onSelect={setProfileAccent} />
 
               {/* Location */}
               <Text style={styles.fieldLabel}>City</Text>
@@ -936,11 +912,6 @@ export default function ProfileScreen() {
         visible={gifTarget !== null}
         onSelect={onGifSelected}
         onClose={() => setGifTarget(null)}
-      />
-      <PaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        reason="Upgrade to Pro for animated avatars and custom banners."
       />
     </ScreenWrapper>
   );

@@ -3,18 +3,15 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { palettes, THEME_META, type ThemeName, type ThemePalette } from '../lib/theme';
 import { useTheme, useThemeControls, useThemedStyles } from '../lib/ThemeContext';
-import { useSubscription } from '../hooks/useSubscription';
 import { FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
 /**
  * Horizontal row of theme swatches. Each swatch previews the theme using that
- * theme's OWN palette. Pro-locked themes show a lock and call `onLockedPress`
- * (open the paywall) instead of applying, for free users.
+ * theme's OWN palette. All themes are unlocked now that the app is fully free.
  */
-export default function ThemePicker({ onLockedPress }: { onLockedPress: () => void }) {
+export default function ThemePicker({ onLockedPress }: { onLockedPress?: () => void }) {
   const Colors = useTheme();
   const { name, setTheme } = useThemeControls();
-  const { isPro } = useSubscription();
   const styles = useThemedStyles(makeStyles);
   const names = Object.keys(palettes) as ThemeName[];
 
@@ -27,13 +24,13 @@ export default function ThemePicker({ onLockedPress }: { onLockedPress: () => vo
       {names.map((n) => {
         const p = palettes[n];
         const meta = THEME_META[n];
-        const locked = meta.pro && !isPro;
+        const locked = false;
         const selected = n === name;
         return (
           <TouchableOpacity
             key={n}
             activeOpacity={0.8}
-            onPress={() => (locked ? onLockedPress() : setTheme(n))}
+            onPress={() => (locked ? onLockedPress?.() : setTheme(n))}
             accessibilityRole="button"
             accessibilityLabel={`${meta.label} theme${locked ? ', Pro' : ''}${selected ? ', selected' : ''}`}
             style={styles.item}

@@ -16,8 +16,6 @@ import { signOut, deleteUser, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { auth, db } from '../lib/firebase';
-import { useSubscription } from '../hooks/useSubscription';
-import PaywallModal from '../components/PaywallModal';
 import ThemePicker from '../components/ThemePicker';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { FontSize, FontWeight, Spacing, Radius, Fonts, type ThemePalette } from '../lib/theme';
@@ -36,14 +34,12 @@ const HEADER_SPACER = { width: 36 } as const;
 export default function SettingsScreen() {
   const router = useRouter();
   const { showToast } = useToast();
-  const { isPro } = useSubscription();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showInSearch, setShowInSearch] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
   const [privateProfile, setPrivateProfile] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
   const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -106,14 +102,6 @@ export default function SettingsScreen() {
     (v: boolean) => updatePref('privateProfile', v, setPrivateProfile),
     [updatePref],
   );
-
-  const handleManageSubscription = useCallback(() => {
-    const url =
-      Platform.OS === 'ios'
-        ? 'https://apps.apple.com/account/subscriptions'
-        : 'https://play.google.com/store/account/subscriptions';
-    Linking.openURL(url).catch(() => showToast('Could not open subscriptions', 'error'));
-  }, [showToast]);
 
   const openUrl = useCallback(
     (url: string) => {
@@ -200,8 +188,6 @@ export default function SettingsScreen() {
   }, [router, uid]);
 
   const handleBack = useCallback(() => router.back(), [router]);
-  const openPaywall = useCallback(() => setShowPaywall(true), []);
-  const closePaywall = useCallback(() => setShowPaywall(false), []);
   const contactSupport = useCallback(() => openUrl(supportMailto('Quorum Support')), [openUrl]);
   const openPrivacy = useCallback(() => openUrl(PRIVACY_URL), [openUrl]);
   const openTerms = useCallback(() => openUrl(TERMS_URL), [openUrl]);
@@ -226,52 +212,10 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Subscription */}
-        <Text style={styles.sectionLabel}>Subscription</Text>
-        <View style={styles.section}>
-          <View style={styles.settingRow}>
-            <Ionicons
-              name="star-outline"
-              size={20}
-              color={isPro ? Colors.primary : Colors.textSecondary}
-              style={styles.rowIcon}
-            />
-            <View style={FLEX_1}>
-              <Text style={styles.settingLabel}>Current plan</Text>
-              <Text style={[styles.planValue, isPro && styles.planValuePro]}>
-                {isPro ? 'Quorum Pro' : 'Free'}
-              </Text>
-            </View>
-            {!isPro && (
-              <TouchableOpacity
-                style={styles.upgradeBadge}
-                onPress={openPaywall}
-                activeOpacity={0.8}
-                hitSlop={HIT_SLOP}
-                accessibilityRole="button"
-                accessibilityLabel="Upgrade to Quorum Pro"
-              >
-                <Ionicons name="star" size={13} color={Colors.background} />
-                <Text style={styles.upgradeBadgeText}>Upgrade</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {isPro && (
-            <>
-              <View style={styles.divider} />
-              <ActionRow
-                icon="open-outline"
-                label="Manage subscription"
-                onPress={handleManageSubscription}
-              />
-            </>
-          )}
-        </View>
-
         {/* Appearance */}
         <Text style={styles.sectionLabel}>Appearance</Text>
         <View style={styles.section}>
-          <ThemePicker onLockedPress={() => setShowPaywall(true)} />
+          <ThemePicker />
         </View>
 
         {/* Notifications */}
@@ -388,8 +332,6 @@ export default function SettingsScreen() {
 
         <Text style={styles.version}>{APP_VERSION}</Text>
       </ScrollView>
-
-      <PaywallModal visible={showPaywall} onClose={closePaywall} />
     </ScreenWrapper>
   );
 }
