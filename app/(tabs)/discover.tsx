@@ -29,6 +29,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import CategoryPillRow from '../../components/CategoryPill';
 import GlassCard from '../../components/GlassCard';
+import PlacesCarousel from '../../components/places/PlacesCarousel';
+import LocationSwitcher from '../../components/places/LocationSwitcher';
+import TitlePopup from '../../components/places/TitlePopup';
+import { type LatLng, type Place } from '../../lib/places';
 import QuorumProgressBar from '../../components/QuorumProgressBar';
 import PlanBanner from '../../components/PlanBanner';
 import { isPublicPlanExpired } from '../../lib/planExpiry';
@@ -299,6 +303,12 @@ export default function DiscoverScreen() {
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [userCoords, setUserCoords] = useState<Coords | null>(null);
+  // `center` drives BOTH the places carousel and the public-quorums distance
+  // sort; it defaults to the user's GPS but the location switcher can move it to
+  // another city so users can scout events/places elsewhere.
+  const [center, setCenter] = useState<Coords | null>(null);
+  const [cityLabel, setCityLabel] = useState('Near you');
+  const [venue, setVenue] = useState<Place | null>(null);
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
   const router = useRouter();
   const { showToast } = useToast();
@@ -320,7 +330,10 @@ export default function DiscoverScreen() {
           accuracy: Location.Accuracy.Balanced,
         });
         if (!cancelled) {
-          setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserCoords(coords);
+          // Seed the feed center from GPS unless the user already moved it.
+          setCenter((c) => c ?? coords);
         }
       } catch {
         // Location unavailable — distance sorting is simply skipped.
@@ -396,6 +409,58 @@ export default function DiscoverScreen() {
     [joiningId, uid, showToast, goToPlan]
   );
 
+  const openTitlePopup = useCallback((place: Place) => setVenue(place), []);
+  const closeTitlePopup = useCallback(() => setVenue(null), []);
+
+  const goToCreatePlan = useCallback(
+    (place: Place, title: string) => {
+      setVenue(null);
+      router.push({
+        pathname: '/create-plan',
+        params: {
+          title,
+          placeJson: JSON.stringify({
+            placeId: place.placeId,
+            name: place.name,
+            address: place.address,
+            lat: place.lat,
+            lng: place.lng,
+            photoRef: place.photoRef ?? '',
+            category: place.category,
+            source: 'google',
+            featured: false,
+          }),
+        },
+      } as any);
+    },
+    [router]
+  );
+
+  const onPickLocation = useCallback((c: LatLng, label: string) => {
+    setCenter(c);
+    setCityLabel(label);
+  }, []);
+
+  const useMyLocation = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setUserCoords(coords);
+      setCenter(coords);
+      setCityLabel('Near you');
+    } catch {
+      // GPS unavailable — keep the current center.
+    }
+  }, []);
+
+  // The distance sort/labels follow the switcher's chosen center, falling back
+  // to raw GPS until either resolves.
+  const geoCenter = center ?? userCoords;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const result = plans.filter((p) => {
@@ -405,24 +470,24 @@ export default function DiscoverScreen() {
       const notExpired = !(p.isPublic && isPublicPlanExpired(p));
       return matchCat && matchSearch && notExpired;
     });
-    // Sort by distance when user location is available, otherwise keep createdAt order
-    if (userCoords) {
+    // Sort by distance from the chosen center when available, else keep createdAt order
+    if (geoCenter) {
       const dist = (p: Plan) =>
         p.lat != null && p.lng != null
-          ? haversineKm(userCoords.lat, userCoords.lng, p.lat, p.lng)
+          ? haversineKm(geoCenter.lat, geoCenter.lng, p.lat, p.lng)
           : Infinity;
       result.sort((a, b) => dist(a) - dist(b));
     }
     return result;
-  }, [plans, category, search, userCoords]);
+  }, [plans, category, search, geoCenter]);
 
   const keyExtractor = useCallback((item: Plan) => item.id, []);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Plan; index: number }) => {
       const distKm =
-        userCoords && item.lat != null && item.lng != null
-          ? haversineKm(userCoords.lat, userCoords.lng, item.lat, item.lng)
+        geoCenter && item.lat != null && item.lng != null
+          ? haversineKm(geoCenter.lat, geoCenter.lng, item.lat, item.lng)
           : null;
       return (
         <PlanCard
@@ -441,13 +506,18 @@ export default function DiscoverScreen() {
         />
       );
     },
-    [uid, userCoords, joiningId, goToPlan, handleJoin]
+    [uid, geoCenter, joiningId, goToPlan, handleJoin]
   );
 
   const listHeader = useMemo(
     () => (
       <>
         <View style={styles.header}>
+          <LocationSwitcher
+            label={cityLabel}
+            onPick={onPickLocation}
+            onUseMyLocation={useMyLocation}
+          />
           <Text style={styles.title}>Discover</Text>
           <Text style={styles.subtitle}>Public plans near you</Text>
           <View style={styles.searchBar}>
@@ -476,6 +546,13 @@ export default function DiscoverScreen() {
             ) : null}
           </View>
         </View>
+        {geoCenter ? (
+          <View style={styles.carouselSection}>
+            <Text style={styles.sectionHeading}>Places near you</Text>
+            <PlacesCarousel center={geoCenter} onPickVenue={openTitlePopup} />
+          </View>
+        ) : null}
+        <Text style={[styles.sectionHeading, styles.feedHeading]}>Public quorums near you</Text>
         <CategoryPillRow pills={CATEGORIES} selected={category} onSelect={setCategory} />
         {loading ? (
           <View style={styles.skeletonWrap}>
@@ -486,7 +563,18 @@ export default function DiscoverScreen() {
         ) : null}
       </>
     ),
-    [search, category, loading, styles, Colors]
+    [
+      search,
+      category,
+      loading,
+      styles,
+      Colors,
+      cityLabel,
+      onPickLocation,
+      useMyLocation,
+      geoCenter,
+      openTitlePopup,
+    ]
   );
 
   const hasFilters = !!search || category !== 'all';
@@ -552,6 +640,13 @@ export default function DiscoverScreen() {
         ListEmptyComponent={listEmpty}
         renderItem={renderItem}
       />
+      <TitlePopup
+        visible={!!venue}
+        venueName={venue?.name || ''}
+        when={new Date()}
+        onConfirm={(title) => venue && goToCreatePlan(venue, title)}
+        onClose={closeTitlePopup}
+      />
     </ScreenWrapper>
   );
 }
@@ -599,6 +694,22 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     paddingHorizontal: Spacing.container,
     paddingTop: Spacing.sm,
     gap: Spacing.sm,
+  },
+  carouselSection: {
+    gap: Spacing.sm,
+    paddingBottom: Spacing.sm,
+  },
+  sectionHeading: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.heavy,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    paddingHorizontal: Spacing.container,
+  },
+  feedHeading: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
   list: {
     paddingHorizontal: Spacing.container,
