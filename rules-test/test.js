@@ -105,12 +105,12 @@ async function check(name, promise) {
   // ───────────────────────── Pro customization lockdown ─────────────────────────
   console.log('\nPro customization lockdown:');
   await seed();
-  await check('free owner CANNOT set nameColor',
-    assertFails(updateDoc(doc(alice, 'users/alice'), { nameColor: 'crimson' })));
-  await check('free owner CANNOT set avatarGifUrl',
-    assertFails(updateDoc(doc(alice, 'users/alice'), { avatarGifUrl: 'https://t/x.gif' })));
-  await check('free owner CANNOT set tagline',
-    assertFails(updateDoc(doc(alice, 'users/alice'), { tagline: 'hi' })));
+  await check('free owner CAN set nameColor (everything free)',
+    assertSucceeds(updateDoc(doc(alice, 'users/alice'), { nameColor: 'crimson' })));
+  await check('free owner CAN set avatarGifUrl (everything free)',
+    assertSucceeds(updateDoc(doc(alice, 'users/alice'), { avatarGifUrl: 'https://t/x.gif' })));
+  await check('free owner CAN set tagline (everything free)',
+    assertSucceeds(updateDoc(doc(alice, 'users/alice'), { tagline: 'hi' })));
   await check('free owner CAN still edit bio (free field)',
     assertSucceeds(updateDoc(doc(alice, 'users/alice'), { bio: 'hello' })));
   await check('free owner CAN still edit displayName',
