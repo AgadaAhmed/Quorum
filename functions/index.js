@@ -78,6 +78,7 @@ async function displayNameOf(uid) {
 }
 
 const REVENUECAT_WEBHOOK_AUTH = defineSecret('REVENUECAT_WEBHOOK_AUTH');
+const PLACES_API_KEY = defineSecret('PLACES_API_KEY');
 
 const INVITE_CODE_LENGTH = 8;
 
@@ -154,6 +155,135 @@ exports.checkUsername = onCall(async (request) => {
     .limit(1)
     .get();
   return { available: snap.empty };
+});
+
+// ── Places proxy ─────────────────────────────────────────────────────────────
+// Proxies Google Places API (New) so the key stays server-side, caches results
+// in Firestore (per rounded location + category), and enforces a per-user daily
+// call ceiling to cap cost. Photos are resolved separately via placePhoto.
+
+const PLACES_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (Google allows <=30)
+const PLACES_DAILY_CAP = 300;                        // per-user Google calls/day
+
+// App-category -> Google (New) includedTypes for Nearby Search.
+const CATEGORY_TO_TYPES = {
+  Food:   ['restaurant', 'cafe', 'bakery'],
+  Party:  ['bar', 'night_club'],
+  Sports: ['gym', 'stadium'],
+  Art:    ['art_gallery', 'museum'],
+  Study:  ['library', 'book_store'],
+  Travel: ['tourist_attraction', 'park'],
+};
+
+function placesCacheKey(lat, lng, category) {
+  const r = (n) => Math.round(n * 1000) / 1000; // ~110m granularity
+  return `${r(lat)}_${r(lng)}_${category || 'all'}`;
+}
+
+/**
+ * Nearby venue search, backed by Google Places API (New) and cached in
+ * Firestore. Called by the app's venue picker when creating/editing a plan.
+ */
+exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
+  const uid = req.auth && req.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const lat = Number(req.data && req.data.lat);
+  const lng = Number(req.data && req.data.lng);
+  const category = typeof req.data?.category === 'string' ? req.data.category : '';
+  if (!isFinite(lat) || !isFinite(lng)) {
+    throw new HttpsError('invalid-argument', 'lat and lng are required numbers.');
+  }
+
+  const cacheRef = db.doc(`venuesCache/${placesCacheKey(lat, lng, category)}`);
+  const cached = await cacheRef.get();
+  if (cached.exists) {
+    const data = cached.data();
+    if (data.fetchedAt && Date.now() - data.fetchedAt.toMillis() < PLACES_CACHE_TTL_MS) {
+      return { places: data.places || [], cached: true };
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const usageRef = db.doc(`venuesUsage/${uid}_${today}`);
+  const usageSnap = await usageRef.get();
+  const used = (usageSnap.exists && usageSnap.data().count) || 0;
+  if (used >= PLACES_DAILY_CAP) {
+    if (cached.exists) return { places: cached.data().places || [], cached: true, capped: true };
+    return { places: [], cached: false, capped: true };
+  }
+
+  const includedTypes = CATEGORY_TO_TYPES[category] || [];
+  const body = {
+    maxResultCount: 20,
+    locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 4000 } },
+  };
+  if (includedTypes.length) body.includedTypes = includedTypes;
+
+  // Places API (New) Nearby Search. Field mask is REQUIRED.
+  // NOTE: verify these X-Goog-FieldMask paths against ONE real response once a key
+  // exists — a wrong field name makes Google return 400.
+  const resp = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': PLACES_API_KEY.value(),
+      'X-Goog-FieldMask':
+        'places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.photos',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    logger.error('placesSearch google error', resp.status, text.slice(0, 300));
+    if (cached.exists) return { places: cached.data().places || [], cached: true, stale: true };
+    throw new HttpsError('unavailable', 'Places lookup failed.');
+  }
+
+  const json = await resp.json();
+  const places = (json.places || []).map((p) => ({
+    placeId: p.id,
+    name: (p.displayName && p.displayName.text) || 'Unknown place',
+    address: p.formattedAddress || '',
+    lat: p.location ? p.location.latitude : lat,
+    lng: p.location ? p.location.longitude : lng,
+    types: p.types || [],
+    rating: typeof p.rating === 'number' ? p.rating : null,
+    // Feature B (sponsored venues) will later set featured:true for paid places here.
+    photoRef: p.photos && p.photos[0] ? p.photos[0].name : null, // "places/XX/photos/YY"
+    source: 'google',
+    featured: false,
+  }));
+
+  await cacheRef.set({ places, fetchedAt: admin.firestore.FieldValue.serverTimestamp() });
+  await usageRef.set({ count: admin.firestore.FieldValue.increment(1), day: today }, { merge: true });
+
+  return { places, cached: false };
+});
+
+/**
+ * Resolve a Google Places photo reference (from placesSearch's `photoRef`) to
+ * a fetchable image URL. Kept separate from placesSearch so the client only
+ * pays the photo-media call for venues actually rendered/selected.
+ */
+exports.placePhoto = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
+  if (!(req.auth && req.auth.uid)) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const photoRef = req.data && req.data.photoRef; // "places/XX/photos/YY"
+  const maxWidthPx = Math.min(Number(req.data?.maxWidthPx) || 600, 1600);
+  if (typeof photoRef !== 'string' || !photoRef.startsWith('places/')) {
+    throw new HttpsError('invalid-argument', 'photoRef required.');
+  }
+  const url =
+    `https://places.googleapis.com/v1/${photoRef}/media` +
+    `?maxWidthPx=${maxWidthPx}&skipHttpRedirect=true&key=${PLACES_API_KEY.value()}`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    logger.error('placePhoto error', resp.status);
+    throw new HttpsError('unavailable', 'Photo fetch failed.');
+  }
+  const json = await resp.json();
+  return { url: json.photoUri || null };
 });
 
 // Event types that grant / keep an active entitlement.
