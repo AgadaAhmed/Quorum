@@ -39,7 +39,7 @@ import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles'
 import { useCelebration } from '../hooks/useCelebration';
 import Avatar from '../components/Avatar';
 import ProfileBanner from '../components/ProfileBanner';
-import { resolveColor, accentGradient } from '../lib/profileCustomization';
+import { resolveColor } from '../lib/profileCustomization';
 
 type Profile = {
   displayName: string;
@@ -54,7 +54,6 @@ type Profile = {
   bannerGifUrl?: string;
   bannerStillUrl?: string;
   tagline?: string;
-  profileAccent?: string;
   allowDMs?: boolean;
   nameColor?: string;
 };
@@ -298,7 +297,6 @@ export default function UserProfileScreen() {
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const initials = useMemo(() => getInitial(profile?.displayName), [profile?.displayName]);
-  const accentValue = resolveColor(profile?.profileAccent);
   const nameColorValue = resolveColor(profile?.nameColor);
   const friendCount = profile?.friends?.length ?? 0;
   const canMessage =
@@ -360,16 +358,6 @@ export default function UserProfileScreen() {
         {/* Avatar + identity */}
         <Animated.View style={[styles.avatarSection, { opacity: contentOpacity }]}>
           <View style={styles.identityWrap}>
-            {accentValue ? (
-              <LinearGradient
-                colors={accentGradient(accentValue)}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-              />
-            ) : null}
-
             <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
               <Avatar
                 testID="user-avatar"
@@ -391,7 +379,7 @@ export default function UserProfileScreen() {
             </Text>
             {!!profile.tagline && (
               <Text
-                style={[styles.tagline, accentValue ? { color: accentValue } : null]}
+                style={styles.tagline}
                 numberOfLines={1}
               >
                 {profile.tagline}
@@ -509,7 +497,7 @@ export default function UserProfileScreen() {
               <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors.primary} />
               <Text style={styles.sectionTitle}>Bio</Text>
             </View>
-            <Text style={[styles.bioText, accentValue ? { color: accentValue } : null]}>
+            <Text style={styles.bioText}>
               {profile.bio}
             </Text>
           </AnimatedCard>

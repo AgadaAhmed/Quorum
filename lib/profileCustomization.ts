@@ -18,13 +18,8 @@ export type ProfileCustomization = {
   decorationId?: DecorationId | null;
   bio?: string;
   tagline?: string;
-  profileAccent?: string;
-  profileAccentMode?: AccentMode;
   nameColor?: string;
 };
-
-/** How a chosen profile accent color is applied to the profile hero background. */
-export type AccentMode = 'solid' | 'transparent' | 'none';
 
 export type AvatarSource =
   | { kind: 'image'; uri: string; animated: boolean }
@@ -82,23 +77,7 @@ export function bioMaxFor(isPro: boolean): number {
 
 export const TAGLINE_MAX = 60;
 
-/** A subtle accent->transparent vertical gradient pair (8-digit hex alpha). */
-export function accentGradient(hex: string): [string, string] {
-  return [`${hex}2E`, `${hex}00`]; // ~18% -> 0%
-}
-
-/**
- * Resolve the profile hero background for a chosen accent color + mode. Used
- * when no banner GIF is set (a GIF background takes precedence).
- * - none / no color -> no fill (theme background shows through), dark:false
- * - transparent     -> a subtle tint over the theme bg; theme text stays legible
- * - solid           -> opaque accent fill; caller should use light (onDark) text
- */
-export function accentBackground(
-  hex: string | undefined,
-  mode: AccentMode = 'transparent'
-): { color?: string; dark: boolean } {
-  if (!hex || mode === 'none') return { color: undefined, dark: false };
-  if (mode === 'solid') return { color: hex, dark: true };
-  return { color: `${hex}2B`, dark: false }; // ~17% tint
-}
+// NOTE: the "profile accent" (a tint/fill behind the profile hero) was removed
+// on 2026-09-13 — it read as broken/empty in practice. The profile background is
+// now: banner GIF if set, else the plain theme background. `nameColor` (from
+// PROFILE_COLORS) is still used for the display name.

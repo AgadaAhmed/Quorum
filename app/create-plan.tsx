@@ -22,6 +22,7 @@ import { titleForTime } from '../lib/places';
 import { useCelebration } from '../hooks/useCelebration';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedButton from '../components/AnimatedButton';
+import PlanCover from '../components/PlanCover';
 import ConfettiParticles, { ConfettiRef } from '../components/ConfettiParticles';
 import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../lib/theme';
 import { useTheme, useThemedStyles } from '../lib/ThemeContext';
@@ -396,6 +397,30 @@ export default function CreatePlanScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Venue banner — when this plan was started from a place, show its
+              photo right here so you can see where you're planning. */}
+          {seededPlace ? (
+            <View style={styles.venueBanner}>
+              <PlanCover
+                category={seededPlace.category}
+                seed={seededPlace.placeId || 'venue'}
+                photoRef={seededPlace.photoRef}
+                variant="hero"
+                style={styles.venueBannerImage}
+              />
+              <View style={styles.venueBannerOverlay}>
+                <Text style={styles.venueBannerName} numberOfLines={1}>
+                  {seededPlace.name}
+                </Text>
+                {seededPlace.address ? (
+                  <Text style={styles.venueBannerAddress} numberOfLines={1}>
+                    {seededPlace.address}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
           {templates.length > 0 && (
             <TouchableOpacity
               style={styles.templateBtn}
@@ -984,6 +1009,22 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   voteChipText: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   voteChipTextActive: { color: Colors.background },
   toggleRow: { flexDirection: 'row', gap: Spacing.sm },
+  venueBanner: {
+    height: 160,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
+    justifyContent: 'flex-end',
+  },
+  venueBannerImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  venueBannerOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs + 2,
+  },
+  venueBannerName: { color: '#ffffff', fontSize: FontSize.md, fontWeight: FontWeight.heavy },
+  venueBannerAddress: { color: 'rgba(255,255,255,0.8)', fontSize: FontSize.xs, marginTop: 1 },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',

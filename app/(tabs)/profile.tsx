@@ -30,7 +30,7 @@ import GifPicker from '../../components/GifPicker';
 import ProfileBanner from '../../components/ProfileBanner';
 import { useSubscription } from '../../hooks/useSubscription';
 import { GifResult } from '../../lib/gifProvider';
-import { bioMaxFor, resolveColor, accentBackground, type AccentMode } from '../../lib/profileCustomization';
+import { bioMaxFor, resolveColor } from '../../lib/profileCustomization';
 import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
@@ -53,8 +53,6 @@ type UserProfile = {
   voteCount?: number;
   ratingAvg?: number;
   tagline?: string;
-  profileAccent?: string;
-  profileAccentMode?: AccentMode;
   nameColor?: string;
 };
 
@@ -216,6 +214,17 @@ export default function ProfileScreen() {
       showToast('Failed to load profile', 'error');
     }
   }, [uid, showToast]);
+
+  // Live profile subscription. The initial load above is a one-shot read, so
+  // without this, edits made elsewhere (avatar upload, the Customize screen)
+  // wouldn't show here until a manual refresh. Only the displayed profile is
+  // synced — the edit-form fields stay as the user typed them.
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(doc(db, 'users', uid), (snap) => {
+      if (snap.exists()) setProfile(snap.data() as UserProfile);
+    });
+  }, [uid]);
 
   const loadStats = useCallback(async () => {
     if (!uid) return;
@@ -437,17 +446,13 @@ export default function ProfileScreen() {
     [profile?.city, profile?.country]
   );
 
-  const accentValue = resolveColor(profile?.profileAccent);
   const nameColorValue = resolveColor(profile?.nameColor);
-  // Hero background: a banner GIF fills the whole hero when set; otherwise the
-  // chosen accent shows as solid / transparent tint / nothing. When the hero is
-  // "dark" (gif or solid fill) the text switches to light for legibility.
-  const heroHasGif = !!profile?.bannerGifUrl;
-  const accentBg = accentBackground(accentValue, profile?.profileAccentMode ?? 'transparent');
-  const heroDark = heroHasGif || accentBg.dark;
+  // Hero background: a banner GIF fills the whole hero when set, otherwise the
+  // plain theme background. Over a GIF the text switches to light for legibility.
+  const heroDark = !!profile?.bannerGifUrl;
   const heroText = heroDark ? Colors.onDark : Colors.text;
   const heroSubText = heroDark ? 'rgba(255,255,255,0.78)' : Colors.textMuted;
-  const heroBodyText = heroDark ? Colors.onDark : (accentValue || Colors.textSecondary);
+  const heroBodyText = heroDark ? Colors.onDark : Colors.textSecondary;
 
   const consensusPct = useMemo(
     () => getConsensusPercent(voteCount, planCount),
@@ -493,14 +498,6 @@ export default function ProfileScreen() {
       {/* App Header */}
       <View style={styles.appHeader}>
         <Text style={styles.appHeaderTitle}>QUORUM</Text>
-        <TouchableOpacity
-          style={styles.headerIconBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Search"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="search-outline" size={22} color={Colors.text} />
-        </TouchableOpacity>
       </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -534,10 +531,9 @@ export default function ProfileScreen() {
 
         {/* ── Hero ── */}
         <View style={[styles.heroContainer, styles.heroClip]}>
-          {/* Full-bleed background: a banner GIF fills the whole hero when set;
-              otherwise the chosen accent shows (solid / transparent / none). */}
+          {/* Full-bleed background: a banner GIF fills the whole hero when set. */}
           <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            {heroHasGif ? (
+            {heroDark ? (
               <>
                 <ProfileBanner
                   gifUrl={profile?.bannerGifUrl}
@@ -547,8 +543,6 @@ export default function ProfileScreen() {
                 />
                 <View style={styles.heroScrim} />
               </>
-            ) : accentBg.color ? (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: accentBg.color }]} />
             ) : null}
           </View>
 

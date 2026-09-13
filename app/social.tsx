@@ -161,6 +161,8 @@ export default function SocialScreen() {
   const { celebrate } = useCelebration();
 
   const [searchQuery, setSearchQuery] = useState('');
+  // Local filter over the user's own friends list (Friends tab).
+  const [friendFilter, setFriendFilter] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
@@ -549,8 +551,18 @@ export default function SocialScreen() {
   // ── Derived data ────────────────────────────────────────────────────────────
   const friendIdSet = useMemo(() => new Set(friends.map((f) => f.id)), [friends]);
   const visibleFriends = useMemo(
-    () => friends.filter((f) => !blockedUsers.includes(f.id)),
-    [friends, blockedUsers]
+    () => {
+      const list = friends.filter((f) => !blockedUsers.includes(f.id));
+      const q = friendFilter.trim().toLowerCase().replace(/^@/, '');
+      if (!q) return list;
+      // Instagram-style: filter as you type, matching name or @username.
+      return list.filter(
+        (f) =>
+          (f.displayName || '').toLowerCase().includes(q) ||
+          (f.username || '').toLowerCase().includes(q)
+      );
+    },
+    [friends, blockedUsers, friendFilter]
   );
 
   // ── Renderers ───────────────────────────────────────────────────────────────
@@ -914,22 +926,62 @@ export default function SocialScreen() {
 
       {/* Friends tab */}
       {tab === 'friends' && (
-        <FlatList
-          data={visibleFriends}
-          keyExtractor={keyById}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={LIST_CONTENT}
-          renderItem={renderFriendItem}
-          removeClippedSubviews
-          ListEmptyComponent={
-            <EmptyState
-              icon="people-outline"
-              title="No friends yet"
-              hint="Use Search to find people by name or @username and send a request."
-            />
-          }
-          ListFooterComponent={blockedFooter}
-        />
+        <>
+          {friends.length > 0 ? (
+            <View style={styles.friendFilterWrap}>
+              <View style={styles.searchRow}>
+                <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search your friends"
+                  placeholderTextColor={Colors.textMuted}
+                  value={friendFilter}
+                  onChangeText={setFriendFilter}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  accessibilityLabel="Search your friends"
+                />
+                {friendFilter.length > 0 ? (
+                  <TouchableOpacity
+                    style={styles.clearBtn}
+                    onPress={() => setFriendFilter('')}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear friend search"
+                    hitSlop={HIT_SLOP}
+                  >
+                    <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+          <FlatList
+            data={visibleFriends}
+            keyExtractor={keyById}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={LIST_CONTENT}
+            renderItem={renderFriendItem}
+            removeClippedSubviews
+            ListEmptyComponent={
+              friendFilter.trim() ? (
+                <EmptyState
+                  icon="search-outline"
+                  title="No matches"
+                  hint={`No friends match "${friendFilter.trim()}".`}
+                />
+              ) : (
+                <EmptyState
+                  icon="people-outline"
+                  title="No friends yet"
+                  hint="Use Search to find people by name or @username and send a request."
+                />
+              )
+            }
+            ListFooterComponent={blockedFooter}
+          />
+        </>
       )}
 
       <ConfettiParticles ref={confettiRef} />
@@ -1016,6 +1068,7 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
 
   tabBody: { padding: Spacing.md, flex: 1 },
 
+  friendFilterWrap: { paddingHorizontal: Spacing.container, paddingBottom: Spacing.xs },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Avatar from './Avatar';
 import ProfileBanner from './ProfileBanner';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
-import { resolveColor, accentBackground, type AccentMode } from '../lib/profileCustomization';
+import { resolveColor } from '../lib/profileCustomization';
 
 export type ProfileDraft = {
   displayName?: string;
@@ -14,23 +14,19 @@ export type ProfileDraft = {
   bannerStillUrl?: string;
   tagline?: string;
   bio?: string;
-  profileAccent?: string;
-  profileAccentMode?: AccentMode;
   nameColor?: string;
 };
 
 export default function ProfilePreviewCard({ draft }: { draft: ProfileDraft }) {
-  const accentValue = resolveColor(draft.profileAccent);
   const nameColorValue = resolveColor(draft.nameColor);
   const hasGif = !!draft.bannerGifUrl;
-  const accentBg = accentBackground(accentValue, draft.profileAccentMode ?? 'transparent');
-  const dark = hasGif || accentBg.dark;
+  const dark = hasGif;
   const text = dark ? Colors.onDark : Colors.text;
-  const bodyText = dark ? Colors.onDark : (accentValue || Colors.textSecondary);
+  const bodyText = dark ? Colors.onDark : Colors.textSecondary;
 
   return (
     <View style={styles.card} testID="profile-preview-card">
-      {/* Full-bleed background: gif fills when set, else the accent fill. */}
+      {/* Full-bleed background: the banner gif fills the card when set. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {hasGif ? (
           <>
@@ -42,8 +38,6 @@ export default function ProfilePreviewCard({ draft }: { draft: ProfileDraft }) {
             />
             <View style={styles.scrim} />
           </>
-        ) : accentBg.color ? (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: accentBg.color }]} />
         ) : null}
       </View>
 

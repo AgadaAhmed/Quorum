@@ -6,7 +6,6 @@ import {
   bioMaxFor,
   BIO_MAX,
   TAGLINE_MAX,
-  accentGradient,
 } from '../lib/profileCustomization';
 
 describe('resolveAvatarSource', () => {
@@ -85,13 +84,5 @@ describe('bio + tagline limits', () => {
   it('TAGLINE_MAX is a small positive number', () => {
     expect(TAGLINE_MAX).toBeGreaterThan(0);
     expect(TAGLINE_MAX).toBeLessThanOrEqual(80);
-  });
-});
-
-describe('accentGradient', () => {
-  it('returns an accent->transparent pair from a hex', () => {
-    const [a, b] = accentGradient('#1E9E52');
-    expect(a.toLowerCase()).toBe('#1e9e522e');
-    expect(b.toLowerCase()).toBe('#1e9e5200');
   });
 });
