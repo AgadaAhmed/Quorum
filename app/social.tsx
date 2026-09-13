@@ -927,9 +927,10 @@ export default function SocialScreen() {
       {/* Friends tab */}
       {tab === 'friends' && (
         <>
-          {friends.length > 0 ? (
-            <View style={styles.friendFilterWrap}>
-              <View style={styles.searchRow}>
+          {/* Always visible so the affordance is discoverable, including for
+              users who don't have any friends yet. */}
+          <View style={styles.friendFilterWrap}>
+            <View style={styles.searchRow}>
                 <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
                 <TextInput
                   style={styles.searchInput}
@@ -954,9 +955,8 @@ export default function SocialScreen() {
                     <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
                   </TouchableOpacity>
                 ) : null}
-              </View>
             </View>
-          ) : null}
+          </View>
           <FlatList
             data={visibleFriends}
             keyExtractor={keyById}
