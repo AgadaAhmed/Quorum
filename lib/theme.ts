@@ -123,10 +123,59 @@ const amoledColors: ThemePalette = {
   card: '#0d0d0d', cardElevated: '#161616',
 };
 
+// ── Colored themes ───────────────────────────────────────────────────────────
+// Whole-app colored palettes built on the dark structure (white-based glass /
+// borders / overlays carry over from midnight). Each tints the backgrounds with
+// its hue and sets `primary` (CTA, active tab, links) to a light-enough shade
+// that dark button text stays legible. FIRST-CUT — refine on device.
+const sunsetColors: ThemePalette = {
+  ...midnightColors,
+  background: '#1c1013', backgroundAlt: '#211419', surface: '#211419',
+  surfaceRaised: '#2e1b22', surfaceOverlay: '#3a232c', surfaceBright: '#472b36',
+  primary: '#FF7A45', primaryLight: '#FF9A6B', primaryContainer: '#FF7A45',
+  primaryDim: 'rgba(255,122,69,0.16)', primaryGlow: 'rgba(255,122,69,0.30)', primaryBorder: 'rgba(255,122,69,0.55)',
+  text: '#fceee7', textSecondary: '#e7cabf', textMuted: '#bd9a91',
+  card: '#2e1b22', cardElevated: '#3a232c',
+};
+
+const purpleRainColors: ThemePalette = {
+  ...midnightColors,
+  background: '#150e22', backgroundAlt: '#1a1229', surface: '#1a1229',
+  surfaceRaised: '#251a38', surfaceOverlay: '#2f2246', surfaceBright: '#3a2b56',
+  primary: '#B388FF', primaryLight: '#C7A6FF', primaryContainer: '#B388FF',
+  primaryDim: 'rgba(179,136,255,0.16)', primaryGlow: 'rgba(179,136,255,0.30)', primaryBorder: 'rgba(179,136,255,0.55)',
+  text: '#f1eafb', textSecondary: '#cabfe0', textMuted: '#9a91b8',
+  card: '#251a38', cardElevated: '#2f2246',
+};
+
+const theBluesColors: ThemePalette = {
+  ...midnightColors,
+  background: '#0c1524', backgroundAlt: '#0f1a2c', surface: '#0f1a2c',
+  surfaceRaised: '#16233a', surfaceOverlay: '#1e2f49', surfaceBright: '#273b59',
+  primary: '#4FA8FF', primaryLight: '#7BC0FF', primaryContainer: '#4FA8FF',
+  primaryDim: 'rgba(79,168,255,0.16)', primaryGlow: 'rgba(79,168,255,0.30)', primaryBorder: 'rgba(79,168,255,0.55)',
+  text: '#e9f1fb', textSecondary: '#bfcfe0', textMuted: '#8fa3bd',
+  card: '#16233a', cardElevated: '#1e2f49',
+};
+
+const crimsonColors: ThemePalette = {
+  ...midnightColors,
+  background: '#1a0d0f', backgroundAlt: '#201113', surface: '#201113',
+  surfaceRaised: '#2c1619', surfaceOverlay: '#381d21', surfaceBright: '#46262a',
+  primary: '#FF6B6B', primaryLight: '#FF9090', primaryContainer: '#FF6B6B',
+  primaryDim: 'rgba(255,107,107,0.16)', primaryGlow: 'rgba(255,107,107,0.30)', primaryBorder: 'rgba(255,107,107,0.55)',
+  text: '#fbe9e9', textSecondary: '#e0bfc0', textMuted: '#bd9193',
+  card: '#2c1619', cardElevated: '#381d21',
+};
+
 export const palettes = {
   light: lightColors,
   midnight: midnightColors,
   amoled: amoledColors,
+  sunset: sunsetColors,
+  purpleRain: purpleRainColors,
+  theBlues: theBluesColors,
+  crimson: crimsonColors,
 } as const;
 
 export type ThemeName = keyof typeof palettes;
@@ -134,7 +183,11 @@ export type ThemeName = keyof typeof palettes;
 export const THEME_META: Record<ThemeName, { label: string; pro: boolean; dark: boolean }> = {
   light: { label: 'Light', pro: false, dark: false },
   midnight: { label: 'Midnight', pro: false, dark: true },
-  amoled: { label: 'AMOLED', pro: true, dark: true },
+  amoled: { label: 'AMOLED', pro: false, dark: true },
+  sunset: { label: 'Sunset', pro: false, dark: true },
+  purpleRain: { label: 'Purple Rain', pro: false, dark: true },
+  theBlues: { label: 'The Blues', pro: false, dark: true },
+  crimson: { label: 'Crimson', pro: false, dark: true },
 };
 
 // Default export stays the Light palette so any file that still imports the

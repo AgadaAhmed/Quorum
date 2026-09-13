@@ -53,10 +53,12 @@ describe('ThemeProvider', () => {
 });
 
 describe('availableThemes', () => {
-  it('hides Pro themes from free users', () => {
-    expect(availableThemes(false)).toEqual(['light', 'midnight']);
+  // The app is fully free now: no theme is Pro-gated, so every user gets all.
+  const ALL_THEMES = ['light', 'midnight', 'amoled', 'sunset', 'purpleRain', 'theBlues', 'crimson'];
+  it('gives free users every theme', () => {
+    expect(availableThemes(false)).toEqual(ALL_THEMES);
   });
   it('gives Pro users every theme', () => {
-    expect(availableThemes(true)).toEqual(['light', 'midnight', 'amoled']);
+    expect(availableThemes(true)).toEqual(ALL_THEMES);
   });
 });
