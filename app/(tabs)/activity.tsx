@@ -28,6 +28,7 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
+import ProfileAvatarButton from '../../components/ProfileAvatarButton';
 import AnimatedButton from '../../components/AnimatedButton';
 import { FontSize, FontWeight, Spacing, Radius, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
@@ -648,15 +649,18 @@ export default function ActivityScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>QUORUM</Text>
-          <TouchableOpacity
-            hitSlop={styles.hitSlop}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-            onPress={() => router.push('/discover' as any)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="search-outline" size={22} color={Colors.text} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              hitSlop={styles.hitSlop}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+              onPress={() => router.push('/discover' as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="search-outline" size={22} color={Colors.text} />
+            </TouchableOpacity>
+            <ProfileAvatarButton />
+          </View>
         </View>
 
         {/* Filter tabs */}
@@ -804,6 +808,11 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     fontWeight: FontWeight.black,
     color: Colors.text,
     letterSpacing: 4,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
   },
   filterRow: {
     flexDirection: 'row',

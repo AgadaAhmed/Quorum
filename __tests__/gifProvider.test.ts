@@ -26,6 +26,17 @@ describe('__parseKlipy', () => {
       { id: '3', gifUrl: 'https://k/3.webp', stillUrl: 'https://k/3.webp', dims: [100, 100] },
     ]);
   });
+  it('uses the static jpg as stillUrl when present, gif as gifUrl', () => {
+    const withJpg = { result: true, data: { data: [
+      { id: 5, file: { md: {
+        gif: { url: 'https://k/5.gif', width: 300, height: 200 },
+        jpg: { url: 'https://k/5.jpg', width: 300, height: 200 },
+      } } },
+    ] } };
+    expect(__parseKlipy(withJpg)).toEqual([
+      { id: '5', gifUrl: 'https://k/5.gif', stillUrl: 'https://k/5.jpg', dims: [300, 200] },
+    ]);
+  });
   it('skips items with no usable media url', () => {
     expect(__parseKlipy({ result: true, data: { data: [{ id: 9, file: {} }] } })).toEqual([]);
   });

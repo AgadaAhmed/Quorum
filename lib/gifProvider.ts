@@ -17,9 +17,11 @@ function buildUrl(path: string, params: Record<string, string>): string {
   return `${BASE}/${KEY}/gifs${path}?${qs.toString()}`;
 }
 
-/** Tolerant: finds the first usable {url,width,height} under item.file|files,
- *  preferring gif then webp, across whatever size keys exist. */
-function pickMedia(item: any): { url: string; w: number; h: number } | null {
+/** Tolerant: finds the first usable media under item.file|files, preferring gif
+ *  then webp for the animated url, across whatever size keys exist. Also grabs a
+ *  genuine static still (Klipy's per-size `jpg`) when present — rendering a real
+ *  JPG is far more reliable than freezing a .gif's first frame. */
+function pickMedia(item: any): { url: string; still: string; w: number; h: number } | null {
   const container = item?.file ?? item?.files ?? {};
   if (!container || typeof container !== 'object') return null;
   // Prefer common mid sizes first, then any remaining.
@@ -31,7 +33,8 @@ function pickMedia(item: any): { url: string; w: number; h: number } | null {
     const media = fmt.gif ?? fmt.webp ?? fmt;
     const url = media?.url;
     if (typeof url === 'string' && url) {
-      return { url, w: Number(media.width) || 1, h: Number(media.height) || 1 };
+      const jpgUrl = fmt.jpg && typeof fmt.jpg.url === 'string' ? fmt.jpg.url : '';
+      return { url, still: jpgUrl || url, w: Number(media.width) || 1, h: Number(media.height) || 1 };
     }
   }
   return null;
@@ -48,7 +51,7 @@ export function __parseKlipy(json: any): GifResult[] {
     out.push({
       id: String(item.id ?? item.slug ?? media.url),
       gifUrl: media.url,
-      stillUrl: media.url, // Klipy has no guaranteed static still; downstream renders it with autoplay=false to freeze the first frame
+      stillUrl: media.still, // real static jpg when Klipy provides one, else the gif url (frozen downstream)
       dims: [media.w, media.h],
     });
   }

@@ -32,6 +32,7 @@ import GlassCard from '../../components/GlassCard';
 import PlacesCarousel from '../../components/places/PlacesCarousel';
 import LocationSwitcher from '../../components/places/LocationSwitcher';
 import TitlePopup from '../../components/places/TitlePopup';
+import ProfileAvatarButton from '../../components/ProfileAvatarButton';
 import { type LatLng, type Place } from '../../lib/places';
 import QuorumProgressBar from '../../components/QuorumProgressBar';
 import PlanBanner from '../../components/PlanBanner';
@@ -513,11 +514,14 @@ export default function DiscoverScreen() {
     () => (
       <>
         <View style={styles.header}>
-          <LocationSwitcher
-            label={cityLabel}
-            onPick={onPickLocation}
-            onUseMyLocation={useMyLocation}
-          />
+          <View style={styles.topRow}>
+            <LocationSwitcher
+              label={cityLabel}
+              onPick={onPickLocation}
+              onUseMyLocation={useMyLocation}
+            />
+            <ProfileAvatarButton />
+          </View>
           <Text style={styles.title}>Discover</Text>
           <Text style={styles.subtitle}>Public plans near you</Text>
           <View style={styles.searchBar}>
@@ -546,7 +550,7 @@ export default function DiscoverScreen() {
             ) : null}
           </View>
         </View>
-        {geoCenter ? (
+        {geoCenter && uid ? (
           <View style={styles.carouselSection}>
             <Text style={styles.sectionHeading}>Places near you</Text>
             <PlacesCarousel center={geoCenter} onPickVenue={openTitlePopup} />
@@ -574,6 +578,7 @@ export default function DiscoverScreen() {
       useMyLocation,
       geoCenter,
       openTitlePopup,
+      uid,
     ]
   );
 
@@ -660,6 +665,11 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.sm,
     gap: Spacing.xs,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     fontSize: FontSize.xxl,

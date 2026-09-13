@@ -16,12 +16,14 @@ import { auth, db } from '../../lib/firebase';
 import { Spacing, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
+// Profile is intentionally NOT a bottom tab — it's reached via the pfp avatar
+// in the top-right of the main screens (ProfileAvatarButton). Keeping 4 tabs
+// (2 left + 2 right) is what lets the center "+" sit dead-center.
 const TABS = [
   { name: 'index',    label: 'Home',     icon: 'home-outline' as const,          iconActive: 'home' as const },
   { name: 'discover', label: 'Discover', icon: 'compass-outline' as const,       iconActive: 'compass' as const },
   { name: 'places',   label: 'Places',   icon: 'location-outline' as const,      iconActive: 'location' as const },
   { name: 'activity', label: 'Activity', icon: 'notifications-outline' as const, iconActive: 'notifications' as const },
-  { name: 'profile',  label: 'Profile',  icon: 'person-outline' as const,        iconActive: 'person' as const },
 ];
 
 function CustomTabBar() {

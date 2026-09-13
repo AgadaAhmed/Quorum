@@ -2,10 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import CategoryPillRow from '../../components/CategoryPill';
 import PlaceCard from '../../components/places/PlaceCard';
 import TitlePopup from '../../components/places/TitlePopup';
+import ProfileAvatarButton from '../../components/ProfileAvatarButton';
 import SkeletonCard from '../../components/SkeletonLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { searchPlaces, type LatLng, type Place } from '../../lib/places';
@@ -44,6 +47,12 @@ export default function PlacesScreen() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [venue, setVenue] = useState<Place | null>(null);
+  // The Places proxy requires auth; on a cold start the session restores
+  // asynchronously, so track it and only fetch once signed in (otherwise the
+  // callable rejects with "Sign in required" and the fetch never retries).
+  const [uid, setUid] = useState(auth.currentUser?.uid || '');
+
+  useEffect(() => onAuthStateChanged(auth, (u) => setUid(u?.uid || '')), []);
 
   // Same permission + coordinate flow as Discover — request foreground
   // location, fall back to a default center if denied/unavailable so the
@@ -73,7 +82,7 @@ export default function PlacesScreen() {
   }, []);
 
   useEffect(() => {
-    if (!center) return;
+    if (!center || !uid) return; // wait for both location and auth
     let cancelled = false;
     setLoading(true);
     searchPlaces(center, category).then((res) => {
@@ -85,7 +94,7 @@ export default function PlacesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [center, category]);
+  }, [center, category, uid]);
 
   const openPopup = useCallback((place: Place) => setVenue(place), []);
   const closePopup = useCallback(() => setVenue(null), []);
@@ -132,8 +141,11 @@ export default function PlacesScreen() {
     () => (
       <>
         <View style={styles.header}>
-          <Text style={styles.title}>Places</Text>
-          <Text style={styles.subtitle}>Venues near you</Text>
+          <View style={styles.titleCol}>
+            <Text style={styles.title}>Places</Text>
+            <Text style={styles.subtitle}>Venues near you</Text>
+          </View>
+          <ProfileAvatarButton />
         </View>
         <CategoryPillRow pills={CATEGORY_PILLS} selected={category} onSelect={setCategory} />
         {loading ? (
@@ -193,10 +205,16 @@ const EMPTY_DATA: Place[] = [];
 const makeStyles = (Colors: ThemePalette) =>
   StyleSheet.create({
     header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: Spacing.container,
       paddingTop: Spacing.xs,
       paddingBottom: Spacing.sm,
+    },
+    titleCol: {
       gap: Spacing.xs,
+      flex: 1,
     },
     title: {
       fontSize: FontSize.xxl,
