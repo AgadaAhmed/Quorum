@@ -51,6 +51,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
+import { dmParticipantsOf } from '../lib/dm';
 import { getChatHistoryCutoff } from '../lib/subscription';
 import { useSubscription } from '../hooks/useSubscription';
 import { useToast } from '../components/Toast';
@@ -175,6 +176,7 @@ type ChatBubbleProps = {
   myUid: string;
   roomId: string;
   onLongPress: (msg: Message) => void;
+  onPressAuthor: (userId: string) => void;
 };
 
 const ChatBubble = memo(function ChatBubble({
@@ -184,6 +186,7 @@ const ChatBubble = memo(function ChatBubble({
   myUid,
   roomId,
   onLongPress,
+  onPressAuthor,
 }: ChatBubbleProps) {
   const styles = useThemedStyles(makeStyles);
   const slideX = useRef(new Animated.Value(isOwn ? 40 : -40)).current;
@@ -236,9 +239,15 @@ const ChatBubble = memo(function ChatBubble({
       ]}
     >
       {!isOwn && (
-        <View style={styles.senderAvatar}>
+        <TouchableOpacity
+          style={styles.senderAvatar}
+          onPress={() => onPressAuthor(message.senderId)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${message.senderName}'s profile`}
+        >
           <Text style={styles.senderAvatarText}>{initialOf(message.senderName)}</Text>
-        </View>
+        </TouchableOpacity>
       )}
       <View style={styles.bubbleColumn}>
         <TouchableOpacity activeOpacity={0.85} onLongPress={handleLongPress} delayLongPress={350}>
@@ -341,6 +350,52 @@ export default function ChatScreen() {
   const ROOM_ID = roomId || planId || 'global';
   const chatKind = kind || (planId ? 'plan' : 'global');
   const headerTitle = title || planTitle || (chatKind === 'global' ? 'Global Chat' : 'Chat');
+  const dmPeers = useMemo(() => dmParticipantsOf(ROOM_ID), [ROOM_ID]);
+
+  // For DMs, ensure the room doc (with participants) exists so the messages
+  // subcollection rules and the inbox listing work.
+  useEffect(() => {
+    if (chatKind !== 'dm' || !uid || dmPeers.length !== 2) return;
+    setDoc(doc(db, 'chats', ROOM_ID), { participants: dmPeers, kind: 'dm' }, { merge: true }).catch(
+      () => {}
+    );
+  }, [chatKind, uid, dmPeers, ROOM_ID]);
+
+  // Update the DM room doc's last-message summary (powers the inbox list).
+  const touchRoom = useCallback(
+    async (preview: string) => {
+      if (chatKind !== 'dm' || dmPeers.length !== 2) return;
+      try {
+        await setDoc(
+          doc(db, 'chats', ROOM_ID),
+          {
+            participants: dmPeers,
+            kind: 'dm',
+            lastMessage: preview,
+            lastSenderId: uid,
+            lastTimestamp: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch {
+        // best-effort — the message itself already sent
+      }
+    },
+    [chatKind, dmPeers, ROOM_ID, uid]
+  );
+
+  const goToUser = useCallback(
+    (userId: string) => {
+      if (userId && userId !== uid) {
+        router.push({ pathname: '/user-profile', params: { userId } } as any);
+      }
+    },
+    [router, uid]
+  );
+
+  const startQuorumFromDm = useCallback(() => {
+    router.push({ pathname: '/create-plan', params: { fromRoomId: ROOM_ID } } as any);
+  }, [router, ROOM_ID]);
 
   // ── Messages + typing subscriptions ───────────────────────────────────────
   useEffect(() => {
@@ -538,6 +593,7 @@ export default function ChatScreen() {
           timestamp: serverTimestamp(),
           ...(reply ? { replyTo: reply } : {}),
         });
+        touchRoom(text);
       } catch {
         setInput(text);
         showToast('Failed to send message', 'error');
@@ -556,7 +612,7 @@ export default function ChatScreen() {
     } else {
       await actualSend();
     }
-  }, [ROOM_ID, clearTyping, input, senderName, showToast, uid, replyDraft]);
+  }, [ROOM_ID, clearTyping, input, senderName, showToast, uid, replyDraft, touchRoom]);
 
   const handleImageSend = useCallback(async () => {
     if (!uid || uploading) return;
@@ -581,12 +637,13 @@ export default function ChatScreen() {
         senderName: senderName || auth.currentUser?.displayName || 'User',
         timestamp: serverTimestamp(),
       });
+      touchRoom('Photo');
     } catch {
       showToast('Failed to send image', 'error');
     } finally {
       setUploading(false);
     }
-  }, [ROOM_ID, senderName, showToast, uid, uploading]);
+  }, [ROOM_ID, senderName, showToast, uid, uploading, touchRoom]);
 
   const handleGifSelected = useCallback(
     async (gif: GifResult) => {
@@ -604,11 +661,12 @@ export default function ChatScreen() {
           timestamp: serverTimestamp(),
           ...(reply ? { replyTo: reply } : {}),
         });
+        touchRoom('GIF');
       } catch {
         showToast('Failed to send GIF', 'error');
       }
     },
-    [ROOM_ID, replyDraft, senderName, showToast, uid]
+    [ROOM_ID, replyDraft, senderName, showToast, uid, touchRoom]
   );
 
   const startReply = useCallback((msg: Message) => {
@@ -679,9 +737,10 @@ export default function ChatScreen() {
         myUid={uid}
         roomId={ROOM_ID}
         onLongPress={handleLongPress}
+        onPressAuthor={goToUser}
       />
     ),
-    [ROOM_ID, handleLongPress, uid]
+    [ROOM_ID, handleLongPress, uid, goToUser]
   );
 
   const isOwnPickerMsg = !!reactionPickerMsg && reactionPickerMsg.senderId === uid;
@@ -708,21 +767,36 @@ export default function ChatScreen() {
             {messages.length} msg{messages.length !== 1 ? 's' : ''}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.participantsBtn}
-          onPress={() => setShowParticipants((v) => !v)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Toggle participants list"
-          hitSlop={8}
-        >
-          <Ionicons name="people-outline" size={22} color={Colors.text} />
-          {participants.length > 0 && (
-            <View style={styles.participantsBadge}>
-              <Text style={styles.participantsBadgeText}>{participants.length + 1}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {chatKind === 'plan' ? (
+          <TouchableOpacity
+            style={styles.participantsBtn}
+            onPress={() => setShowParticipants((v) => !v)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle participants list"
+            hitSlop={8}
+          >
+            <Ionicons name="people-outline" size={22} color={Colors.text} />
+            {participants.length > 0 && (
+              <View style={styles.participantsBadge}>
+                <Text style={styles.participantsBadgeText}>{participants.length + 1}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : chatKind === 'dm' ? (
+          <TouchableOpacity
+            style={styles.participantsBtn}
+            onPress={startQuorumFromDm}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Start a quorum with this person"
+            hitSlop={8}
+          >
+            <Ionicons name="add-circle-outline" size={24} color={Colors.text} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.participantsBtn} />
+        )}
       </View>
 
       {showParticipants && participants.length > 0 && (

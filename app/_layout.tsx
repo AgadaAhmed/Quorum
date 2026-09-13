@@ -188,7 +188,7 @@ function RootNavigator() {
     const inTabs = segments[0] === '(tabs)';
     const onCompleteProfile = inAuth && (segments[1] as string) === 'complete-profile';
     // These are valid authenticated routes — don't redirect away from them
-    const inModal = ['plan-detail', 'create-plan', 'chat', 'social', 'settings', 'user-profile', 'join', 'customize-profile'].includes(segments[0] as string);
+    const inModal = ['plan-detail', 'create-plan', 'chat', 'social', 'settings', 'user-profile', 'join', 'customize-profile', 'inbox'].includes(segments[0] as string);
 
     if (!user) {
       if (!inAuth) router.replace('/(auth)/login');
@@ -216,7 +216,9 @@ function RootNavigator() {
       const data = response.notification.request.content.data || {};
       const planId = data.planId as string | undefined;
       const type = data.type as string | undefined;
-      if (planId) {
+      if (type === 'dm' && data.roomId) {
+        router.push({ pathname: '/chat', params: { roomId: data.roomId, kind: 'dm' } } as any);
+      } else if (planId) {
         router.push({ pathname: '/plan-detail', params: { id: planId } });
       } else if (type === 'friend_request' || type === 'friend_accepted') {
         router.push('/social' as any);
@@ -240,6 +242,7 @@ function RootNavigator() {
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="user-profile" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="customize-profile" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="inbox" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="join/[code]" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
       </Stack>
       <OfflineBanner />

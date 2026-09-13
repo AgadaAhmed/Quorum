@@ -15,7 +15,7 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { moderatePlanText } from '../lib/scamDetection';
 import { titleForTime } from '../lib/places';
@@ -43,7 +43,8 @@ import {
 
 export default function CreatePlanScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ title?: string; placeJson?: string }>();
+  const params = useLocalSearchParams<{ title?: string; placeJson?: string; fromRoomId?: string }>();
+  const fromRoomId = params.fromRoomId;
   const confettiRef = useRef<ConfettiRef>(null);
   const { celebrate, glowStyle } = useCelebration();
   const Colors = useTheme();
@@ -244,6 +245,7 @@ export default function CreatePlanScreen() {
           ).toISOString()
         : null;
 
+      const inviteCode = makeInviteCode();
       await setDoc(planRef, {
         title: trimmedTitle.slice(0, 80),
         description: description.trim().slice(0, 500),
@@ -261,7 +263,7 @@ export default function CreatePlanScreen() {
         poll,
         voteDeadline: voteDeadline ? voteDeadline.toISOString() : null,
         maxParticipants: maxParticipants ?? null,
-        inviteCode: makeInviteCode(),
+        inviteCode,
         lat,
         lng,
         place: seededPlace
@@ -277,6 +279,25 @@ export default function CreatePlanScreen() {
             }
           : null,
       });
+      if (fromRoomId) {
+        // Drop a plan link into the DM this quorum was started from.
+        try {
+          await addDoc(collection(db, 'chats', fromRoomId, 'messages'), {
+            text: `Started a plan: "${trimmedTitle.slice(0, 80)}" — join code ${inviteCode}`,
+            type: 'text',
+            senderId: uid,
+            senderName: auth.currentUser?.displayName || 'Someone',
+            timestamp: serverTimestamp(),
+          });
+          await setDoc(
+            doc(db, 'chats', fromRoomId),
+            { lastMessage: 'Started a plan', lastSenderId: uid, lastTimestamp: serverTimestamp() },
+            { merge: true }
+          );
+        } catch {
+          // non-fatal — the plan was created regardless
+        }
+      }
       celebrate(confettiRef);
       setTimeout(() => {
         router.push({ pathname: '/plan-detail', params: { id: planRef.id } });
@@ -307,6 +328,7 @@ export default function CreatePlanScreen() {
     maxParticipants,
     router,
     seededPlace,
+    fromRoomId,
   ]);
 
   const togglePoll = useCallback(() => {

@@ -33,6 +33,7 @@ import PlacesCarousel from '../../components/places/PlacesCarousel';
 import LocationSwitcher from '../../components/places/LocationSwitcher';
 import TitlePopup from '../../components/places/TitlePopup';
 import ProfileAvatarButton from '../../components/ProfileAvatarButton';
+import InboxButton from '../../components/InboxButton';
 import { type LatLng, type Place } from '../../lib/places';
 import QuorumProgressBar from '../../components/QuorumProgressBar';
 import PlanBanner from '../../components/PlanBanner';
@@ -520,7 +521,10 @@ export default function DiscoverScreen() {
               onPick={onPickLocation}
               onUseMyLocation={useMyLocation}
             />
-            <ProfileAvatarButton />
+            <View style={styles.headerIcons}>
+              <InboxButton />
+              <ProfileAvatarButton />
+            </View>
           </View>
           <Text style={styles.title}>Discover</Text>
           <Text style={styles.subtitle}>Public plans near you</Text>
@@ -670,6 +674,11 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   title: {
     fontSize: FontSize.xxl,

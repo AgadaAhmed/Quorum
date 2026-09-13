@@ -30,6 +30,7 @@ import { auth, db } from '../lib/firebase';
 import ScreenWrapper from '../components/ScreenWrapper';
 import AnimatedCard from '../components/AnimatedCard';
 import AnimatedButton from '../components/AnimatedButton';
+import { dmRoomId, canDirectMessage } from '../lib/dm';
 import { SkeletonProfile } from '../components/SkeletonLoader';
 import { useToast } from '../components/Toast';
 import { Fonts, FontSize, FontWeight, Radius, Shadow, Spacing, type ThemePalette } from '../lib/theme';
@@ -54,6 +55,7 @@ type Profile = {
   bannerStillUrl?: string;
   tagline?: string;
   profileAccent?: string;
+  allowDMs?: boolean;
   nameColor?: string;
 };
 
@@ -299,6 +301,20 @@ export default function UserProfileScreen() {
   const accentValue = resolveColor(profile?.profileAccent);
   const nameColorValue = resolveColor(profile?.nameColor);
   const friendCount = profile?.friends?.length ?? 0;
+  const canMessage =
+    relation !== 'self' &&
+    canDirectMessage({ isFriend: relation === 'friend', targetAllowsDMs: profile?.allowDMs });
+  const goToDm = useCallback(() => {
+    if (!uid || !userId) return;
+    router.push({
+      pathname: '/chat',
+      params: {
+        roomId: dmRoomId(uid, userId),
+        kind: 'dm',
+        title: profile?.displayName || profile?.username || 'Chat',
+      },
+    } as any);
+  }, [uid, userId, router, profile?.displayName, profile?.username]);
   const locationLabel = useMemo(
     () => [profile?.city, profile?.country].filter(Boolean).join(', '),
     [profile?.city, profile?.country]
@@ -465,6 +481,22 @@ export default function UserProfileScreen() {
                     style={styles.flex1}
                   />
                 </View>
+              )}
+              {canMessage && relation !== 'pending_incoming' && (
+                <AnimatedButton
+                  label="Message"
+                  onPress={goToDm}
+                  variant={relation === 'friend' ? 'primary' : 'secondary'}
+                  style={styles.actionBtn}
+                  icon={
+                    <Ionicons
+                      name="chatbubble-ellipses-outline"
+                      size={18}
+                      color={relation === 'friend' ? Colors.background : Colors.text}
+                    />
+                  }
+                  accessibilityLabel="Send a direct message"
+                />
               )}
             </View>
           )}

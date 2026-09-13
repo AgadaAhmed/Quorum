@@ -38,6 +38,7 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showInSearch, setShowInSearch] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
+  const [allowDMs, setAllowDMs] = useState(true);
   const [privateProfile, setPrivateProfile] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const Colors = useTheme();
@@ -60,6 +61,7 @@ export default function SettingsScreen() {
       setNotificationsEnabled(data?.notificationsEnabled !== false);
       setShowInSearch(data?.showInSearch !== false);
       setShowLocation(data?.showLocation ?? true);
+      setAllowDMs(data?.allowDMs !== false);
       setPrivateProfile(data?.privateProfile ?? false);
     });
     return unsub;
@@ -69,7 +71,7 @@ export default function SettingsScreen() {
   // immediately, persists, and reverts + toasts on failure.
   const updatePref = useCallback(
     async (
-      key: 'notificationsEnabled' | 'showInSearch' | 'showLocation' | 'privateProfile',
+      key: 'notificationsEnabled' | 'showInSearch' | 'showLocation' | 'privateProfile' | 'allowDMs',
       value: boolean,
       setLocal: (v: boolean) => void,
     ) => {
@@ -88,6 +90,11 @@ export default function SettingsScreen() {
 
   const onToggleNotifications = useCallback(
     (v: boolean) => updatePref('notificationsEnabled', v, setNotificationsEnabled),
+    [updatePref],
+  );
+
+  const onToggleDMs = useCallback(
+    (v: boolean) => updatePref('allowDMs', v, setAllowDMs),
     [updatePref],
   );
   const onToggleSearch = useCallback(
@@ -247,6 +254,14 @@ export default function SettingsScreen() {
             value={showLocation}
             onValueChange={onToggleLocation}
             icon="location-outline"
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            label="Allow direct messages"
+            description="Let people who aren't friends message you (friends always can)"
+            value={allowDMs}
+            onValueChange={onToggleDMs}
+            icon="chatbubble-ellipses-outline"
           />
           <View style={styles.divider} />
           <SettingRow

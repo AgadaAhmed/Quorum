@@ -154,18 +154,35 @@ service cloud.firestore {
     }
 
     // ── Chats ────────────────────────────────────────────────────────────────
-    // Room ID == Plan ID. Only plan participants can access.
+    // Three room kinds share this collection:
+    //  • plan chat  — roomId == planId; only plan participants
+    //  • global     — roomId == 'global'; any signed-in user
+    //  • direct msg — roomId == 'dm__<uidA>__<uidB>'; only the two participants
     match /chats/{roomId} {
       function isPlanParticipant() {
         return isAuth() &&
           exists(/databases/$(database)/documents/plans/$(roomId)) &&
           request.auth.uid in get(/databases/$(database)/documents/plans/$(roomId)).data.participants;
       }
+      function isGlobal() { return isAuth() && roomId == 'global'; }
+      // DM room doc: member if the uid is in the doc's participants (existing
+      // read/update) or in the incoming participants (create).
+      function isDmMember() {
+        return isAuth() && roomId.matches('dm__.*') && (
+          (resource != null && request.auth.uid in resource.data.participants) ||
+          (request.resource != null && request.auth.uid in request.resource.data.participants)
+        );
+      }
+      // DM messages: member if the uid is in the parent room doc's participants.
+      function isDmMessageMember() {
+        return isAuth() && roomId.matches('dm__.*') &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.participants;
+      }
 
-      allow read, write: if isPlanParticipant();
+      allow read, write: if isPlanParticipant() || isGlobal() || isDmMember();
 
       match /messages/{messageId} {
-        allow read, write: if isPlanParticipant();
+        allow read, write: if isPlanParticipant() || isGlobal() || isDmMessageMember();
       }
     }
   }

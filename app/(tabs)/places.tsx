@@ -9,6 +9,7 @@ import CategoryPillRow from '../../components/CategoryPill';
 import PlaceCard from '../../components/places/PlaceCard';
 import TitlePopup from '../../components/places/TitlePopup';
 import ProfileAvatarButton from '../../components/ProfileAvatarButton';
+import InboxButton from '../../components/InboxButton';
 import SkeletonCard from '../../components/SkeletonLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { searchPlaces, type LatLng, type Place } from '../../lib/places';
@@ -145,7 +146,10 @@ export default function PlacesScreen() {
             <Text style={styles.title}>Places</Text>
             <Text style={styles.subtitle}>Venues near you</Text>
           </View>
-          <ProfileAvatarButton />
+          <View style={styles.headerIcons}>
+            <InboxButton />
+            <ProfileAvatarButton />
+          </View>
         </View>
         <CategoryPillRow pills={CATEGORY_PILLS} selected={category} onSelect={setCategory} />
         {loading ? (
@@ -215,6 +219,11 @@ const makeStyles = (Colors: ThemePalette) =>
     titleCol: {
       gap: Spacing.xs,
       flex: 1,
+    },
+    headerIcons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
     },
     title: {
       fontSize: FontSize.xxl,

@@ -526,21 +526,38 @@ exports.onChatMessage = onDocumentCreated(
   'chats/{roomId}/messages/{messageId}',
   async (event) => {
     const roomId = event.params.roomId;
-    if (!roomId || roomId === 'global') return;
+    if (!roomId || roomId === 'global') return; // never notify the whole world
     const msg = event.data && event.data.data();
     if (!msg) return;
     const senderId = msg.senderId;
+    const preview = String(
+      msg.text || (msg.type === 'gif' ? 'GIF' : msg.type === 'image' ? 'Photo' : '')
+    ).slice(0, 140);
 
+    // Direct message → notify the other participant only.
+    if (roomId.startsWith('dm__')) {
+      const roomSnap = await db.collection('chats').doc(roomId).get();
+      const participants = (roomSnap.exists && roomSnap.data().participants) || [];
+      const recipients = participants.filter((u) => u !== senderId);
+      if (recipients.length === 0) return;
+      await pushToUids(recipients, {
+        title: msg.senderName || 'New message',
+        body: preview,
+        data: { type: 'dm', roomId },
+        collapseId: `dm-${roomId}`,
+      });
+      return;
+    }
+
+    // Plan chat → notify plan participants except the sender.
     const planSnap = await db.collection('plans').doc(roomId).get();
     if (!planSnap.exists) return;
     const plan = planSnap.data() || {};
     const recipients = (plan.participants || []).filter((u) => u !== senderId);
     if (recipients.length === 0) return;
-
-    const text = String(msg.text || '').slice(0, 140);
     await pushToUids(recipients, {
       title: plan.title || 'New message',
-      body: `${msg.senderName || 'Someone'}: ${text}`,
+      body: `${msg.senderName || 'Someone'}: ${preview}`,
       data: { type: 'chat', planId: roomId },
       collapseId: `chat-${roomId}`,
     });

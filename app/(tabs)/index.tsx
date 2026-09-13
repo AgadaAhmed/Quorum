@@ -445,6 +445,16 @@ export default function HomeScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnGhost]}
+              onPress={() => router.push('/inbox' as any)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Messages"
+              hitSlop={HIT_SLOP}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={Colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconBtn, styles.iconBtnGhost]}
               onPress={() => router.push('/activity')}
               activeOpacity={0.7}
               accessibilityRole="button"

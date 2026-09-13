@@ -29,6 +29,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import ProfileAvatarButton from '../../components/ProfileAvatarButton';
+import InboxButton from '../../components/InboxButton';
 import AnimatedButton from '../../components/AnimatedButton';
 import { FontSize, FontWeight, Spacing, Radius, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
@@ -659,6 +660,7 @@ export default function ActivityScreen() {
             >
               <Ionicons name="search-outline" size={22} color={Colors.text} />
             </TouchableOpacity>
+            <InboxButton />
             <ProfileAvatarButton />
           </View>
         </View>
