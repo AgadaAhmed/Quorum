@@ -23,10 +23,13 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { hasScamKeywords } from '../lib/scamDetection';
+import { hasScamKeywords, hasProhibitedContent } from '../lib/scamDetection';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { Image as ExpoImage } from 'expo-image';
+import GifPicker from '../components/GifPicker';
+import { GifResult } from '../lib/gifProvider';
 import {
   collection,
   onSnapshot,
@@ -66,16 +69,28 @@ const TYPING_CLEAR_MS = 3500;
 
 type Reactions = { [emoji: string]: string[] };
 
+/** A quoted message a reply points at (denormalized so the bubble needs no lookup). */
+type ReplyRef = { id?: string; senderName: string; preview: string };
+
 type Message = {
   id: string;
   text?: string;
-  type?: 'text' | 'image';
+  type?: 'text' | 'image' | 'gif';
   imageUrl?: string;
+  gifUrl?: string;
+  replyTo?: ReplyRef;
   senderId: string;
   senderName: string;
   timestamp?: Timestamp | null;
   reactions?: Reactions;
 };
+
+/** Short one-line preview of a message for the reply strip. */
+function previewOf(m: Message): string {
+  if (m.type === 'gif') return 'GIF';
+  if (m.type === 'image') return 'Photo';
+  return (m.text || '').slice(0, 80);
+}
 
 type Participant = { id: string; displayName: string; username?: string };
 
@@ -229,7 +244,25 @@ const ChatBubble = memo(function ChatBubble({
         <TouchableOpacity activeOpacity={0.85} onLongPress={handleLongPress} delayLongPress={350}>
           <View style={[styles.bubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
             {!isOwn && <Text style={styles.senderName}>{message.senderName}</Text>}
-            {message.type === 'image' && message.imageUrl ? (
+            {message.replyTo ? (
+              <View style={[styles.replyStrip, isOwn && styles.replyStripOwn]}>
+                <Text style={[styles.replyName, isOwn && styles.ownBubbleText]} numberOfLines={1}>
+                  {message.replyTo.senderName}
+                </Text>
+                <Text style={[styles.replyPreview, isOwn && styles.ownBubbleText]} numberOfLines={1}>
+                  {message.replyTo.preview}
+                </Text>
+              </View>
+            ) : null}
+            {message.type === 'gif' && message.gifUrl ? (
+              <ExpoImage
+                source={{ uri: message.gifUrl }}
+                style={styles.chatImage}
+                contentFit="cover"
+                autoplay
+                accessibilityIgnoresInvertColors
+              />
+            ) : message.type === 'image' && message.imageUrl ? (
               <Image source={{ uri: message.imageUrl }} style={styles.chatImage} resizeMode="cover" />
             ) : (
               <Text style={[styles.bubbleText, isOwn && styles.ownBubbleText]}>
@@ -276,7 +309,13 @@ const ChatBubble = memo(function ChatBubble({
 
 export default function ChatScreen() {
   const router = useRouter();
-  const { planId, planTitle } = useLocalSearchParams<{ planId?: string; planTitle?: string }>();
+  const { planId, planTitle, roomId, title, kind } = useLocalSearchParams<{
+    planId?: string;
+    planTitle?: string;
+    roomId?: string;
+    title?: string;
+    kind?: string;
+  }>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [input, setInput] = useState('');
@@ -286,6 +325,8 @@ export default function ChatScreen() {
   const [showParticipants, setShowParticipants] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [reactionPickerMsg, setReactionPickerMsg] = useState<Message | null>(null);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [replyDraft, setReplyDraft] = useState<ReplyRef | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [typingNames, setTypingNames] = useState<Record<string, string>>({});
   const flatListRef = useRef<FlatList<Message>>(null);
@@ -296,8 +337,10 @@ export default function ChatScreen() {
   const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  const ROOM_ID = planId || 'global';
-  const headerTitle = planTitle ? `${planTitle}` : 'Global Chat';
+  // One engine serves plan chat, the global room, and DMs.
+  const ROOM_ID = roomId || planId || 'global';
+  const chatKind = kind || (planId ? 'plan' : 'global');
+  const headerTitle = title || planTitle || (chatKind === 'global' ? 'Global Chat' : 'Chat');
 
   // ── Messages + typing subscriptions ───────────────────────────────────────
   useEffect(() => {
@@ -469,9 +512,21 @@ export default function ChatScreen() {
     const text = input.trim();
     if (!text || !uid) return;
 
+    // Hard block: hateful / explicit content is never sent (unlike the scam
+    // check below, which only warns).
+    if (hasProhibitedContent(text)) {
+      Alert.alert(
+        'Message blocked',
+        'Please remove hateful or explicit language before sending.'
+      );
+      return;
+    }
+
+    const reply = replyDraft;
     const actualSend = async () => {
       setInput('');
       setMentionQuery(null);
+      setReplyDraft(null);
       clearTyping();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       try {
@@ -481,6 +536,7 @@ export default function ChatScreen() {
           senderId: uid,
           senderName: senderName || 'Anonymous',
           timestamp: serverTimestamp(),
+          ...(reply ? { replyTo: reply } : {}),
         });
       } catch {
         setInput(text);
@@ -500,7 +556,7 @@ export default function ChatScreen() {
     } else {
       await actualSend();
     }
-  }, [ROOM_ID, clearTyping, input, senderName, showToast, uid]);
+  }, [ROOM_ID, clearTyping, input, senderName, showToast, uid, replyDraft]);
 
   const handleImageSend = useCallback(async () => {
     if (!uid || uploading) return;
@@ -531,6 +587,34 @@ export default function ChatScreen() {
       setUploading(false);
     }
   }, [ROOM_ID, senderName, showToast, uid, uploading]);
+
+  const handleGifSelected = useCallback(
+    async (gif: GifResult) => {
+      setShowGifPicker(false);
+      if (!uid) return;
+      const reply = replyDraft;
+      setReplyDraft(null);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      try {
+        await addDoc(collection(db, 'chats', ROOM_ID, 'messages'), {
+          type: 'gif',
+          gifUrl: gif.gifUrl,
+          senderId: uid,
+          senderName: senderName || 'Anonymous',
+          timestamp: serverTimestamp(),
+          ...(reply ? { replyTo: reply } : {}),
+        });
+      } catch {
+        showToast('Failed to send GIF', 'error');
+      }
+    },
+    [ROOM_ID, replyDraft, senderName, showToast, uid]
+  );
+
+  const startReply = useCallback((msg: Message) => {
+    setReactionPickerMsg(null);
+    setReplyDraft({ id: msg.id, senderName: msg.senderName, preview: previewOf(msg) });
+  }, []);
 
   const handleLongPress = useCallback((msg: Message) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -727,6 +811,28 @@ export default function ChatScreen() {
           </View>
         )}
 
+        {replyDraft ? (
+          <View style={styles.replyBanner}>
+            <View style={styles.replyBannerBar} />
+            <View style={styles.replyBannerText}>
+              <Text style={styles.replyBannerName} numberOfLines={1}>
+                Replying to {replyDraft.senderName}
+              </Text>
+              <Text style={styles.replyBannerPreview} numberOfLines={1}>
+                {replyDraft.preview}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setReplyDraft(null)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel reply"
+            >
+              <Ionicons name="close" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <View style={styles.inputBar}>
           <TouchableOpacity
             onPress={handleImageSend}
@@ -743,6 +849,16 @@ export default function ChatScreen() {
             ) : (
               <Ionicons name="image-outline" size={24} color={Colors.textMuted} />
             )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowGifPicker(true)}
+            style={styles.gifBtn}
+            activeOpacity={0.7}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Send a GIF"
+          >
+            <Text style={styles.gifBtnText}>GIF</Text>
           </TouchableOpacity>
           <TextInput
             style={styles.input}
@@ -806,6 +922,16 @@ export default function ChatScreen() {
                     );
                   })}
                 </View>
+                <TouchableOpacity
+                  style={styles.replyBtn}
+                  onPress={() => reactionPickerMsg && startReply(reactionPickerMsg)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reply to message"
+                >
+                  <Ionicons name="arrow-undo-outline" size={16} color={Colors.text} />
+                  <Text style={styles.replyBtnText}>Reply</Text>
+                </TouchableOpacity>
                 {isOwnPickerMsg && (
                   <TouchableOpacity
                     style={styles.deleteBtn}
@@ -827,6 +953,12 @@ export default function ChatScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <GifPicker
+        visible={showGifPicker}
+        onSelect={handleGifSelected}
+        onClose={() => setShowGifPicker(false)}
+      />
     </ScreenWrapper>
   );
 }
@@ -987,6 +1119,75 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   },
   ownTimestamp: { color: 'rgba(255,255,255,0.72)' },
   chatImage: { width: 220, height: 220, borderRadius: Radius.md, marginVertical: 2 },
+  // Quoted reply strip inside a bubble
+  replyStrip: {
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.borderStrong,
+    paddingLeft: Spacing.xs + 2,
+    marginBottom: 4,
+    opacity: 0.85,
+  },
+  replyStripOwn: { borderLeftColor: 'rgba(255,255,255,0.6)' },
+  replyName: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+  },
+  replyPreview: { fontFamily: Fonts.body, fontSize: FontSize.xs, color: Colors.textMuted },
+  // Reply action in the long-press picker
+  replyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs + 2,
+    minHeight: 44,
+    alignSelf: 'stretch',
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+  },
+  replyBtnText: {
+    fontFamily: Fonts.bodySemibold,
+    color: Colors.text,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+  },
+  // Reply banner above the input bar
+  replyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    backgroundColor: Colors.surfaceRaised,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  replyBannerBar: { width: 3, alignSelf: 'stretch', backgroundColor: Colors.primaryBorder, borderRadius: 2 },
+  replyBannerText: { flex: 1 },
+  replyBannerName: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.text,
+  },
+  replyBannerPreview: { fontFamily: Fonts.body, fontSize: FontSize.xs, color: Colors.textMuted },
+  // GIF button
+  gifBtn: {
+    height: 44,
+    paddingHorizontal: Spacing.xs + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gifBtnText: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.heavy,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+  },
   reactionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
