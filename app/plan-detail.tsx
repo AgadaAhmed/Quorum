@@ -18,7 +18,7 @@ import * as Sharing from 'expo-sharing';
 import * as Calendar from 'expo-calendar';
 import * as Haptics from 'expo-haptics';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import PlanBanner from '../components/PlanBanner';
+import PlanCover from '../components/PlanCover';
 import {
   doc,
   onSnapshot,
@@ -767,6 +767,18 @@ export default function PlanDetailScreen() {
             <Ionicons name={plan.isPublic ? 'globe-outline' : 'lock-closed-outline'} size={14} color={Colors.textMuted} />
             <Text style={styles.metaText}>{plan.isPublic ? 'Public' : 'Private'}</Text>
           </View>
+          <View style={styles.metaItem}>
+            <Ionicons
+              name={plan.isPaid && plan.price ? 'card-outline' : 'pricetag-outline'}
+              size={14}
+              color={Colors.textMuted}
+            />
+            <Text style={styles.metaText}>
+              {plan.isPaid && plan.price
+                ? `R${plan.price % 1 === 0 ? plan.price : plan.price.toFixed(2)}`
+                : 'Free'}
+            </Text>
+          </View>
           {plan.voteDeadline && (
             <View style={styles.metaItem}>
               <Ionicons name="timer-outline" size={14} color={Colors.textMuted} />
@@ -1378,7 +1390,13 @@ export default function PlanDetailScreen() {
       >
         {/* Cover image with floating header */}
         <View style={styles.coverWrapper}>
-          <PlanBanner category={plan.category} seed={plan.id} variant="hero" style={styles.heroCover} />
+          <PlanCover
+            category={plan.category}
+            seed={plan.id}
+            photoRef={plan.place?.photoRef}
+            variant="hero"
+            style={styles.heroCover}
+          />
           <View style={styles.floatHeader}>
             <TouchableOpacity
               style={styles.floatBtn}

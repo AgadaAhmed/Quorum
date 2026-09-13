@@ -1,7 +1,7 @@
 // Shared constants, types, and helpers for the create-plan screen.
 
 export const CATEGORIES = ['Music', 'Food', 'Sports', 'Art', 'Gaming', 'Travel', 'Party', 'Study'] as const;
-export const VOTE_OPTIONS = ['2', '3', '5', '7', '10'] as const;
+export const VOTE_OPTIONS = ['2', '3', '4', '5', '7', '10'] as const;
 export const MAX_PARTICIPANT_OPTIONS: { label: string; value: number | null }[] = [
   { label: 'No Limit', value: null },
   { label: '5', value: 5 },

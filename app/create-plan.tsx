@@ -70,6 +70,8 @@ export default function CreatePlanScreen() {
   const [time, setTime] = useState<Date>(() => new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [requiredVotes, setRequiredVotes] = useState('3');
+  const [isPaid, setIsPaid] = useState(false);
+  const [price, setPrice] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [category, setCategory] = useState('');
   const [showPoll, setShowPoll] = useState(false);
@@ -254,6 +256,8 @@ export default function CreatePlanScreen() {
         dateTimestamp,
         category: category.trim() || null,
         requiredVotes: parseInt(requiredVotes, 10) || 3,
+        isPaid,
+        price: isPaid ? parseFloat(price) || 0 : 0,
         votes: [uid],
         participants: [uid],
         createdBy: uid,
@@ -323,6 +327,8 @@ export default function CreatePlanScreen() {
     time,
     category,
     requiredVotes,
+    isPaid,
+    price,
     isPublic,
     voteDeadline,
     maxParticipants,
@@ -687,6 +693,54 @@ export default function CreatePlanScreen() {
             })}
           </View>
 
+          <Label text="Cost" />
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, !isPaid && styles.toggleBtnActive]}
+              onPress={() => setIsPaid(false)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ selected: !isPaid }}
+            >
+              <Ionicons
+                name="pricetag-outline"
+                size={16}
+                color={!isPaid ? Colors.primary : Colors.textMuted}
+                style={styles.mr6}
+              />
+              <Text style={[styles.toggleText, !isPaid && styles.toggleTextActive]}>Free</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, isPaid && styles.toggleBtnActive]}
+              onPress={() => setIsPaid(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isPaid }}
+            >
+              <Ionicons
+                name="card-outline"
+                size={16}
+                color={isPaid ? Colors.primary : Colors.textMuted}
+                style={styles.mr6}
+              />
+              <Text style={[styles.toggleText, isPaid && styles.toggleTextActive]}>Paid</Text>
+            </TouchableOpacity>
+          </View>
+          {isPaid ? (
+            <View style={styles.priceRow}>
+              <Text style={styles.pricePrefix}>R</Text>
+              <TextInput
+                style={styles.priceInput}
+                value={price}
+                onChangeText={(t) => setPrice(t.replace(/[^0-9.]/g, ''))}
+                placeholder="0.00"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="decimal-pad"
+                accessibilityLabel="Ticket price in rand"
+              />
+            </View>
+          ) : null}
+
           <Label text="Visibility" />
           {inCooldown ? (
             <View style={styles.cooldownBanner}>
@@ -930,6 +984,18 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   voteChipText: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   voteChipTextActive: { color: Colors.background },
   toggleRow: { flexDirection: 'row', gap: Spacing.sm },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised,
+  },
+  pricePrefix: { fontSize: FontSize.md, fontWeight: FontWeight.heavy, color: Colors.text, marginRight: Spacing.xs },
+  priceInput: { flex: 1, minHeight: 48, color: Colors.text, fontSize: FontSize.md },
   toggleBtn: {
     flex: 1,
     flexDirection: 'row',

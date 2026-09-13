@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { Ionicons } from '@expo/vector-icons';
 import GlassCard from '../GlassCard';
-import PlanBanner from '../PlanBanner';
+import PlanCover from '../PlanCover';
 import QuorumProgressBar from '../QuorumProgressBar';
 import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
@@ -163,7 +163,13 @@ const SwipeablePlanCard = React.memo(function SwipeablePlanCard({
       <GlassCard index={index} onPress={handlePress} onLongPress={handleLongPress}>
         {/* Decorative category banner with overlays */}
         <View style={styles.coverWrap}>
-          <PlanBanner category={item.category} seed={item.id} variant="card" style={styles.coverImage} />
+          <PlanCover
+            category={item.category}
+            seed={item.id}
+            photoRef={(item as any).place?.photoRef}
+            variant="card"
+            style={styles.coverImage}
+          />
           <View
             style={[
               styles.imageBadge,

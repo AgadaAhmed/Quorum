@@ -36,7 +36,7 @@ import ProfileAvatarButton from '../../components/ProfileAvatarButton';
 import InboxButton from '../../components/InboxButton';
 import { type LatLng, type Place } from '../../lib/places';
 import QuorumProgressBar from '../../components/QuorumProgressBar';
-import PlanBanner from '../../components/PlanBanner';
+import PlanCover from '../../components/PlanCover';
 import { isPublicPlanExpired } from '../../lib/planExpiry';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import SkeletonCard from '../../components/SkeletonLoader';
@@ -106,6 +106,15 @@ interface Plan {
   maxParticipants?: number;
   inviteCode?: string;
   createdAt?: { seconds: number } | string;
+  isPaid?: boolean;
+  price?: number;
+  place?: { photoRef?: string | null };
+}
+
+/** "Free" or "R120" — the cost label for a plan. */
+function costLabel(p: { isPaid?: boolean; price?: number }): string {
+  if (!p.isPaid || !p.price) return 'Free';
+  return `R${p.price % 1 === 0 ? p.price : p.price.toFixed(2)}`;
 }
 
 const CATEGORIES = [
@@ -173,7 +182,13 @@ const PlanCard = React.memo(function PlanCard({
   return (
     <GlassCard index={index} onPress={handleCardPress} style={styles.card}>
       <View style={styles.coverWrap}>
-        <PlanBanner category={item.category} seed={item.id} variant="card" style={styles.cardCover} />
+        <PlanCover
+          category={item.category}
+          seed={item.id}
+          photoRef={item.place?.photoRef}
+          variant="card"
+          style={styles.cardCover}
+        />
         {/* Scrim keeps white badge text legible over any cover image. */}
         <LinearGradient
           colors={SCRIM_COLORS}
@@ -217,30 +232,36 @@ const PlanCard = React.memo(function PlanCard({
           {item.title}
         </Text>
 
-        {(dateLabel || item.location || distKm != null) ? (
-          <View style={styles.metaRow}>
-            {dateLabel ? (
-              <View style={styles.metaChip}>
-                <Ionicons name="calendar-outline" size={14} color={Colors.textMuted} />
-                <Text style={styles.metaText}>{dateLabel}</Text>
-              </View>
-            ) : null}
-            {item.location ? (
-              <View style={[styles.metaChip, styles.metaChipFlex]}>
-                <Ionicons name="location-outline" size={14} color={Colors.textMuted} />
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {item.location}
-                </Text>
-              </View>
-            ) : null}
-            {distKm != null ? (
-              <View style={styles.metaChip}>
-                <Ionicons name="navigate-outline" size={14} color={Colors.textMuted} />
-                <Text style={styles.metaText}>{formatDistance(distKm)}</Text>
-              </View>
-            ) : null}
+        <View style={styles.metaRow}>
+          {dateLabel ? (
+            <View style={styles.metaChip}>
+              <Ionicons name="calendar-outline" size={14} color={Colors.textMuted} />
+              <Text style={styles.metaText}>{dateLabel}</Text>
+            </View>
+          ) : null}
+          {item.location ? (
+            <View style={[styles.metaChip, styles.metaChipFlex]}>
+              <Ionicons name="location-outline" size={14} color={Colors.textMuted} />
+              <Text style={styles.metaText} numberOfLines={1}>
+                {item.location}
+              </Text>
+            </View>
+          ) : null}
+          {distKm != null ? (
+            <View style={styles.metaChip}>
+              <Ionicons name="navigate-outline" size={14} color={Colors.textMuted} />
+              <Text style={styles.metaText}>{formatDistance(distKm)}</Text>
+            </View>
+          ) : null}
+          <View style={styles.metaChip}>
+            <Ionicons
+              name={item.isPaid && item.price ? 'card-outline' : 'pricetag-outline'}
+              size={14}
+              color={Colors.textMuted}
+            />
+            <Text style={styles.metaText}>{costLabel(item)}</Text>
           </View>
-        ) : null}
+        </View>
 
         <View style={styles.progressWrapper}>
           {/* QuorumProgressBar renders its own votes/percent header row. */}
