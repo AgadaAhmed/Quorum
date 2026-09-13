@@ -8,7 +8,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import Constants from 'expo-constants';
 import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
-import Purchases from 'react-native-purchases';
 import { auth, db } from '../lib/firebase';
 import { THEME_META, type ThemePalette } from '../lib/theme';
 import { ToastProvider } from '../components/Toast';
@@ -137,6 +136,10 @@ function RootNavigator() {
 
   useEffect(() => {
     if (isExpoGo) return;
+    // Lazy require: react-native-purchases is a native module absent from Expo
+    // Go; a top-level import would crash the app on launch there.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Purchases = require('react-native-purchases').default;
     const apiKey = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
     Purchases.configure({ apiKey });
   }, []);
@@ -149,9 +152,13 @@ function RootNavigator() {
         // Identify the user to RevenueCat so its app_user_id == Firebase uid.
         // The revenuecatWebhook keys on app_user_id to write the correct user's
         // subscriptionTier; without this it would use an anonymous id.
-        if (!isExpoGo) Purchases.logIn(u.uid).catch(() => {});
+        if (!isExpoGo) {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          require('react-native-purchases').default.logIn(u.uid).catch(() => {});
+        }
       } else if (!isExpoGo) {
-        Purchases.logOut().catch(() => {});
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('react-native-purchases').default.logOut().catch(() => {});
       }
     });
     return unsub;

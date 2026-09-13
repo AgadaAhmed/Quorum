@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts, FontSize, FontWeight, Spacing, type ThemePalette } from '../lib/theme';
 import { useTheme, useThemedStyles } from '../lib/ThemeContext';
@@ -17,11 +16,24 @@ export default function OfflineBanner() {
   const translateY = useRef(new Animated.Value(-120)).current;
 
   useEffect(() => {
-    const unsub = NetInfo.addEventListener((state) => {
-      // Only treat a definitive disconnect as offline; `null` (unknown) stays
-      // online to avoid a false banner on startup / transient states.
-      setOffline(state.isConnected === false);
-    });
+    // Lazy + defensive: @react-native-community/netinfo is a native module that
+    // is null in Expo Go (its native side isn't bundled). A top-level import +
+    // call crashes the app on launch there, so require it at runtime and no-op
+    // if it's unavailable. In real builds it works normally.
+    let unsub = () => {};
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const NetInfo = require('@react-native-community/netinfo').default;
+      if (NetInfo?.addEventListener) {
+        unsub = NetInfo.addEventListener((state: { isConnected: boolean | null }) => {
+          // Only treat a definitive disconnect as offline; `null` (unknown) stays
+          // online to avoid a false banner on startup / transient states.
+          setOffline(state.isConnected === false);
+        });
+      }
+    } catch {
+      // netinfo native module unavailable (e.g. Expo Go) — offline detection off.
+    }
     return () => unsub();
   }, []);
 
