@@ -19,7 +19,6 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, lim
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../../lib/firebase';
 import { useToast } from '../../components/Toast';
@@ -29,10 +28,9 @@ import PlanBanner from '../../components/PlanBanner';
 import Avatar from '../../components/Avatar';
 import GifPicker from '../../components/GifPicker';
 import ProfileBanner from '../../components/ProfileBanner';
-import ColorSwatchRow from '../../components/ColorSwatchRow';
 import { useSubscription } from '../../hooks/useSubscription';
 import { GifResult } from '../../lib/gifProvider';
-import { bioMaxFor, TAGLINE_MAX, resolveColor, accentGradient } from '../../lib/profileCustomization';
+import { bioMaxFor, resolveColor, accentBackground, type AccentMode } from '../../lib/profileCustomization';
 import { FontSize, FontWeight, Radius, Spacing, type ThemePalette } from '../../lib/theme';
 import { useTheme, useThemedStyles } from '../../lib/ThemeContext';
 
@@ -56,6 +54,7 @@ type UserProfile = {
   ratingAvg?: number;
   tagline?: string;
   profileAccent?: string;
+  profileAccentMode?: AccentMode;
   nameColor?: string;
 };
 
@@ -177,9 +176,6 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [tagline, setTagline] = useState('');
-  const [profileAccent, setProfileAccent] = useState<string | undefined>(undefined);
-  const [nameColor, setNameColor] = useState<string | undefined>(undefined);
   const [username, setUsername] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
@@ -211,9 +207,6 @@ export default function ProfileScreen() {
       setProfile(data);
       setBio(data.bio || '');
       setDisplayName(data.displayName || '');
-      setTagline(data.tagline || '');
-      setProfileAccent(data.profileAccent || undefined);
-      setNameColor(data.nameColor || undefined);
       setUsername(data.username || '');
       setCity(data.city || '');
       setCountry(data.country || '');
@@ -312,11 +305,8 @@ export default function ProfileScreen() {
       updates.username = trimmedUsername;
       updates.usernameLower = trimmedUsername.toLowerCase();
     }
-    if (isPro) {
-      updates.tagline = tagline.trim();
-      updates.profileAccent = profileAccent ?? '';
-      updates.nameColor = nameColor ?? '';
-    }
+    // Customization (tagline / accent / name color) is edited only on the
+    // Customize screen now — Edit profile must not write those fields.
     try {
       await updateDoc(doc(db, 'users', uid), updates);
       setProfile((p) =>
@@ -329,7 +319,6 @@ export default function ProfileScreen() {
               city: trimmedCity,
               country: trimmedCountry,
               emergencyContact: { name: emergencyName.trim(), phone: emergencyPhone.trim() },
-              ...(isPro ? { tagline: tagline.trim(), profileAccent: profileAccent ?? '', nameColor: nameColor ?? '' } : {}),
             }
           : p
       );
@@ -352,10 +341,6 @@ export default function ProfileScreen() {
     emergencyPhone,
     profile?.username,
     showToast,
-    isPro,
-    tagline,
-    profileAccent,
-    nameColor,
   ]);
 
   const handleAvatarPick = useCallback(async () => {
@@ -454,6 +439,15 @@ export default function ProfileScreen() {
 
   const accentValue = resolveColor(profile?.profileAccent);
   const nameColorValue = resolveColor(profile?.nameColor);
+  // Hero background: a banner GIF fills the whole hero when set; otherwise the
+  // chosen accent shows as solid / transparent tint / nothing. When the hero is
+  // "dark" (gif or solid fill) the text switches to light for legibility.
+  const heroHasGif = !!profile?.bannerGifUrl;
+  const accentBg = accentBackground(accentValue, profile?.profileAccentMode ?? 'transparent');
+  const heroDark = heroHasGif || accentBg.dark;
+  const heroText = heroDark ? Colors.onDark : Colors.text;
+  const heroSubText = heroDark ? 'rgba(255,255,255,0.78)' : Colors.textMuted;
+  const heroBodyText = heroDark ? Colors.onDark : (accentValue || Colors.textSecondary);
 
   const consensusPct = useMemo(
     () => getConsensusPercent(voteCount, planCount),
@@ -525,46 +519,50 @@ export default function ProfileScreen() {
           <View style={styles.statDivider} />
           <ProfileStatItem label="Votes" value={voteCount} />
           <View style={styles.statDivider} />
-          <ProfileStatItem label="Network" value={friendCount} />
+          <ProfileStatItem label="Friends" value={friendCount} />
         </View>
         <View style={styles.statsContainerNoTop}>
-          <ProfileStatItem label="Quorum Rate" value={planCount > 0 ? `${consensusPct}%` : '—'} />
+          <ProfileStatItem
+            label="Rating"
+            value={profile?.ratingAvg ? profile.ratingAvg.toFixed(1) : '—'}
+          />
           <View style={styles.statDivider} />
           <ProfileStatItem label="Hosted" value={hostedCount} />
           <View style={styles.statDivider} />
           <ProfileStatItem label="Confirmed" value={confirmedCount} />
         </View>
 
-        {/* ── Hero Banner ── */}
-        <View style={styles.heroContainer}>
-          {/* Banner — renders null for free users / no banner set; the edit
-              affordance is always visible so free users can discover Pro. */}
-          <View style={styles.heroBannerWrap}>
-            <ProfileBanner
-              gifUrl={profile?.bannerGifUrl}
-              stillUrl={profile?.bannerStillUrl}
-              animated
-            />
-            <TouchableOpacity
-              onPress={onEditBanner}
-              style={styles.bannerEditButton}
-              accessibilityLabel="Edit banner"
-              hitSlop={8}
-            >
-              <Ionicons name="image-outline" size={16} color={Colors.onDark} />
-            </TouchableOpacity>
+        {/* ── Hero ── */}
+        <View style={[styles.heroContainer, styles.heroClip]}>
+          {/* Full-bleed background: a banner GIF fills the whole hero when set;
+              otherwise the chosen accent shows (solid / transparent / none). */}
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            {heroHasGif ? (
+              <>
+                <ProfileBanner
+                  gifUrl={profile?.bannerGifUrl}
+                  stillUrl={profile?.bannerStillUrl}
+                  animated
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.heroScrim} />
+              </>
+            ) : accentBg.color ? (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: accentBg.color }]} />
+            ) : null}
           </View>
 
+          {/* Change-banner affordance (always visible) */}
+          <TouchableOpacity
+            onPress={onEditBanner}
+            style={styles.bannerEditButton}
+            accessibilityLabel="Edit banner"
+            hitSlop={8}
+          >
+            <Ionicons name="image-outline" size={16} color={Colors.onDark} />
+          </TouchableOpacity>
+
           <View style={styles.heroRow}>
-            {accentValue ? (
-              <LinearGradient
-                colors={accentGradient(accentValue)}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-              />
-            ) : null}
             {/* Avatar */}
             <TouchableOpacity
               onPress={onAvatarPress}
@@ -601,26 +599,26 @@ export default function ProfileScreen() {
 
             {/* Name, handle, bio, consensus — beside avatar */}
             <View style={styles.heroInfo}>
-              <Text style={[styles.heroName, nameColorValue ? { color: nameColorValue } : null]} numberOfLines={1}>
+              <Text style={[styles.heroName, { color: nameColorValue || heroText }]} numberOfLines={1}>
                 {profile?.displayName || (loading ? 'Loading…' : 'Unnamed')}
               </Text>
               {profile?.username ? (
-                <Text style={styles.heroHandle}>@{profile.username}</Text>
+                <Text style={[styles.heroHandle, { color: heroSubText }]}>@{profile.username}</Text>
               ) : null}
               {profile?.tagline ? (
-                <Text style={[styles.heroTagline, accentValue ? { color: accentValue } : null]} numberOfLines={1}>
+                <Text style={[styles.heroTagline, { color: heroBodyText }]} numberOfLines={1}>
                   {profile.tagline}
                 </Text>
               ) : null}
               {profile?.bio ? (
-                <Text style={[styles.heroBio, accentValue ? { color: accentValue } : null]} numberOfLines={2}>
+                <Text style={[styles.heroBio, { color: heroBodyText }]} numberOfLines={2}>
                   {profile.bio}
                 </Text>
               ) : null}
               {hasLocation ? (
                 <View style={styles.locationRow}>
-                  <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
-                  <Text style={styles.locationText} numberOfLines={1}>
+                  <Ionicons name="location-outline" size={12} color={heroSubText} />
+                  <Text style={[styles.locationText, { color: heroSubText }]} numberOfLines={1}>
                     {locationLabel}
                   </Text>
                 </View>
@@ -631,7 +629,9 @@ export default function ProfileScreen() {
                 accessible
                 accessibilityLabel={`${consensusPct} percent consensus`}
               >
-                <Text style={styles.consensusLabel}>{consensusPct}% Consensus</Text>
+                <Text style={[styles.consensusLabel, { color: heroDark ? Colors.onDark : Colors.textSecondary }]}>
+                  {consensusPct}% Consensus
+                </Text>
                 <View style={styles.consensusTrack}>
                   <View style={[styles.consensusFill, { width: `${consensusPct}%` }]} />
                 </View>
@@ -835,20 +835,8 @@ export default function ProfileScreen() {
               />
               <Text style={styles.charCount}>{bio.length}/{bioMaxFor(isPro)}</Text>
 
-              <Text style={styles.fieldLabel}>Tagline</Text>
-              <TextInput
-                testID="edit-tagline"
-                style={styles.fieldInput}
-                value={tagline}
-                onChangeText={setTagline}
-                placeholder="A short line under your name"
-                placeholderTextColor={Colors.textMuted}
-                maxLength={TAGLINE_MAX}
-              />
-              <Text style={styles.fieldLabel}>Name color</Text>
-              <ColorSwatchRow selectedKey={nameColor} onSelect={setNameColor} />
-              <Text style={styles.fieldLabel}>Profile accent</Text>
-              <ColorSwatchRow selectedKey={profileAccent} onSelect={setProfileAccent} />
+              {/* Tagline, name color & profile accent live on the Customize
+                  screen (color-wand button) — not here. */}
 
               {/* Location */}
               <Text style={styles.fieldLabel}>City</Text>
@@ -929,6 +917,15 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     borderBottomColor: Colors.border,
     backgroundColor: Colors.backgroundAlt,
   },
+  // Clip the full-bleed gif/accent background to the hero bounds.
+  heroClip: {
+    overflow: 'hidden',
+  },
+  // Darkens a banner-gif background so overlaid text stays legible.
+  heroScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+  },
   // Reserves room for the banner-edit affordance even when no banner is set
   // (free users / Pro users who haven't picked one yet), so the button never
   // overlaps the avatar row below it.
@@ -948,11 +945,10 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   heroRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.xl,
     paddingHorizontal: Spacing.container,
     gap: Spacing.sm,
     position: 'relative',
-    overflow: 'hidden',
   },
   avatarWrapper: {
     position: 'relative',

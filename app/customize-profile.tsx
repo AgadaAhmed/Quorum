@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -11,7 +11,13 @@ import ProfilePreviewCard, { ProfileDraft } from '../components/ProfilePreviewCa
 import GifPicker from '../components/GifPicker';
 import ColorSwatchRow from '../components/ColorSwatchRow';
 import { GifResult } from '../lib/gifProvider';
-import { TAGLINE_MAX } from '../lib/profileCustomization';
+import { TAGLINE_MAX, type AccentMode } from '../lib/profileCustomization';
+
+const ACCENT_MODES: { key: AccentMode; label: string }[] = [
+  { key: 'solid', label: 'Solid' },
+  { key: 'transparent', label: 'Transparent' },
+  { key: 'none', label: 'None' },
+];
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '../lib/theme';
 
 export default function CustomizeProfileScreen() {
@@ -38,6 +44,7 @@ export default function CustomizeProfileScreen() {
         tagline: d.tagline || '',
         bio: d.bio,
         profileAccent: d.profileAccent || undefined,
+        profileAccentMode: d.profileAccentMode || 'transparent',
         nameColor: d.nameColor || undefined,
       });
     });
@@ -67,6 +74,7 @@ export default function CustomizeProfileScreen() {
         bannerStillUrl: draft.bannerStillUrl ?? '',
         tagline: (draft.tagline ?? '').trim(),
         profileAccent: draft.profileAccent ?? '',
+        profileAccentMode: draft.profileAccentMode ?? 'transparent',
         nameColor: draft.nameColor ?? '',
       });
       showToast('Customization applied!');
@@ -109,6 +117,23 @@ export default function CustomizeProfileScreen() {
 
         <Text style={styles.label}>Profile accent</Text>
         <ColorSwatchRow selectedKey={draft.profileAccent} onSelect={(k) => setDraft((p) => ({ ...p, profileAccent: k }))} />
+        <View style={styles.modeRow}>
+          {ACCENT_MODES.map((m) => {
+            const active = (draft.profileAccentMode ?? 'transparent') === m.key;
+            return (
+              <TouchableOpacity
+                key={m.key}
+                onPress={() => setDraft((p) => ({ ...p, profileAccentMode: m.key }))}
+                style={[styles.modeBtn, active && styles.modeBtnActive]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={[styles.modeText, active && styles.modeTextActive]}>{m.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={styles.hint}>Applies when you have no banner GIF. A GIF fills the whole profile.</Text>
 
         <TouchableOpacity
           style={[styles.apply, saving && { opacity: 0.6 }]}
@@ -139,6 +164,18 @@ const styles = StyleSheet.create({
   },
   controlText: { color: Colors.text, fontSize: FontSize.md },
   label: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: Spacing.sm },
+  hint: { color: Colors.textMuted, fontSize: FontSize.xs, marginTop: Spacing.xs },
+  modeRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
+  modeBtn: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modeBtnActive: { backgroundColor: Colors.text, borderColor: Colors.text },
+  modeText: { color: Colors.text, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  modeTextActive: { color: Colors.background },
   input: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
