@@ -56,6 +56,7 @@ export default function ProfileAvatarButton() {
         gifUrl={profile.avatarGifUrl}
         stillUrl={profile.avatarStillUrl}
         decorationId={profile.decorationId ?? null}
+        animated
         imageStyle={styles.image}
         fallbackStyle={styles.fallback}
         initialStyle={styles.initial}

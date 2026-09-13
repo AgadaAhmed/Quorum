@@ -167,17 +167,24 @@ const PLACES_DAILY_CAP = 300;                        // per-user Google calls/da
 
 // App-category -> Google (New) includedTypes for Nearby Search.
 const CATEGORY_TO_TYPES = {
-  Food:   ['restaurant', 'cafe', 'bakery'],
-  Party:  ['bar', 'night_club'],
-  Sports: ['gym', 'stadium'],
+  Food:   ['restaurant', 'cafe', 'bakery', 'meal_takeaway'],
+  Party:  ['bar', 'night_club', 'movie_theater', 'amusement_park', 'bowling_alley'],
+  Sports: ['gym', 'stadium', 'sports_complex'],
   Art:    ['art_gallery', 'museum'],
   Study:  ['library', 'book_store'],
   Travel: ['tourist_attraction', 'park'],
 };
 
+// Default set for the "All" view + the Discover carousel (no category chosen):
+// the union of every mapped category, so we only surface social/leisure venues
+// instead of every business nearby (no truck-rental firms, plumbers, etc.).
+const DEFAULT_INCLUDED_TYPES = [...new Set(Object.values(CATEGORY_TO_TYPES).flat())];
+
 function placesCacheKey(lat, lng, category) {
   const r = (n) => Math.round(n * 1000) / 1000; // ~110m granularity
-  return `${r(lat)}_${r(lng)}_${category || 'all'}`;
+  // v2: bumped when the query (includedTypes) changed, so stale unfiltered
+  // "all" results from v1 are ignored instead of served until TTL.
+  return `v2_${r(lat)}_${r(lng)}_${category || 'all'}`;
 }
 
 /**
@@ -218,12 +225,14 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
     return { places: [], cached: false, capped: true };
   }
 
-  const includedTypes = CATEGORY_TO_TYPES[category] || [];
+  // A specific category uses its own types; "all" uses the curated union so we
+  // never fall back to an unfiltered (every-business) search.
+  const includedTypes = CATEGORY_TO_TYPES[category] || DEFAULT_INCLUDED_TYPES;
   const body = {
     maxResultCount: 20,
     locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 4000 } },
+    includedTypes,
   };
-  if (includedTypes.length) body.includedTypes = includedTypes;
 
   // Any failure talking to Google — thrown fetch (timeout/DNS/reset), a non-OK
   // status, or a JSON parse error — routes through the same stale-cache fallback.
