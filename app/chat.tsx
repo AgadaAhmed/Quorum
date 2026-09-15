@@ -351,6 +351,9 @@ export default function ChatScreen({
   }>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
+  // Gates the DM message/typing subscriptions until the room doc exists, so their
+  // rule check (get() on the room doc) can't be denied on a brand-new DM.
+  const [dmReady, setDmReady] = useState(false);
   const [input, setInput] = useState('');
   const [senderName, setSenderName] = useState('');
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -377,12 +380,25 @@ export default function ChatScreen({
   const dmPeers = useMemo(() => dmParticipantsOf(ROOM_ID), [ROOM_ID]);
 
   // For DMs, ensure the room doc (with participants) exists so the messages
-  // subcollection rules and the inbox listing work.
+  // subcollection rules and the inbox listing work. The message/typing
+  // subscriptions wait on `dmReady` so they never read the room doc before it
+  // exists (which the rules would deny, permanently killing the listener).
   useEffect(() => {
-    if (chatKind !== 'dm' || !uid || dmPeers.length !== 2) return;
-    setDoc(doc(db, 'chats', ROOM_ID), { participants: dmPeers, kind: 'dm' }, { merge: true }).catch(
-      () => {}
-    );
+    if (chatKind !== 'dm') {
+      setDmReady(true); // non-DM rooms don't gate
+      return;
+    }
+    setDmReady(false);
+    if (!uid || dmPeers.length !== 2) return;
+    let active = true;
+    setDoc(doc(db, 'chats', ROOM_ID), { participants: dmPeers, kind: 'dm' }, { merge: true })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setDmReady(true);
+      });
+    return () => {
+      active = false;
+    };
   }, [chatKind, uid, dmPeers, ROOM_ID]);
 
   // Update the DM room doc's last-message summary (powers the inbox list).
@@ -428,6 +444,11 @@ export default function ChatScreen({
         .then((snap) => setSenderName(snap.data()?.username || snap.data()?.displayName || 'Anonymous'))
         .catch(() => setSenderName('Anonymous'));
     }
+
+    // On a DM, wait until the room doc is created — otherwise the message/typing
+    // reads (which the rules resolve via get() on that doc) get denied and the
+    // listener dies for good.
+    if (chatKind === 'dm' && !dmReady) return;
 
     const cutoff = getChatHistoryCutoff(isPro ? 'pro' : 'free');
     const q = cutoff
@@ -480,7 +501,8 @@ export default function ChatScreen({
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
     // ROOM_ID derives from planId; isPro/uid changes should rebuild the query.
-  }, [ROOM_ID, isPro, uid]);
+    // chatKind/dmReady gate the DM case until the room doc exists.
+  }, [ROOM_ID, isPro, uid, chatKind, dmReady]);
 
   // ── Resolve display names for typing users ─────────────────────────────────
   useEffect(() => {
