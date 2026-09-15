@@ -812,48 +812,9 @@ export default function SocialScreen() {
       {/* Search tab */}
       {tab === 'search' && (
         <View style={styles.tabBody}>
-          <View style={styles.joinCodeCard}>
-            <View style={styles.joinCodeHeader}>
-              <Ionicons name="key-outline" size={16} color={Colors.text} />
-              <Text style={styles.joinCodeTitle}>Join by Invite Code</Text>
-            </View>
-            <Text style={styles.joinCodeSubtitle}>
-              Enter the {INVITE_CODE_LENGTH}-character code someone shared to join their plan.
-            </Text>
-            <View style={styles.joinCodeRow}>
-              <TextInput
-                style={styles.joinCodeInput}
-                placeholder="8-character code"
-                placeholderTextColor={Colors.textMuted}
-                value={joinCode}
-                onChangeText={(t) => setJoinCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                maxLength={INVITE_CODE_LENGTH}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                returnKeyType="go"
-                onSubmitEditing={handleJoinByCode}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.squareBtn,
-                  (joiningByCode || joinCode.length !== INVITE_CODE_LENGTH) && styles.btnDisabled,
-                ]}
-                onPress={handleJoinByCode}
-                disabled={joiningByCode}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Join plan by code"
-                accessibilityState={{ disabled: joiningByCode, busy: joiningByCode }}
-              >
-                {joiningByCode ? (
-                  <ActivityIndicator size="small" color={Colors.background} />
-                ) : (
-                  <Ionicons name="arrow-forward" size={20} color={Colors.background} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-
+          {/* Search sits at the TOP so the keyboard never covers it (this screen
+              also renders inside the Social tab, above the bottom tab bar). The
+              join-by-code card is secondary, so it moves below the results. */}
           <View style={styles.searchRow}>
             <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
             <TextInput
@@ -887,6 +848,7 @@ export default function SocialScreen() {
 
           <FlatList
             data={results}
+            style={styles.flexOne}
             keyExtractor={keyById}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={SEARCH_LIST_CONTENT}
@@ -902,6 +864,45 @@ export default function SocialScreen() {
               ) : null
             }
           />
+
+          <View style={styles.joinCodeCard}>
+            <View style={styles.joinCodeHeader}>
+              <Ionicons name="key-outline" size={16} color={Colors.text} />
+              <Text style={styles.joinCodeTitle}>Join by Invite Code</Text>
+            </View>
+            <View style={styles.joinCodeRow}>
+              <TextInput
+                style={styles.joinCodeInput}
+                placeholder="8-character code"
+                placeholderTextColor={Colors.textMuted}
+                value={joinCode}
+                onChangeText={(t) => setJoinCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                maxLength={INVITE_CODE_LENGTH}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={handleJoinByCode}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.squareBtn,
+                  (joiningByCode || joinCode.length !== INVITE_CODE_LENGTH) && styles.btnDisabled,
+                ]}
+                onPress={handleJoinByCode}
+                disabled={joiningByCode}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Join plan by code"
+                accessibilityState={{ disabled: joiningByCode, busy: joiningByCode }}
+              >
+                {joiningByCode ? (
+                  <ActivityIndicator size="small" color={Colors.background} />
+                ) : (
+                  <Ionicons name="arrow-forward" size={20} color={Colors.background} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       )}
 
