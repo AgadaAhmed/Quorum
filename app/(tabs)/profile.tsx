@@ -539,7 +539,7 @@ export default function ProfileScreen() {
                   gifUrl={profile?.bannerGifUrl}
                   stillUrl={profile?.bannerStillUrl}
                   animated
-                  style={StyleSheet.absoluteFill}
+                  fill
                 />
                 <View style={styles.heroScrim} />
               </>

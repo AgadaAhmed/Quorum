@@ -37,8 +37,17 @@ export function resolveAvatarSource(opts: {
 }): AvatarSource {
   const { animated, gifUrl, stillUrl, uploadUrl } = opts;
   if (animated && gifUrl) return { kind: 'image', uri: gifUrl, animated: true };
-  if (stillUrl) return { kind: 'image', uri: stillUrl, animated: false };
+  if (stillUrl) {
+    // A .gif used as a "still" renders as a black frame on Android when autoplay
+    // is off, so animate it instead of showing a black box. Newer avatars store
+    // a real static still (a .jpg from the GIF provider) and stay non-animated.
+    const stillIsGif = /\.gif(\?|#|$)/i.test(stillUrl);
+    return { kind: 'image', uri: stillUrl, animated: stillIsGif };
+  }
   if (uploadUrl) return { kind: 'image', uri: uploadUrl, animated: false };
+  // No still or upload, but a gif exists → show the animated gif rather than a
+  // blank/initials avatar, so friends' gif pfps still appear everywhere.
+  if (gifUrl) return { kind: 'image', uri: gifUrl, animated: true };
   return { kind: 'initials' };
 }
 

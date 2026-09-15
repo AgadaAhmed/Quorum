@@ -21,6 +21,20 @@ describe('resolveAvatarSource', () => {
     ).toEqual({ kind: 'image', uri: 's', animated: false });
   });
 
+  it('animates a .gif "still" (would otherwise render black on Android)', () => {
+    expect(
+      resolveAvatarSource({ animated: false, stillUrl: 'https://x/y.gif' })
+    ).toEqual({ kind: 'image', uri: 'https://x/y.gif', animated: true });
+  });
+
+  it('shows the gif when there is no still or upload, rather than initials', () => {
+    expect(resolveAvatarSource({ animated: false, gifUrl: 'g' })).toEqual({
+      kind: 'image',
+      uri: 'g',
+      animated: true,
+    });
+  });
+
   it('falls back to the uploaded avatar when there is no gif/still', () => {
     expect(resolveAvatarSource({ uploadUrl: 'u' })).toEqual({
       kind: 'image',
