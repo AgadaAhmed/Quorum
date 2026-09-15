@@ -534,6 +534,25 @@ exports.onPlanUpdate = onDocumentUpdated('plans/{planId}', async (event) => {
   }
 });
 
+// plans/{planId} created with participants beyond the creator → those friends
+// were invited straight from the create-plan screen. Ping each invitee (the
+// creator seeds participants, so onPlanUpdate's join-notify never fires for them).
+exports.onPlanCreate = onDocumentCreated('plans/{planId}', async (event) => {
+  const plan = (event.data && event.data.data()) || {};
+  const planId = event.params.planId;
+  const creator = plan.createdBy;
+  const invited = (plan.participants || []).filter((p) => p && p !== creator);
+  if (!invited.length) return;
+  const title = plan.title || 'a plan';
+  const inviterName = creator ? await displayNameOf(creator) : 'Someone';
+  await pushToUids(invited, {
+    title: 'You were invited to a plan',
+    body: `${inviterName} invited you to "${title}"`,
+    data: { type: 'plan_invite', planId },
+    collapseId: `plan-invite-${planId}`,
+  });
+});
+
 // chats/{roomId}/messages/{id} created → notify plan participants except sender.
 // roomId is the planId (chat.tsx: ROOM_ID = planId || 'global'). collapseId keeps
 // a busy chat from stacking one notification per message.

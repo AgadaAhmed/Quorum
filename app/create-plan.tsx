@@ -42,6 +42,8 @@ import {
   makeInviteCode,
 } from '../components/create-plan/shared';
 
+type Friend = { id: string; displayName: string; username?: string };
+
 export default function CreatePlanScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ title?: string; placeJson?: string; fromRoomId?: string }>();
@@ -88,6 +90,9 @@ export default function CreatePlanScreen() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [pollSubmitted, setPollSubmitted] = useState(false);
   const [accountAgeDays, setAccountAgeDays] = useState<number | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const [uid, setUid] = useState(auth.currentUser?.uid || '');
 
@@ -107,6 +112,27 @@ export default function CreatePlanScreen() {
           const days = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
           setAccountAgeDays(days);
         }
+        // Resolve the user's friends (uid list) to names for the invite picker.
+        const friendIds: string[] = Array.isArray(data?.friends) ? data.friends : [];
+        if (friendIds.length) {
+          Promise.all(
+            friendIds.map((fid) =>
+              getDoc(doc(db, 'users', fid))
+                .then((s): Friend | null =>
+                  s.exists()
+                    ? {
+                        id: fid,
+                        displayName: (s.data().displayName as string) || 'Friend',
+                        username: s.data().username as string | undefined,
+                      }
+                    : null
+                )
+                .catch(() => null)
+            )
+          ).then((list) => {
+            if (active) setFriends(list.filter((f): f is Friend => !!f));
+          });
+        }
       })
       .catch(() => {});
     return () => {
@@ -117,6 +143,12 @@ export default function CreatePlanScreen() {
   useEffect(() => {
     if (!auth.currentUser) router.replace('/(auth)/login');
   }, [router]);
+
+  const toggleFriend = useCallback((id: string) => {
+    setSelectedFriends((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
 
   // Seed the form once from the incoming venue. Title is intentionally left to
   // the title-sync effect below (it owns the title while the user hasn't
@@ -260,7 +292,10 @@ export default function CreatePlanScreen() {
         isPaid,
         price: isPaid ? parseFloat(price) || 0 : 0,
         votes: [uid],
-        participants: [uid],
+        // Seed the plan with the creator plus any friends they picked to invite.
+        // They can read it (participants can read private plans) and leave anytime;
+        // the onPlanCreate function pings them. Dedupe in case of overlap.
+        participants: [...new Set([uid, ...selectedFriends])],
         createdBy: uid,
         isPublic,
         status: 'pending',
@@ -336,6 +371,7 @@ export default function CreatePlanScreen() {
     router,
     seededPlace,
     fromRoomId,
+    selectedFriends,
   ]);
 
   const togglePoll = useCallback(() => {
@@ -818,6 +854,30 @@ export default function CreatePlanScreen() {
             </Text>
           )}
 
+          <SectionHeading text="Invite friends (optional)" />
+          {friends.length === 0 ? (
+            <Text style={styles.helperText}>
+              Add friends to invite them straight into a plan. You can also share the
+              invite code after creating.
+            </Text>
+          ) : (
+            <TouchableOpacity
+              style={styles.inviteRow}
+              onPress={() => setShowInviteModal(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Choose friends to invite"
+            >
+              <Ionicons name="people-outline" size={18} color={Colors.primary} />
+              <Text style={styles.inviteRowText}>
+                {selectedFriends.length
+                  ? `${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''} invited`
+                  : 'Choose friends to invite'}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+
           <SectionHeading text="Poll (optional)" />
 
           <TouchableOpacity
@@ -929,6 +989,43 @@ export default function CreatePlanScreen() {
         onDelete={deleteTemplate}
       />
 
+      {showInviteModal && (
+        <PickerModal
+          visible
+          onCancel={() => setShowInviteModal(false)}
+          onDone={() => setShowInviteModal(false)}
+        >
+          <ScrollView style={styles.inviteList} keyboardShouldPersistTaps="handled">
+            {friends.map((f) => {
+              const sel = selectedFriends.includes(f.id);
+              return (
+                <TouchableOpacity
+                  key={f.id}
+                  style={styles.inviteFriendRow}
+                  onPress={() => toggleFriend(f.id)}
+                  activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: sel }}
+                  accessibilityLabel={`Invite ${f.displayName}`}
+                >
+                  <View style={styles.flex}>
+                    <Text style={styles.inviteFriendName}>{f.displayName}</Text>
+                    {f.username ? (
+                      <Text style={styles.inviteFriendHandle}>@{f.username}</Text>
+                    ) : null}
+                  </View>
+                  <Ionicons
+                    name={sel ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={22}
+                    color={sel ? Colors.primary : Colors.textMuted}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </PickerModal>
+      )}
+
       <ConfettiParticles ref={confettiRef} />
     </ScreenWrapper>
   );
@@ -972,6 +1069,29 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   timeRow: { flexDirection: 'row', alignItems: 'center' },
   fieldFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.xs },
   helperText: { fontSize: FontSize.xs, color: Colors.textMuted, lineHeight: 16, marginTop: Spacing.xs },
+  inviteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceRaised,
+  },
+  inviteRowText: { flex: 1, fontSize: FontSize.md, color: Colors.text, fontWeight: FontWeight.medium },
+  inviteList: { maxHeight: 320, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  inviteFriendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  inviteFriendName: { fontSize: FontSize.md, color: Colors.text, fontWeight: FontWeight.semibold },
+  inviteFriendHandle: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
   fieldError: { fontSize: FontSize.xs, color: Colors.error, fontWeight: FontWeight.semibold, marginTop: Spacing.xs },
   inlineAction: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 6, marginTop: 2 },
   inlineActionText: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: FontWeight.medium },
