@@ -24,6 +24,11 @@ const DEFAULT_CENTER: LatLng = { lat: -26.2041, lng: 28.0473 };
 const CATEGORY_PILLS = [
   { label: 'All', value: '' },
   ...PLAN_CATEGORIES.map((c) => ({ label: c, value: c })),
+  // Dietary filters — route to a keyword text search server-side (see
+  // DIETARY_QUERY in functions/index.js), not activity categories.
+  { label: 'Halal', value: 'Halal' },
+  { label: 'Vegan', value: 'Vegan' },
+  { label: 'Vegetarian', value: 'Vegetarian' },
 ];
 
 function haversineKm(a: LatLng, b: LatLng) {

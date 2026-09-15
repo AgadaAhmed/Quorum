@@ -62,6 +62,17 @@ import { useTheme, useThemedStyles } from '../lib/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 const REACTION_EMOJIS = ['+1', 'love', 'haha', 'wow', 'sad', 'fire'] as const;
+// The design system bans emoji, so reactions render as monochrome Ionicons.
+// The stored keys stay as these strings (don't rename — existing reactions are
+// keyed by them); we only map each key to an icon at render time.
+const REACTION_ICON: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  '+1': 'thumbs-up',
+  love: 'heart',
+  haha: 'happy',
+  wow: 'sparkles',
+  sad: 'sad',
+  fire: 'flame',
+};
 
 // How long a typing signal is considered "active" before it is ignored.
 const TYPING_ACTIVE_MS = 4000;
@@ -188,6 +199,7 @@ const ChatBubble = memo(function ChatBubble({
   onLongPress,
   onPressAuthor,
 }: ChatBubbleProps) {
+  const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
   const slideX = useRef(new Animated.Value(isOwn ? 40 : -40)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -300,7 +312,11 @@ const ChatBubble = memo(function ChatBubble({
                     mine ? ', selected' : ''
                   }`}
                 >
-                  <Text style={styles.reactionEmoji}>{emoji}</Text>
+                  <Ionicons
+                    name={REACTION_ICON[emoji] ?? 'ellipse'}
+                    size={13}
+                    color={Colors.text}
+                  />
                   <Text style={styles.reactionCount}>{uids.length}</Text>
                 </TouchableOpacity>
               );
@@ -316,7 +332,15 @@ const ChatBubble = memo(function ChatBubble({
 // Screen
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function ChatScreen() {
+export default function ChatScreen({
+  keyboardVerticalOffset = 0,
+}: {
+  // When rendered inside a tab (e.g. the Social tab's global chat), the bottom
+  // tab bar sits below this screen and the keyboard would otherwise hide the
+  // input. The embedding screen passes the tab-bar height here. Pushed
+  // full-screen routes (DMs, plan chat) leave it at 0.
+  keyboardVerticalOffset?: number;
+} = {}) {
   const router = useRouter();
   const { planId, planTitle, roomId, title, kind } = useLocalSearchParams<{
     planId?: string;
@@ -813,7 +837,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
         {loadingMessages ? (
           <View style={[styles.messageList, styles.skeletonList]}>
@@ -989,9 +1013,11 @@ export default function ChatScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={`React with ${emoji}`}
                       >
-                        <Text style={[styles.pickerEmojiText, active && styles.pickerEmojiTextActive]}>
-                          {emoji}
-                        </Text>
+                        <Ionicons
+                          name={REACTION_ICON[emoji] ?? 'ellipse'}
+                          size={22}
+                          color={active ? Colors.primary : Colors.text}
+                        />
                       </TouchableOpacity>
                     );
                   })}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -38,6 +39,10 @@ export default function ConnectScreen() {
   const router = useRouter();
   const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // The global chat renders inside this tab, above the bottom tab bar. Its
+  // KeyboardAvoidingView needs that height as an offset or the keyboard covers
+  // the input (the same screen used as a pushed DM route needs no offset).
+  const tabBarHeight = useBottomTabBarHeight();
   const [segment, setSegment] = useState<Segment>('map');
 
   // Map data (only fetched once the map segment is actually opened).
@@ -110,7 +115,7 @@ export default function ConnectScreen() {
   const body = useMemo(() => {
     switch (segment) {
       case 'chat':
-        return <ChatScreen />;
+        return <ChatScreen keyboardVerticalOffset={tabBarHeight} />;
       case 'friends':
         return <FriendsScreen />;
       case 'activity':
@@ -125,7 +130,7 @@ export default function ConnectScreen() {
           </View>
         );
     }
-  }, [segment, center, places, styles]);
+  }, [segment, center, places, styles, tabBarHeight]);
 
   return (
     <View style={styles.fill}>

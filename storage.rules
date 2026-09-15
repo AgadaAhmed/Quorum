@@ -11,6 +11,16 @@ service firebase.storage {
         && request.auth.uid in firestore.get(/databases/(default)/documents/plans/$(planId)).data.participants;
     }
 
+    // True iff the caller may post media to a DM room. Mirrors the /chats DM
+    // branch in firestore.rules: the room doc (chats/{roomId}) carries the two
+    // participant uids, created on chat open.
+    function dmMember(roomId) {
+      return isAuth()
+        && roomId.matches('dm__.*')
+        && firestore.exists(/databases/(default)/documents/chats/$(roomId))
+        && request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(roomId)).data.participants;
+    }
+
     // User avatars — any authed user can read; only the owner can write (<=5MB).
     match /avatars/{uid} {
       allow read: if isAuth();
@@ -39,11 +49,16 @@ service firebase.storage {
                    && request.resource.size <= 10 * 1024 * 1024;
     }
 
-    // Chat media — room id == plan id (path: chat-media/{roomId}/{file}).
+    // Chat media (path: chat-media/{roomId}/{file}). Three room kinds, matching
+    // the /chats branches in firestore.rules:
+    //   • plan chat   → roomId == planId, caller must be a plan participant
+    //   • global chat → roomId == 'global', any authed user
+    //   • DM          → roomId == dm__<a>__<b>, caller must be a room participant
     match /chat-media/{roomId}/{file} {
       allow read: if isAuth();
-      allow write: if planParticipant(roomId)
-                   && request.resource.size <= 10 * 1024 * 1024;
+      allow write: if isAuth()
+                   && request.resource.size <= 10 * 1024 * 1024
+                   && (roomId == 'global' || planParticipant(roomId) || dmMember(roomId));
     }
   }
 }

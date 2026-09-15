@@ -771,7 +771,11 @@ export default function ProfileScreen() {
       <Modal visible={editing} animationType="slide" transparent onRequestClose={closeEdit}>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          // Android already resizes the window for the keyboard (adjustResize,
+          // Expo's default softwareKeyboardLayoutMode). Adding behavior="height"
+          // on top of that double-compensates and makes this bottom-anchored
+          // sheet oscillate ("dancing"). Let the OS handle it on Android.
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.modalSheet}>
             {/* Modal header */}

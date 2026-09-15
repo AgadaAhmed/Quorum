@@ -180,6 +180,15 @@ const CATEGORY_TO_TYPES = {
 // instead of every business nearby (no truck-rental firms, plumbers, etc.).
 const DEFAULT_INCLUDED_TYPES = [...new Set(Object.values(CATEGORY_TO_TYPES).flat())];
 
+// Dietary filters. Google Places (New) has no structured "halal" attribute and
+// Nearby Search takes no keyword, so these route to Text Search instead, using
+// the mapped query. Keyed like a category so they flow through the same param.
+const DIETARY_QUERY = {
+  Halal: 'halal restaurant',
+  Vegan: 'vegan restaurant',
+  Vegetarian: 'vegetarian restaurant',
+};
+
 function placesCacheKey(lat, lng, category) {
   const r = (n) => Math.round(n * 1000) / 1000; // ~110m granularity
   // v2: bumped when the query (includedTypes) changed, so stale unfiltered
@@ -203,7 +212,7 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
   }
   // Clamp to a known category (or '') BEFORE it reaches the cache key: category
   // flows into the Firestore doc path, where a stray '/' would corrupt the path.
-  category = CATEGORY_TO_TYPES[category] ? category : '';
+  category = (CATEGORY_TO_TYPES[category] || DIETARY_QUERY[category]) ? category : '';
 
   const cacheRef = db.doc(`venuesCache/${placesCacheKey(lat, lng, category)}`);
   const cached = await cacheRef.get();
@@ -225,14 +234,21 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
     return { places: [], cached: false, capped: true };
   }
 
-  // A specific category uses its own types; "all" uses the curated union so we
-  // never fall back to an unfiltered (every-business) search.
-  const includedTypes = CATEGORY_TO_TYPES[category] || DEFAULT_INCLUDED_TYPES;
-  const body = {
-    maxResultCount: 20,
-    locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 4000 } },
-    includedTypes,
-  };
+  // Dietary filters (e.g. Halal) can't be expressed as Nearby-Search types, so
+  // they use Text Search with a keyword; everything else is a type-based Nearby
+  // Search ("all" = the curated union, so we never do an unfiltered search).
+  const dietaryQuery = DIETARY_QUERY[category];
+  const circle = { center: { latitude: lat, longitude: lng }, radius: 4000 };
+  const endpoint = dietaryQuery
+    ? 'https://places.googleapis.com/v1/places:searchText'
+    : 'https://places.googleapis.com/v1/places:searchNearby';
+  const body = dietaryQuery
+    ? { textQuery: dietaryQuery, maxResultCount: 20, locationBias: { circle } }
+    : {
+        maxResultCount: 20,
+        locationRestriction: { circle },
+        includedTypes: CATEGORY_TO_TYPES[category] || DEFAULT_INCLUDED_TYPES,
+      };
 
   // Any failure talking to Google — thrown fetch (timeout/DNS/reset), a non-OK
   // status, or a JSON parse error — routes through the same stale-cache fallback.
@@ -242,10 +258,9 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
     const t = setTimeout(() => ctrl.abort(), 10000);
     let resp;
     try {
-      // Places API (New) Nearby Search. Field mask is REQUIRED.
-      // NOTE: verify these X-Goog-FieldMask paths against ONE real response once a
-      // key exists — a wrong field name makes Google return 400.
-      resp = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      // Places API (New). Field mask is REQUIRED and is identical for Nearby
+      // and Text Search (both return `places[]` with these fields).
+      resp = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
