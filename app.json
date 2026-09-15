@@ -30,7 +30,21 @@
         "googleMaps": {
           "apiKey": "AIzaSyBHicbS4WQuCbIK2L8Q9Ql6cG1lXoSU_Zg"
         }
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "quorums.co.za",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",
