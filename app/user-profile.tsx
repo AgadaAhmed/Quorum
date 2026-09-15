@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -660,8 +661,11 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
   // Cancels styles.content's padding so the banner reaches the scroll edges,
   // matching the edge-to-edge treatment used on the user's own profile screen.
   profileBanner: {
+    // Full-bleed: span the whole screen width (width:'100%' would only be the
+    // padded content width, leaving the banner short on the right).
+    width: Dimensions.get('window').width,
     marginTop: -Spacing.container,
-    marginHorizontal: -Spacing.container,
+    marginLeft: -Spacing.container,
     borderRadius: 0,
   },
 

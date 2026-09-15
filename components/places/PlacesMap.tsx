@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,18 +38,6 @@ export default function PlacesMap({ center, places, onPickVenue }: Props) {
   const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<Place | null>(null);
-
-  // react-native-maps snapshots each custom marker view when tracksViewChanges
-  // is false. If it's false from the start, the snapshot happens before the
-  // Ionicon glyph has rasterized, so pins render as empty "black dots". Keep it
-  // true until the markers have painted, then freeze them for performance.
-  const [tracksChanges, setTracksChanges] = useState(true);
-  useEffect(() => {
-    setTracksChanges(true);
-    const t = setTimeout(() => setTracksChanges(false), 1200);
-    return () => clearTimeout(t);
-    // Re-track on selection change too, so the active-pin restyle actually paints.
-  }, [places, selected]);
 
   const Maps = useMemo(() => {
     if (isExpoGo) return null;
@@ -100,20 +88,25 @@ export default function PlacesMap({ center, places, onPickVenue }: Props) {
         onPress={() => setSelected(null)}
       >
         {places.map((p) => (
+          // Native pin (no custom child view). Custom marker views render as
+          // black boxes on Android because the vector-icon child isn't ready when
+          // the marker is rasterized; the native pin always draws. title +
+          // description give a tappable callout with the venue info.
           <Marker
             key={p.placeId}
             coordinate={{ latitude: p.lat, longitude: p.lng }}
             onPress={() => setSelected(p)}
-            tracksViewChanges={tracksChanges}
-          >
-            <View style={[styles.pin, selected?.placeId === p.placeId && styles.pinActive]}>
-              <Ionicons
-                name="location"
-                size={16}
-                color={selected?.placeId === p.placeId ? Colors.background : Colors.text}
-              />
-            </View>
-          </Marker>
+            pinColor="#222222"
+            title={p.name}
+            description={[
+              p.category,
+              typeof p.rating === 'number'
+                ? `★ ${p.rating.toFixed(1)}${p.userRatingCount ? ` (${p.userRatingCount})` : ''}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join('  ·  ')}
+          />
         ))}
       </MapView>
 

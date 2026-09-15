@@ -77,6 +77,9 @@ export default function HomeScreen() {
   const [photoURL, setPhotoURL] = useState<string | null>(
     auth.currentUser?.photoURL || null
   );
+  // GIF/animated avatar fields — Home showed only uploaded avatars before.
+  const [avatarGifUrl, setAvatarGifUrl] = useState<string | undefined>();
+  const [avatarStillUrl, setAvatarStillUrl] = useState<string | undefined>();
 
   // ---- Auth (single listener feeds uid + display name + avatar) ----
   useEffect(() => {
@@ -97,6 +100,8 @@ export default function HomeScreen() {
       const data = snap.data();
       if (data?.displayName) setDisplayName(data.displayName);
       if (data?.avatarUrl) setPhotoURL(data.avatarUrl);
+      setAvatarGifUrl(data?.avatarGifUrl || undefined);
+      setAvatarStillUrl(data?.avatarStillUrl || undefined);
     });
     return unsub;
   }, [uid]);
@@ -505,6 +510,9 @@ export default function HomeScreen() {
               testID="home-avatar"
               name={displayName}
               uploadUrl={photoURL || undefined}
+              gifUrl={avatarGifUrl}
+              stillUrl={avatarStillUrl}
+              animated
               imageStyle={styles.avatarImage}
               fallbackStyle={styles.avatarFallback}
               initialStyle={styles.avatarLetter}
