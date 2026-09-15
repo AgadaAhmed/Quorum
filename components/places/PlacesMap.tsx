@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +38,18 @@ export default function PlacesMap({ center, places, onPickVenue }: Props) {
   const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<Place | null>(null);
+
+  // react-native-maps snapshots each custom marker view when tracksViewChanges
+  // is false. If it's false from the start, the snapshot happens before the
+  // Ionicon glyph has rasterized, so pins render as empty "black dots". Keep it
+  // true until the markers have painted, then freeze them for performance.
+  const [tracksChanges, setTracksChanges] = useState(true);
+  useEffect(() => {
+    setTracksChanges(true);
+    const t = setTimeout(() => setTracksChanges(false), 1200);
+    return () => clearTimeout(t);
+    // Re-track on selection change too, so the active-pin restyle actually paints.
+  }, [places, selected]);
 
   const Maps = useMemo(() => {
     if (isExpoGo) return null;
@@ -92,7 +104,7 @@ export default function PlacesMap({ center, places, onPickVenue }: Props) {
             key={p.placeId}
             coordinate={{ latitude: p.lat, longitude: p.lng }}
             onPress={() => setSelected(p)}
-            tracksViewChanges={false}
+            tracksViewChanges={tracksChanges}
           >
             <View style={[styles.pin, selected?.placeId === p.placeId && styles.pinActive]}>
               <Ionicons
