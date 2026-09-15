@@ -8,8 +8,10 @@ import { ONBOARDING_STEPS, StatusFilter } from './shared';
 
 export const FirstRunEmptyState = React.memo(function FirstRunEmptyState({
   onCreate,
+  onProfile,
 }: {
   onCreate: () => void;
+  onProfile?: () => void;
 }) {
   const Colors = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -23,6 +25,18 @@ export const FirstRunEmptyState = React.memo(function FirstRunEmptyState({
       />
       <Text style={styles.onboardingTitle}>Welcome to Quorum</Text>
       <Text style={styles.onboardingSubtitle}>Plan together, decide together.</Text>
+      {onProfile ? (
+        <TouchableOpacity
+          style={styles.profileBtn}
+          onPress={onProfile}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Set up your profile"
+        >
+          <Ionicons name="person-circle-outline" size={20} color={Colors.text} />
+          <Text style={styles.profileBtnText}>Set up your profile</Text>
+        </TouchableOpacity>
+      ) : null}
       <GlassCard style={styles.stepsCard} noAnimate>
         {ONBOARDING_STEPS.map((s) => (
           <View key={s.step} style={styles.stepRow}>
@@ -105,6 +119,23 @@ const makeStyles = (Colors: ThemePalette) => StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
     lineHeight: 22,
+  },
+  profileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceRaised,
+    marginBottom: 4,
+  },
+  profileBtnText: {
+    color: Colors.text,
+    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.sm,
   },
   stepsCard: {
     width: '100%',

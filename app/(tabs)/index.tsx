@@ -583,7 +583,7 @@ export default function HomeScreen() {
           }
           ListEmptyComponent={
             filter === 'all' && !search ? (
-              <FirstRunEmptyState onCreate={openCreatePlan} />
+              <FirstRunEmptyState onCreate={openCreatePlan} onProfile={() => router.push('/profile')} />
             ) : (
               <FilteredEmptyState search={search} filter={filter} />
             )

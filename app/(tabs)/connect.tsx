@@ -8,6 +8,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import PlacesMap from '../../components/places/PlacesMap';
 import TitlePopup from '../../components/places/TitlePopup';
+import ProfileAvatarButton from '../../components/ProfileAvatarButton';
+import InboxButton from '../../components/InboxButton';
 import ChatScreen from '../chat';
 import FriendsScreen from '../social';
 import ActivityScreen from './activity';
@@ -135,6 +137,13 @@ export default function ConnectScreen() {
   return (
     <View style={styles.fill}>
       <SafeAreaView edges={SAFE_EDGES} style={styles.barWrap}>
+        <View style={styles.topRow}>
+          <Text style={styles.tabTitle}>Social</Text>
+          <View style={styles.topRowActions}>
+            <InboxButton />
+            <ProfileAvatarButton />
+          </View>
+        </View>
         <View style={styles.segmentRow}>
           {SEGMENTS.map((s) => {
             const active = s.key === segment;
@@ -178,6 +187,25 @@ const makeStyles = (Colors: ThemePalette) =>
   StyleSheet.create({
     fill: { flex: 1, backgroundColor: Colors.background },
     barWrap: { backgroundColor: Colors.background },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.xs,
+      paddingBottom: Spacing.xs,
+    },
+    tabTitle: {
+      fontSize: FontSize.xl,
+      fontWeight: FontWeight.black,
+      color: Colors.text,
+      letterSpacing: -0.3,
+    },
+    topRowActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
     segmentRow: {
       flexDirection: 'row',
       gap: Spacing.xs,
