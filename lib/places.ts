@@ -4,6 +4,13 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 
+export interface PlaceReview {
+  author: string;
+  rating: number | null;
+  text: string;
+  relativeTime: string;
+}
+
 export interface Place {
   placeId: string;
   name: string;
@@ -12,6 +19,8 @@ export interface Place {
   lng: number;
   category: string;      // mapped app category ('' if none)
   rating?: number;
+  userRatingCount?: number; // how many Google ratings back the score
+  reviews?: PlaceReview[];  // up to 3 recent reviews from Google
   photoRef?: string;     // Google photo resource name, resolved via the proxy
   featured?: boolean;    // Feature B hook — always false in Plan A
   source: 'google';
@@ -66,6 +75,8 @@ export async function searchPlaces(center: LatLng, category = ''): Promise<Place
       lng: p.lng,
       category: p.category || mapGoogleTypesToCategory(p.types || []),
       rating: typeof p.rating === 'number' ? p.rating : undefined,
+      userRatingCount: typeof p.userRatingCount === 'number' ? p.userRatingCount : undefined,
+      reviews: Array.isArray(p.reviews) ? (p.reviews as PlaceReview[]) : undefined,
       photoRef: p.photoRef || undefined,
       featured: !!p.featured,
       source: 'google',

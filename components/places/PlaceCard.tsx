@@ -87,7 +87,10 @@ export default function PlaceCard({ place, distanceKm, variant = 'list', onPress
           {typeof place.rating === 'number' ? (
             <View style={styles.ratingRow}>
               <Ionicons name="star" size={12} color={Colors.textMuted} />
-              <Text style={styles.metaText}>{place.rating.toFixed(1)}</Text>
+              <Text style={styles.metaText}>
+                {place.rating.toFixed(1)}
+                {place.userRatingCount ? ` (${place.userRatingCount})` : ''}
+              </Text>
             </View>
           ) : null}
           {typeof distanceKm === 'number' ? (

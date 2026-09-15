@@ -266,7 +266,7 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': PLACES_API_KEY.value(),
           'X-Goog-FieldMask':
-            'places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.photos',
+            'places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.userRatingCount,places.reviews,places.photos',
         },
         body: JSON.stringify(body),
         signal: ctrl.signal,
@@ -293,6 +293,14 @@ exports.placesSearch = onCall({ secrets: [PLACES_API_KEY] }, async (req) => {
     lng: p.location ? p.location.longitude : lng,
     types: p.types || [],
     rating: typeof p.rating === 'number' ? p.rating : null,
+    userRatingCount: typeof p.userRatingCount === 'number' ? p.userRatingCount : null,
+    // Keep only the first 3 reviews, trimmed, so the cache doc stays small.
+    reviews: (p.reviews || []).slice(0, 3).map((r) => ({
+      author: (r.authorAttribution && r.authorAttribution.displayName) || 'Guest',
+      rating: typeof r.rating === 'number' ? r.rating : null,
+      text: ((r.text && r.text.text) || (r.originalText && r.originalText.text) || '').slice(0, 320),
+      relativeTime: r.relativePublishTimeDescription || '',
+    })),
     // Feature B (sponsored venues) will later set featured:true for paid places here.
     photoRef: p.photos && p.photos[0] ? p.photos[0].name : null, // "places/XX/photos/YY"
     source: 'google',

@@ -201,6 +201,9 @@ export default function PlacesScreen() {
       <TitlePopup
         visible={!!venue}
         venueName={venue?.name || ''}
+        rating={venue?.rating}
+        reviewCount={venue?.userRatingCount}
+        reviews={venue?.reviews}
         when={new Date()}
         onConfirm={(title) => venue && goToCreatePlan(venue, title)}
         onClose={closePopup}

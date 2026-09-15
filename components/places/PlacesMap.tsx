@@ -50,13 +50,18 @@ export default function PlacesMap({ center, places, onPickVenue }: Props) {
   }, []);
 
   if (!Maps) {
+    // Two distinct reasons the module is missing — say which, so a blank map in
+    // a real build isn't mistaken for the (expected) Expo Go limitation.
     return (
       <View style={styles.unavailable}>
         <Ionicons name="map-outline" size={32} color={Colors.textMuted} />
-        <Text style={styles.unavailableTitle}>Map needs the full app</Text>
+        <Text style={styles.unavailableTitle}>
+          {isExpoGo ? 'Map needs the full app' : "Map couldn't load"}
+        </Text>
         <Text style={styles.unavailableText}>
-          Maps aren&apos;t available in Expo Go. Use the list view here, or open the installed
-          build to see venues on the map.
+          {isExpoGo
+            ? 'Maps aren’t available in Expo Go — open the installed build to see venues on the map. Use the Places tab list in the meantime.'
+            : 'The map component failed to load on this build. Please reinstall the latest build; if it persists, let us know.'}
         </Text>
       </View>
     );
